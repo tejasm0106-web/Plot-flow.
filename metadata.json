@@ -1,0 +1,7 @@
+{
+  "name": "PlotFlow",
+  "description": "Immersive plotted development marketplace, 3D visualization, seller & document verification platform, and developer SaaS.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
