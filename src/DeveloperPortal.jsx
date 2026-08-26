@@ -29,7 +29,7 @@ import {
   X
 } from 'lucide-react';
 
-export default function DeveloperPortal({ townships, onUpdateTownship }) {
+export default function DeveloperPortal({ townships, onUpdateTownship, onAddTownship }) {
   const [selectedTownshipId, setSelectedTownshipId] = useState(townships[0]?.id || 'ts_01');
   const [activeSubTab, setActiveSubTab] = useState('inventory'); // 'overview', 'inventory', 'documents', 'leads'
   const [plotFilter, setPlotFilter] = useState('All'); // 'All', 'Available', 'Reserved', 'Booked'
@@ -38,7 +38,22 @@ export default function DeveloperPortal({ townships, onUpdateTownship }) {
   // Modals state
   const [showAddPlotModal, setShowAddPlotModal] = useState(false);
   const [showUploadDocModal, setShowUploadDocModal] = useState(false);
+  const [showAddTownshipModal, setShowAddTownshipModal] = useState(false);
   const [selectedPlotForEdit, setSelectedPlotForEdit] = useState(null);
+
+  // New Township Form State
+  const [newTsForm, setNewTsForm] = useState({
+    name: '',
+    developer: 'Prestige Plotted Townships',
+    location: 'Sarjapur Road, Bengaluru',
+    city: 'Bengaluru',
+    totalAcres: '35 Acres',
+    priceRange: '₹60 Lakh - ₹1.4 Cr',
+    pricePerSqFt: 4500,
+    reraId: 'PRM/KA/RERA/1250/303/PR/260826/009123',
+    approvalAuthority: 'BMRDA & RERA Approved',
+    totalPlots: 48
+  });
 
   // New Plot Form State
   const [newPlotNumber, setNewPlotNumber] = useState('');
@@ -242,6 +257,71 @@ export default function DeveloperPortal({ townships, onUpdateTownship }) {
     setShowUploadDocModal(false);
   };
 
+  // Handle Launch New Plotted Township Submit
+  const handleCreateTownshipSubmit = (e) => {
+    e.preventDefault();
+    if (!newTsForm.name.trim()) return;
+
+    const newId = `ts_${Date.now()}`;
+    const generatedPlots = Array.from({ length: 8 }).map((_, i) => ({
+      id: `plot_${newId}_${i + 1}`,
+      number: `P-${100 + i + 1}`,
+      size: i % 2 === 0 ? '1,500 sq.ft (30x50)' : '2,400 sq.ft (40x60)',
+      facing: i % 3 === 0 ? 'North-East' : i % 2 === 0 ? 'East' : 'North',
+      price: i % 2 === 0 ? '₹67.5 Lakh' : '₹1.08 Cr',
+      status: 'Available',
+      elevation: i === 0 ? 'Park Facing Corner' : 'Boulevard View',
+      legalStatus: 'RERA Cleared'
+    }));
+
+    const createdTownship = {
+      id: newId,
+      name: newTsForm.name.trim(),
+      developer: newTsForm.developer.trim() || 'Verified Builder Entity',
+      location: newTsForm.location.trim() || 'Bengaluru Suburbs',
+      city: newTsForm.city.trim() || 'Bengaluru',
+      totalAcres: newTsForm.totalAcres.trim() || '25 Acres',
+      totalPlots: generatedPlots.length,
+      availablePlots: generatedPlots.length,
+      priceRange: newTsForm.priceRange.trim() || '₹65 Lakh - ₹1.2 Cr',
+      pricePerSqFt: Number(newTsForm.pricePerSqFt) || 4500,
+      reraId: newTsForm.reraId.trim() || `PRM/KA/RERA/1250/303/PR/${Date.now().toString().slice(-6)}`,
+      approvalAuthority: newTsForm.approvalAuthority.trim() || 'BMRDA & RERA Approved',
+      distanceFromHub: '18 mins to Tech Park',
+      waterSource: 'BWSSB & Rainwater Harvesting',
+      powerInfra: 'Underground Cabling (BESCOM)',
+      completionDate: 'Q4 2026',
+      heroImage: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&q=80',
+      isHot: true,
+      legalSummary: {
+        reraApproved: true,
+        dcConverted: true,
+        bdaBmrdaSanctioned: true,
+        ecThirtyYears: 'Nil Encumbrance (Form 15)',
+        mutationRegistered: true
+      },
+      plots: generatedPlots
+    };
+
+    if (onAddTownship) {
+      onAddTownship(createdTownship);
+    }
+    setSelectedTownshipId(newId);
+    setShowAddTownshipModal(false);
+    setNewTsForm({
+      name: '',
+      developer: 'Prestige Plotted Townships',
+      location: 'Sarjapur Road, Bengaluru',
+      city: 'Bengaluru',
+      totalAcres: '35 Acres',
+      priceRange: '₹60 Lakh - ₹1.4 Cr',
+      pricePerSqFt: 4500,
+      reraId: 'PRM/KA/RERA/1250/303/PR/260826/009123',
+      approvalAuthority: 'BMRDA & RERA Approved',
+      totalPlots: 48
+    });
+  };
+
   return (
     <div className="space-y-6">
       {/* Top Header & Developer Identity */}
@@ -266,18 +346,29 @@ export default function DeveloperPortal({ townships, onUpdateTownship }) {
           </div>
         </div>
 
-        {/* Project Selector */}
+        {/* Project Selector & Add Township Button */}
         <div className="flex items-center space-x-3">
-          <label className="text-xs text-slate-400 font-medium">Select Township:</label>
-          <select
-            value={selectedTownshipId}
-            onChange={(e) => setSelectedTownshipId(e.target.value)}
-            className="bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs font-semibold text-white focus:outline-none focus:border-indigo-500 transition"
+          <div className="flex items-center space-x-2">
+            <label className="text-xs text-slate-400 font-medium hidden sm:inline">Active Enclave:</label>
+            <select
+              value={selectedTownshipId}
+              onChange={(e) => setSelectedTownshipId(e.target.value)}
+              className="bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs font-semibold text-white focus:outline-none focus:border-indigo-500 transition"
+            >
+              {townships.map(t => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            onClick={() => setShowAddTownshipModal(true)}
+            className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl flex items-center space-x-1.5 transition shadow"
           >
-            {townships.map(t => (
-              <option key={t.id} value={t.id}>{t.name}</option>
-            ))}
-          </select>
+            <Plus className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Launch New Township</span>
+            <span className="sm:hidden">New Project</span>
+          </button>
         </div>
       </div>
 
@@ -976,6 +1067,108 @@ export default function DeveloperPortal({ townships, onUpdateTownship }) {
                   className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition shadow-lg shadow-indigo-900/40"
                 >
                   Publish to Compliance Vault
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: LAUNCH NEW PLOTTED TOWNSHIP ================= */}
+      {showAddTownshipModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in fade-in max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-800">
+              <h3 className="text-lg font-bold text-white flex items-center space-x-2">
+                <Building2 className="w-5 h-5 text-indigo-400" />
+                <span>Launch New Plotted Enclave / Township</span>
+              </h3>
+              <button 
+                onClick={() => setShowAddTownshipModal(false)}
+                className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateTownshipSubmit} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Township Project Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Prestige Sanctuary Plotted Greens"
+                  value={newTsForm.name}
+                  onChange={(e) => setNewTsForm({ ...newTsForm, name: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">Developer / Builder Entity</label>
+                  <input
+                    type="text"
+                    value={newTsForm.developer}
+                    onChange={(e) => setNewTsForm({ ...newTsForm, developer: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">Location / Micro-Market</label>
+                  <input
+                    type="text"
+                    value={newTsForm.location}
+                    onChange={(e) => setNewTsForm({ ...newTsForm, location: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">Total Acres</label>
+                  <input
+                    type="text"
+                    value={newTsForm.totalAcres}
+                    onChange={(e) => setNewTsForm({ ...newTsForm, totalAcres: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1">Base Price / Sq.Ft (₹)</label>
+                  <input
+                    type="number"
+                    value={newTsForm.pricePerSqFt}
+                    onChange={(e) => setNewTsForm({ ...newTsForm, pricePerSqFt: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">RERA Sanction Registration Number</label>
+                <input
+                  type="text"
+                  value={newTsForm.reraId}
+                  onChange={(e) => setNewTsForm({ ...newTsForm, reraId: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-indigo-500 font-mono"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-800 flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAddTownshipModal(false)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition shadow-lg shadow-indigo-900/40"
+                >
+                  Publish Township Live
                 </button>
               </div>
             </form>

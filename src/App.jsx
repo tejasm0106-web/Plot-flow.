@@ -57,6 +57,11 @@ export default function App() {
     setTownships(prev => prev.map(t => t.id === updatedTownship.id ? updatedTownship : t));
   };
 
+  const handleAddTownship = (newTownship) => {
+    setTownships(prev => [newTownship, ...prev]);
+    setSelectedTownshipId(newTownship.id);
+  };
+
   const handleToggleShortlist = (townshipId) => {
     setShortlistedTownshipIds(prev => 
       prev.includes(townshipId) 
@@ -418,6 +423,7 @@ export default function App() {
             <DeveloperPortal
               townships={townships}
               onUpdateTownship={handleUpdateTownship}
+              onAddTownship={handleAddTownship}
             />
           </div>
         )}

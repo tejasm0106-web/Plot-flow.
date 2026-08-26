@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ShieldCheck, 
   Settings, 
@@ -34,14 +34,25 @@ import {
   ExternalLink, 
   KeyRound, 
   SlidersHorizontal,
-  ChevronRight
+  ChevronRight,
+  Send,
+  UserCheck,
+  Shield,
+  Copy
 } from 'lucide-react';
 
 import { 
-  INITIAL_PLATFORM_USERS, 
   INITIAL_SITE_SETTINGS, 
   INITIAL_AUDIT_LOGS 
 } from '../data/mockData';
+import { 
+  getStoredUsers, 
+  saveStoredUsers, 
+  getAdminCredentials, 
+  updateAdminCredentials, 
+  dispatchAdminCredentialEmail,
+  getEmailDispatchLogs
+} from '../services/userService';
 import { auth, firebaseConfig } from '../services/firebase';
 
 export default function AdminPanel({ 
@@ -50,16 +61,15 @@ export default function AdminPanel({
   onApproveProject, 
   onRejectProject 
 }) {
-  // Navigation Sub-Tabs
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'users' | 'settings' | 'approvals' | 'audit'
+  // Navigation Sub-Tabs: 'overview' | 'users' | 'admin_creds' | 'settings' | 'approvals' | 'audit'
+  const [activeTab, setActiveTab] = useState('overview');
 
-  // User Management State
-  const [usersList, setUsersList] = useState(INITIAL_PLATFORM_USERS);
+  // User Management State (Synchronized with localStorage & Auth)
+  const [usersList, setUsersList] = useState(() => getStoredUsers());
   const [userSearchQuery, setUserSearchQuery] = useState('');
   const [selectedRoleFilter, setSelectedRoleFilter] = useState('ALL');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState('ALL');
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
-  const [selectedUserForDetail, setSelectedUserForDetail] = useState(null);
   const [editingUserId, setEditingUserId] = useState(null);
   const [editUserRole, setEditUserRole] = useState('BUYER');
 
@@ -72,6 +82,14 @@ export default function AdminPanel({
     company: '',
     sendFirebaseInvite: true
   });
+
+  // Admin Credentials & Mailer State
+  const [adminCreds, setAdminCreds] = useState(() => getAdminCredentials());
+  const [adminPasswordInput, setAdminPasswordInput] = useState(adminCreds.password || 'Admin@2026');
+  const [adminPinInput, setAdminPinInput] = useState(adminCreds.securityPin || '2026');
+  const [emailLogs, setEmailLogs] = useState(() => getEmailDispatchLogs());
+  const [latestEmailPacket, setLatestEmailPacket] = useState(null);
+  const [copiedKey, setCopiedKey] = useState(false);
 
   // Site-Wide Settings State
   const [siteSettings, setSiteSettings] = useState(INITIAL_SITE_SETTINGS);
@@ -110,6 +128,12 @@ export default function AdminPanel({
   // Audit Logs State
   const [auditLogs, setAuditLogs] = useState(INITIAL_AUDIT_LOGS);
 
+  // Refresh user list on mount or tab focus
+  useEffect(() => {
+    setUsersList(getStoredUsers());
+    setEmailLogs(getEmailDispatchLogs());
+  }, [activeTab]);
+
   // Filtered Users
   const filteredUsers = usersList.filter(user => {
     const matchesSearch = 
@@ -126,30 +150,36 @@ export default function AdminPanel({
 
   // User Actions
   const handleToggleUserStatus = (userId) => {
-    setUsersList(prev => prev.map(u => {
+    const updated = usersList.map(u => {
       if (u.uid === userId) {
         const nextStatus = u.status === 'Active' ? 'Suspended' : 'Active';
         addAuditLog('USER_STATUS_TOGGLED', `Changed status of ${u.email} to ${nextStatus}`, 'WARNING');
         return { ...u, status: nextStatus };
       }
       return u;
-    }));
+    });
+    setUsersList(updated);
+    saveStoredUsers(updated);
   };
 
   const handleSaveUserRole = (userId) => {
-    setUsersList(prev => prev.map(u => {
+    const updated = usersList.map(u => {
       if (u.uid === userId) {
         addAuditLog('USER_ROLE_UPDATED', `Elevated / modified role of ${u.email} to ${editUserRole}`, 'INFO');
         return { ...u, role: editUserRole };
       }
       return u;
-    }));
+    });
+    setUsersList(updated);
+    saveStoredUsers(updated);
     setEditingUserId(null);
   };
 
   const handleDeleteUser = (userId, userEmail) => {
     if (confirm(`Are you sure you want to remove user ${userEmail}? This will revoke their platform access.`)) {
-      setUsersList(prev => prev.filter(u => u.uid !== userId));
+      const updated = usersList.filter(u => u.uid !== userId);
+      setUsersList(updated);
+      saveStoredUsers(updated);
       addAuditLog('USER_DELETED', `Deleted user account ${userEmail}`, 'CRITICAL');
     }
   };
@@ -165,7 +195,7 @@ export default function AdminPanel({
       phone: newUserForm.phone || '+91 98000 00000',
       role: newUserForm.role,
       company: newUserForm.company || (newUserForm.role === 'DEVELOPER' ? 'Plotted Developer Partner' : 'Individual User'),
-      authProvider: 'firebase.google',
+      authProvider: 'firebase.auth',
       status: 'Active',
       verified: true,
       lastSignIn: 'Invitation Dispatched',
@@ -173,7 +203,9 @@ export default function AdminPanel({
       assignedProjectsCount: newUserForm.role === 'DEVELOPER' ? 1 : 0
     };
 
-    setUsersList(prev => [newCreatedUser, ...prev]);
+    const updated = [newCreatedUser, ...usersList];
+    setUsersList(updated);
+    saveStoredUsers(updated);
     addAuditLog('USER_INVITED', `Dispatched Firebase Auth onboarding invitation to ${newUserForm.email} as ${newUserForm.role}`, 'INFO');
     setIsInviteModalOpen(false);
     setNewUserForm({
@@ -184,6 +216,19 @@ export default function AdminPanel({
       company: '',
       sendFirebaseInvite: true
     });
+  };
+
+  // Admin Credentials Update and Email Dispatch Handler
+  const handleUpdatePasswordAndSendMail = () => {
+    if (!adminPasswordInput || adminPasswordInput.length < 6) {
+      alert('Admin password must be at least 6 characters.');
+      return;
+    }
+    const { updated, emailDispatchResult } = updateAdminCredentials(adminPasswordInput, adminPinInput);
+    setAdminCreds(updated);
+    setLatestEmailPacket(emailDispatchResult);
+    setEmailLogs(getEmailDispatchLogs());
+    addAuditLog('ADMIN_PASSWORD_UPDATED', `Master credentials updated & email dispatched to tejastej094@gmail.com`, 'SUCCESS');
   };
 
   // Approval Actions
@@ -213,7 +258,7 @@ export default function AdminPanel({
       setFirebaseSyncSuccess(true);
       addAuditLog('FIREBASE_AUTH_SYNCED', 'Synchronized Firebase project token claims and auth directory.', 'INFO');
       setTimeout(() => setFirebaseSyncSuccess(false), 3000);
-    }, 1200);
+    }, 1000);
   };
 
   // Helper to add audit logs
@@ -247,15 +292,15 @@ export default function AdminPanel({
                   Super Admin Master Console
                 </h1>
                 <span className="px-3 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-bold">
-                  Tejas (Owner)
+                  Tejas (Master Owner)
                 </span>
                 <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold flex items-center space-x-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <span>Firebase Auth Connected</span>
+                  <span>Active Session</span>
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-1">
-                Authenticated User: <strong className="text-amber-300">{currentUser?.email || 'tejastej094@gmail.com'}</strong> • Project ID: <span className="font-mono text-slate-300">{firebaseConfig.projectId}</span> • Full Platform Privileges
+                Admin ID: <strong className="text-amber-300">tejastej094@gmail.com</strong> • Full Platform Privileges & Escrow Release Authority
               </p>
             </div>
           </div>
@@ -263,12 +308,20 @@ export default function AdminPanel({
           {/* Quick Actions & Live Sync */}
           <div className="flex flex-wrap items-center gap-3">
             <button
+              onClick={() => setActiveTab('admin_creds')}
+              className="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-xl flex items-center space-x-2 transition shadow shadow-amber-950/50"
+            >
+              <Mail className="w-3.5 h-3.5" />
+              <span>Admin Password & Mailer</span>
+            </button>
+
+            <button
               onClick={handleSyncFirebaseAuth}
               disabled={firebaseSyncing}
               className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center space-x-2 transition shadow"
             >
               <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${firebaseSyncing ? 'animate-spin' : ''}`} />
-              <span>{firebaseSyncing ? 'Syncing Firebase...' : 'Sync Auth State'}</span>
+              <span>{firebaseSyncing ? 'Syncing...' : 'Sync Auth State'}</span>
             </button>
 
             {/* Platform Maintenance Mode Switch */}
@@ -276,7 +329,7 @@ export default function AdminPanel({
               <Power className={`w-4 h-4 ${siteSettings.maintenanceMode ? 'text-rose-400 animate-pulse' : 'text-emerald-400'}`} />
               <div className="text-xs">
                 <span className="text-white font-bold block text-[11px]">Maintenance Mode</span>
-                <span className="text-[10px] text-slate-400">{siteSettings.maintenanceMode ? 'Active (Restricted)' : 'Inactive (Normal)'}</span>
+                <span className="text-[10px] text-slate-400">{siteSettings.maintenanceMode ? 'Active (Restricted)' : 'Normal'}</span>
               </div>
               <button
                 onClick={() => {
@@ -299,7 +352,7 @@ export default function AdminPanel({
         {firebaseSyncSuccess && (
           <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs font-semibold flex items-center space-x-2 animate-fadeIn">
             <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-            <span>Firebase Auth directory, active session tokens, and security claims synchronized successfully.</span>
+            <span>Platform auth directory, active session tokens, and security claims synchronized successfully.</span>
           </div>
         )}
       </div>
@@ -328,6 +381,18 @@ export default function AdminPanel({
         >
           <Users className="w-4 h-4" />
           <span>User Management ({usersList.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('admin_creds')}
+          className={`px-4 py-2.5 rounded-xl transition flex items-center space-x-2 flex-shrink-0 ${
+            activeTab === 'admin_creds' 
+              ? 'bg-amber-600 text-white shadow-lg shadow-amber-950/40' 
+              : 'bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-white'
+          }`}
+        >
+          <KeyRound className="w-4 h-4" />
+          <span>Admin Password & Mailer</span>
         </button>
 
         <button
@@ -411,116 +476,170 @@ export default function AdminPanel({
             </div>
           </div>
 
-          {/* System Health & Fast Overview Matrix */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-5 shadow-xl">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-bold text-white">Firebase & Service Health Matrix</h3>
-                  <p className="text-xs text-slate-400">Real-time status of authentication, 3D physics rendering, and government registry sync.</p>
-                </div>
-                <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-xl border border-emerald-500/30">
-                  99.98% Uptime
-                </span>
+          {/* Quick Super Admin Credentials Banner */}
+          <div className="bg-slate-950 border border-amber-500/30 rounded-3xl p-6 sm:p-8 space-y-5 shadow-xl flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2 text-amber-400 font-bold text-sm">
+                <ShieldCheck className="w-5 h-5" />
+                <span>Super Administrator Master Account</span>
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-white flex items-center space-x-2">
-                      <Database className="w-4 h-4 text-indigo-400" />
-                      <span>Firebase Auth & Tokens</span>
-                    </span>
-                    <span className="text-emerald-400 font-bold text-[10px]">Operational</span>
-                  </div>
-                  <p className="text-[11px] text-slate-400">Google Identity Provider, custom role claims & session tokens active.</p>
-                </div>
-
-                <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-white flex items-center space-x-2">
-                      <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                      <span>Kaveri-2 Sub-Registrar Sync</span>
-                    </span>
-                    <span className="text-emerald-400 font-bold text-[10px]">Synced (30m Interval)</span>
-                  </div>
-                  <p className="text-[11px] text-slate-400">State land registry 30-year Form 15 EC verification active.</p>
-                </div>
-
-                <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-white flex items-center space-x-2">
-                      <Sparkles className="w-4 h-4 text-amber-400" />
-                      <span>3D Sun-Path Solar Engine</span>
-                    </span>
-                    <span className="text-emerald-400 font-bold text-[10px]">60 FPS Ready</span>
-                  </div>
-                  <p className="text-[11px] text-slate-400">Isometric perspective, shadow casting & Vastu Ishanya calculation engine.</p>
-                </div>
-
-                <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-white flex items-center space-x-2">
-                      <Lock className="w-4 h-4 text-indigo-400" />
-                      <span>Escrow Token Vault</span>
-                    </span>
-                    <span className="text-emerald-400 font-bold text-[10px]">Locked & Insured</span>
-                  </div>
-                  <p className="text-[11px] text-slate-400">Refundable ₹25,000 reservation tokens backed by ICICI/HDFC escrow.</p>
-                </div>
-              </div>
+              <p className="text-xs text-slate-300 max-w-xl">
+                The master administrator account is linked to <strong className="text-white">tejastej094@gmail.com</strong>. You can change your password anytime or dispatch an instant copy of login credentials and session keys directly to your email.
+              </p>
             </div>
 
-            {/* Quick Super Admin Profile Spec */}
-            <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-5 shadow-xl flex flex-col justify-between">
-              <div className="space-y-4">
-                <h3 className="text-base font-bold text-white">Owner Security Credentials</h3>
-                <div className="bg-slate-900/80 p-4 rounded-2xl border border-slate-800 space-y-2.5 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Account:</span>
-                    <span className="font-bold text-white">Tejas</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Primary Email:</span>
-                    <span className="font-mono text-amber-300 text-[11px] truncate max-w-[150px]">tejastej094@gmail.com</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Role Privilege:</span>
-                    <span className="font-bold text-emerald-400">SUPER_ADMIN (L1)</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Master PIN:</span>
-                    <span className="font-mono text-slate-300">•••• (2026)</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">2FA Status:</span>
-                    <span className="text-emerald-400 font-bold">Enforced</span>
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setActiveTab('users')}
-                className="w-full py-3 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/40 text-amber-300 font-bold text-xs rounded-xl flex items-center justify-center space-x-2 transition"
-              >
-                <Users className="w-4 h-4" />
-                <span>Manage User Accounts →</span>
-              </button>
-            </div>
+            <button
+              onClick={() => setActiveTab('admin_creds')}
+              className="px-5 py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-amber-950/40 flex items-center space-x-2 flex-shrink-0 transition"
+            >
+              <Mail className="w-4 h-4" />
+              <span>Configure Password & Dispatch Email →</span>
+            </button>
           </div>
         </div>
       )}
 
-      {/* ================= TAB 2: USER MANAGEMENT ================= */}
+      {/* ================= TAB 2: ADMIN PASSWORD & MAILER GATEWAY ================= */}
+      {activeTab === 'admin_creds' && (
+        <div className="space-y-6">
+          <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+              <div>
+                <h3 className="text-lg font-bold text-white flex items-center space-x-2">
+                  <KeyRound className="w-5 h-5 text-amber-400" />
+                  <span>Super Admin Password & Transactional Mailer</span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Manage your master login credentials and dispatch encrypted access packages directly to <strong>tejastej094@gmail.com</strong>.
+                </p>
+              </div>
+
+              <div className="px-3 py-1 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-400 text-xs font-mono font-bold flex items-center space-x-2">
+                <Shield className="w-4 h-4" />
+                <span>Super Admin (Level 1)</span>
+              </div>
+            </div>
+
+            {/* Password Configuration Form */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-slate-900/70 border border-slate-800 p-5 rounded-2xl space-y-4">
+                <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Credentials Editor</h4>
+                
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <label className="text-slate-400 font-semibold block mb-1">Super Admin Email (Immutable)</label>
+                    <input
+                      type="text"
+                      disabled
+                      value="tejastej094@gmail.com"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-amber-300 font-mono text-xs cursor-not-allowed opacity-90"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-slate-300 font-semibold block mb-1">New Master Password *</label>
+                    <input
+                      type="text"
+                      value={adminPasswordInput}
+                      onChange={(e) => setAdminPasswordInput(e.target.value)}
+                      placeholder="e.g. Admin@2026"
+                      className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3.5 py-2.5 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-slate-300 font-semibold block mb-1">Security PIN (4 Digits)</label>
+                    <input
+                      type="text"
+                      value={adminPinInput}
+                      onChange={(e) => setAdminPinInput(e.target.value)}
+                      placeholder="2026"
+                      className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3.5 py-2.5 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleUpdatePasswordAndSendMail}
+                    className="w-full py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-amber-950/40 flex items-center justify-center space-x-2 transition mt-2"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span>Save Password & Drop Mail to tejastej094@gmail.com</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Live Dispatch Preview */}
+              <div className="bg-slate-900/70 border border-slate-800 p-5 rounded-2xl space-y-4 flex flex-col justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Automated Transactional Mail Preview</h4>
+                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 text-xs font-mono space-y-2 text-slate-300">
+                    <div className="text-slate-500 border-b border-slate-800/80 pb-1 flex justify-between">
+                      <span>TO:</span>
+                      <span className="text-amber-300">tejastej094@gmail.com</span>
+                    </div>
+                    <div className="text-slate-500 border-b border-slate-800/80 pb-1 flex justify-between">
+                      <span>SUBJECT:</span>
+                      <span className="text-white text-[11px]">🔐 PlotFlow 3D Master Admin Credentials & Access Key</span>
+                    </div>
+                    <div className="pt-1 text-[11px] text-slate-400 space-y-1">
+                      <p className="text-white font-semibold">Hello Tejas,</p>
+                      <p>Your PlotFlow 3D master administrator credentials are active:</p>
+                      <p className="text-emerald-400 font-bold">• Email: tejastej094@gmail.com</p>
+                      <p className="text-amber-300 font-bold">• Password: {adminPasswordInput || '••••••••'}</p>
+                      <p className="text-indigo-300">• PIN: {adminPinInput || '2026'}</p>
+                      <p className="text-slate-500 text-[10px] pt-1">Dispatched via PlotFlow Cloud SMTP with 256-bit AES encryption.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-3">
+                  <div className="flex items-center space-x-2 text-[11px] text-emerald-400">
+                    <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                    <span>Instant delivery confirmation to tejastej094@gmail.com</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Email Dispatch History Logs */}
+            {emailLogs.length > 0 && (
+              <div className="pt-4 border-t border-slate-800 space-y-3">
+                <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Email Dispatch Audit Logs ({emailLogs.length})</h4>
+                <div className="space-y-2">
+                  {emailLogs.map((log) => (
+                    <div key={log.id} className="p-3 bg-slate-900/80 border border-slate-800 rounded-xl flex items-center justify-between text-xs">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                          <Mail className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="text-white font-bold block">{log.subject}</span>
+                          <span className="text-[10px] text-slate-400">Sent to: {log.recipient} • {log.timestamp}</span>
+                        </div>
+                      </div>
+                      <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 text-[10px] font-bold border border-emerald-500/30">
+                        {log.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ================= TAB 3: USER MANAGEMENT ================= */}
       {activeTab === 'users' && (
         <div className="space-y-6">
           {/* User Management Toolbar */}
           <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <h3 className="text-lg font-bold text-white">User Directory & Role Access Control</h3>
+                <h3 className="text-lg font-bold text-white">Registered User Directory & Roles</h3>
                 <p className="text-xs text-slate-400">
-                  Manage Firebase authenticated users, assign developer/buyer permissions, and grant legal auditor credentials.
+                  Real registered buyers and developers. Manage permissions, activate/suspend accounts, or inspect onboarding details.
                 </p>
               </div>
 
@@ -539,7 +658,7 @@ export default function AdminPanel({
                 <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                 <input
                   type="text"
-                  placeholder="Search user by name, email, phone..."
+                  placeholder="Search by name, email, phone..."
                   value={userSearchQuery}
                   onChange={(e) => setUserSearchQuery(e.target.value)}
                   className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
@@ -601,147 +720,123 @@ export default function AdminPanel({
                       </td>
                     </tr>
                   ) : (
-                    filteredUsers.map((user) => {
-                      const isCurrentUser = user.email === currentUser?.email;
-                      const isEditingThisUser = editingUserId === user.uid;
-
-                      return (
-                        <tr key={user.uid} className="hover:bg-slate-900/40 transition">
-                          {/* User Identity */}
-                          <td className="p-4">
-                            <div className="flex items-center space-x-3">
-                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs ${
-                                user.role === 'SUPER_ADMIN'
-                                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
-                                  : user.role === 'DEVELOPER'
-                                  ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/40'
-                                  : user.role === 'LEGAL_AUDITOR'
-                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                                  : 'bg-slate-800 text-slate-300 border border-slate-700'
-                              }`}>
-                                {user.name.charAt(0)}
-                              </div>
-                              <div>
-                                <div className="flex items-center space-x-1.5">
-                                  <span className="font-bold text-white">{user.name}</span>
-                                  {isCurrentUser && (
-                                    <span className="text-[9px] bg-amber-500/20 text-amber-300 font-bold px-1.5 py-0.2 rounded border border-amber-500/40">
-                                      YOU
-                                    </span>
-                                  )}
-                                </div>
-                                <span className="text-slate-400 text-[11px] block">{user.email}</span>
-                              </div>
-                            </div>
-                          </td>
-
-                          {/* Role */}
-                          <td className="p-4">
-                            {isEditingThisUser ? (
-                              <div className="flex items-center space-x-1.5">
-                                <select
-                                  value={editUserRole}
-                                  onChange={(e) => setEditUserRole(e.target.value)}
-                                  className="bg-slate-900 border border-amber-500 rounded-lg px-2 py-1 text-xs text-white focus:outline-none"
-                                >
-                                  <option value="BUYER">BUYER</option>
-                                  <option value="DEVELOPER">DEVELOPER</option>
-                                  <option value="LEGAL_AUDITOR">LEGAL_AUDITOR</option>
-                                  <option value="SUPER_ADMIN">SUPER_ADMIN</option>
-                                </select>
-                                <button
-                                  onClick={() => handleSaveUserRole(user.uid)}
-                                  className="p-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg"
-                                >
-                                  <Check className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => setEditingUserId(null)}
-                                  className="p-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg"
-                                >
-                                  <X className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            ) : (
-                              <span className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${
-                                user.role === 'SUPER_ADMIN'
-                                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                                  : user.role === 'DEVELOPER'
-                                  ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
-                                  : user.role === 'LEGAL_AUDITOR'
-                                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                                  : 'bg-slate-800 text-slate-300 border-slate-700'
-                              }`}>
-                                <span>{user.role}</span>
-                              </span>
-                            )}
-                          </td>
-
-                          {/* Company / Entity */}
-                          <td className="p-4 text-slate-300">
-                            <span className="block font-medium truncate max-w-[180px]">{user.company}</span>
-                            <span className="text-[10px] text-slate-500">Joined: {user.createdAt}</span>
-                          </td>
-
-                          {/* Auth Provider */}
-                          <td className="p-4">
-                            <span className="text-slate-400 font-mono text-[11px] bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
-                              {user.authProvider}
-                            </span>
-                          </td>
-
-                          {/* Status */}
-                          <td className="p-4">
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                              user.status === 'Active'
-                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                                : user.status === 'Pending Verification'
-                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                                : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                    filteredUsers.map((user) => (
+                      <tr key={user.uid} className="hover:bg-slate-900/40 transition">
+                        <td className="p-4">
+                          <div className="flex items-center space-x-3">
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs ${
+                              user.role === 'SUPER_ADMIN'
+                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                : user.role === 'DEVELOPER'
+                                ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
+                                : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                             }`}>
-                              {user.status}
-                            </span>
-                          </td>
+                              {user.name.charAt(0)}
+                            </div>
+                            <div>
+                              <span className="font-bold text-white block">{user.name}</span>
+                              <span className="text-[11px] text-slate-400">{user.email}</span>
+                            </div>
+                          </div>
+                        </td>
 
-                          {/* Actions */}
-                          <td className="p-4 text-right space-x-1.5">
+                        <td className="p-4">
+                          {editingUserId === user.uid ? (
+                            <div className="flex items-center space-x-2">
+                              <select
+                                value={editUserRole}
+                                onChange={(e) => setEditUserRole(e.target.value)}
+                                className="bg-slate-900 border border-amber-500 text-white rounded-lg px-2 py-1 text-xs"
+                              >
+                                <option value="BUYER">BUYER</option>
+                                <option value="DEVELOPER">DEVELOPER</option>
+                                <option value="LEGAL_AUDITOR">LEGAL_AUDITOR</option>
+                                <option value="SUPER_ADMIN">SUPER_ADMIN</option>
+                              </select>
+                              <button
+                                onClick={() => handleSaveUserRole(user.uid)}
+                                className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-500"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => setEditingUserId(null)}
+                                className="p-1 bg-slate-800 text-slate-400 rounded hover:text-white"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                              user.role === 'SUPER_ADMIN'
+                                ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                                : user.role === 'DEVELOPER'
+                                ? 'bg-indigo-500/10 text-indigo-300 border-indigo-500/30'
+                                : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                            }`}>
+                              {user.role}
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="p-4 text-slate-300">
+                          {user.company || 'Individual Buyer'}
+                        </td>
+
+                        <td className="p-4">
+                          <span className="font-mono text-[11px] text-slate-400">
+                            {user.authProvider || 'email.password'}
+                          </span>
+                        </td>
+
+                        <td className="p-4">
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                            user.status === 'Active'
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                              : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                          }`}>
+                            {user.status}
+                          </span>
+                        </td>
+
+                        <td className="p-4 text-right">
+                          <div className="flex items-center justify-end space-x-2">
                             <button
                               onClick={() => {
                                 setEditingUserId(user.uid);
                                 setEditUserRole(user.role);
                               }}
-                              title="Edit Role & Permissions"
-                              className="p-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-amber-400 rounded-lg border border-slate-800 transition inline-block"
+                              title="Edit Role"
+                              className="p-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-lg transition"
                             >
                               <Edit3 className="w-3.5 h-3.5" />
                             </button>
-                            
-                            {!isCurrentUser && (
-                              <>
-                                <button
-                                  onClick={() => handleToggleUserStatus(user.uid)}
-                                  title={user.status === 'Active' ? 'Suspend Access' : 'Activate Access'}
-                                  className={`p-1.5 rounded-lg border transition inline-block ${
-                                    user.status === 'Active'
-                                      ? 'bg-slate-900 hover:bg-amber-950/40 text-slate-400 hover:text-amber-400 border-slate-800'
-                                      : 'bg-emerald-950/40 text-emerald-400 border-emerald-500/40'
-                                  }`}
-                                >
-                                  <Power className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteUser(user.uid, user.email)}
-                                  title="Delete User"
-                                  className="p-1.5 bg-slate-900 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 rounded-lg border border-slate-800 transition inline-block"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </>
+
+                            <button
+                              onClick={() => handleToggleUserStatus(user.uid)}
+                              title={user.status === 'Active' ? 'Suspend Access' : 'Activate User'}
+                              className={`p-1.5 border rounded-lg transition ${
+                                user.status === 'Active' 
+                                  ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-amber-400' 
+                                  : 'bg-emerald-950/40 border-emerald-500/30 text-emerald-400'
+                              }`}
+                            >
+                              <Power className="w-3.5 h-3.5" />
+                            </button>
+
+                            {user.email !== 'tejastej094@gmail.com' && (
+                              <button
+                                onClick={() => handleDeleteUser(user.uid, user.email)}
+                                title="Remove User"
+                                className="p-1.5 bg-slate-900 hover:bg-rose-950/40 border border-slate-800 hover:border-rose-500/40 text-slate-400 hover:text-rose-400 rounded-lg transition"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             )}
-                          </td>
-                        </tr>
-                      );
-                    })
+                          </div>
+                        </td>
+                      </tr>
+                    ))
                   )}
                 </tbody>
               </table>
@@ -750,48 +845,40 @@ export default function AdminPanel({
         </div>
       )}
 
-      {/* ================= TAB 3: SITE-WIDE SETTINGS ================= */}
+      {/* ================= TAB 4: SITE-WIDE SETTINGS ================= */}
       {activeTab === 'settings' && (
         <div className="space-y-6">
-          {/* Header & Save Action */}
-          <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-bold text-white">Global Platform & Escrow Configuration</h3>
-              <p className="text-xs text-slate-400">
-                Configure real-time parameters for token escrow fees, state land registry sync, and security enforcement.
-              </p>
+              <h3 className="text-lg font-bold text-white">Platform Settings & Global Parameters</h3>
+              <p className="text-xs text-slate-400">Configure escrow fees, RERA gate strictness, and third-party webhooks.</p>
             </div>
-
             <button
               onClick={handleSaveSettings}
-              className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-950/50 flex items-center space-x-2 transition flex-shrink-0"
+              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-950/40 transition"
             >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>Save & Apply Settings</span>
+              Save Configuration
             </button>
           </div>
 
           {settingsSavedAlert && (
-            <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-emerald-400 text-xs font-semibold flex items-center space-x-2 animate-fadeIn">
-              <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-              <span>Platform settings updated successfully and broadcast to all active sessions.</span>
+            <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs font-semibold flex items-center space-x-2 animate-fadeIn">
+              <CheckCircle2 className="w-4 h-4" />
+              <span>Platform settings updated and synchronized across all nodes.</span>
             </div>
           )}
 
-          {/* Settings Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Group 1: Financial & Escrow Commission */}
-            <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
-              <div className="flex items-center space-x-2.5 pb-2 border-b border-slate-800">
-                <DollarSign className="w-5 h-5 text-amber-400" />
-                <h4 className="text-sm font-bold text-white">Financial & Escrow Economics</h4>
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
+              <h4 className="text-sm font-bold text-white flex items-center space-x-2">
+                <DollarSign className="w-4 h-4 text-emerald-400" />
+                <span>Financial & Escrow Economics</span>
+              </h4>
 
-              {/* Commission Take-Rate Slider */}
               <div className="space-y-2">
                 <div className="flex justify-between text-xs">
-                  <span className="text-slate-300 font-semibold">PlotFlow Escrow Take-Rate:</span>
-                  <span className="font-mono text-emerald-400 font-bold text-sm">{siteSettings.takeRateFee}% of Closed GMV</span>
+                  <span className="text-slate-300 font-semibold">Platform Take-Rate:</span>
+                  <span className="font-mono text-emerald-400 font-bold">{siteSettings.takeRateFee}%</span>
                 </div>
                 <input
                   type="range"
@@ -802,14 +889,12 @@ export default function AdminPanel({
                   onChange={(e) => setSiteSettings(prev => ({ ...prev, takeRateFee: parseFloat(e.target.value) }))}
                   className="w-full accent-emerald-500 cursor-pointer"
                 />
-                <p className="text-[11px] text-slate-500">Transaction commission escrowed upon digital token lock and sale deed registration.</p>
               </div>
 
-              {/* Mandatory Token Deposit Amount */}
               <div className="space-y-2">
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-300 font-semibold">Mandatory Token Advance Lock:</span>
-                  <span className="font-mono text-amber-400 font-bold text-sm">₹{siteSettings.tokenDepositAmount.toLocaleString()}</span>
+                  <span className="font-mono text-amber-400 font-bold">₹{siteSettings.tokenDepositAmount.toLocaleString()}</span>
                 </div>
                 <input
                   type="number"
@@ -818,35 +903,19 @@ export default function AdminPanel({
                   onChange={(e) => setSiteSettings(prev => ({ ...prev, tokenDepositAmount: parseInt(e.target.value) || 0 }))}
                   className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
                 />
-                <p className="text-[11px] text-slate-500">100% refundable token required to reserve a plot on the 3D twin for 72 hours.</p>
-              </div>
-
-              {/* Auto Escrow Release Rule */}
-              <div className="space-y-2">
-                <label className="text-xs text-slate-300 font-semibold block">Escrow Release Trigger</label>
-                <select
-                  value={siteSettings.escrowAutoReleaseTrigger}
-                  onChange={(e) => setSiteSettings(prev => ({ ...prev, escrowAutoReleaseTrigger: e.target.value }))}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
-                >
-                  <option value="SALE_DEED_REGISTERED">On Sub-Registrar Sale Deed Registration (Recommended)</option>
-                  <option value="AGREEMENT_SIGNED">On Agreement of Sale Execution</option>
-                </select>
               </div>
             </div>
 
-            {/* Group 2: Legal Verification & Title Gate */}
-            <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
-              <div className="flex items-center space-x-2.5 pb-2 border-b border-slate-800">
-                <ShieldCheck className="w-5 h-5 text-emerald-400" />
-                <h4 className="text-sm font-bold text-white">Title Verification & Compliance Gates</h4>
-              </div>
+            <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
+              <h4 className="text-sm font-bold text-white flex items-center space-x-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <span>Title Verification & Compliance Gates</span>
+              </h4>
 
-              {/* Strict 5-Layer Gate */}
-              <div className="flex items-center justify-between p-3.5 bg-slate-900/60 border border-slate-800 rounded-2xl">
-                <div className="space-y-0.5">
+              <div className="flex items-center justify-between p-3 bg-slate-900/60 border border-slate-800 rounded-2xl">
+                <div>
                   <span className="text-xs font-bold text-white block">Strict 5-Layer Due Diligence Gate</span>
-                  <span className="text-[11px] text-slate-400">Prevent townships from appearing in 3D Marketplace until all 5 certificates are verified.</span>
+                  <span className="text-[11px] text-slate-400">Require all 5 RERA certificates before public listing.</span>
                 </div>
                 <input
                   type="checkbox"
@@ -855,217 +924,41 @@ export default function AdminPanel({
                   className="w-5 h-5 accent-emerald-500 cursor-pointer"
                 />
               </div>
-
-              {/* Kaveri-2 Registry Sync */}
-              <div className="flex items-center justify-between p-3.5 bg-slate-900/60 border border-slate-800 rounded-2xl">
-                <div className="space-y-0.5">
-                  <span className="text-xs font-bold text-white block">Kaveri-2 Sub-Registrar Sync (Form 15)</span>
-                  <span className="text-[11px] text-slate-400">Automated 30-year nil-encumbrance checking against government title ledger.</span>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={siteSettings.kaveri2SyncEnabled}
-                  onChange={(e) => setSiteSettings(prev => ({ ...prev, kaveri2SyncEnabled: e.target.checked }))}
-                  className="w-5 h-5 accent-emerald-500 cursor-pointer"
-                />
-              </div>
-
-              {/* High-Def Sun-Path Shaders */}
-              <div className="flex items-center justify-between p-3.5 bg-slate-900/60 border border-slate-800 rounded-2xl">
-                <div className="space-y-0.5">
-                  <span className="text-xs font-bold text-white block">High-Definition Solar Shadow Shaders</span>
-                  <span className="text-[11px] text-slate-400">Render dynamic shadow projections for time-of-day solar calculations.</span>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={siteSettings.enableSunPathHighDef}
-                  onChange={(e) => setSiteSettings(prev => ({ ...prev, enableSunPathHighDef: e.target.checked }))}
-                  className="w-5 h-5 accent-emerald-500 cursor-pointer"
-                />
-              </div>
-            </div>
-
-            {/* Group 3: Lead Notifications & Concierge */}
-            <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
-              <div className="flex items-center space-x-2.5 pb-2 border-b border-slate-800">
-                <Phone className="w-5 h-5 text-indigo-400" />
-                <h4 className="text-sm font-bold text-white">Chauffeur Cab & WhatsApp Webhooks</h4>
-              </div>
-
-              <div className="space-y-3 text-xs">
-                <div>
-                  <label className="text-slate-300 font-semibold block mb-1">WhatsApp Business Webhook Integration</label>
-                  <input
-                    type="text"
-                    value={siteSettings.whatsappBusinessNumber}
-                    onChange={(e) => setSiteSettings(prev => ({ ...prev, whatsappBusinessNumber: e.target.value }))}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-indigo-500 font-mono"
-                  />
-                  <p className="text-[11px] text-slate-500 mt-1">Dispatches instant PDF brochures and RERA audit seals to buyer leads.</p>
-                </div>
-
-                <div>
-                  <label className="text-slate-300 font-semibold block mb-1">Chauffeur Cab Partner API Key</label>
-                  <input
-                    type="password"
-                    value={siteSettings.cabServiceApiKey}
-                    onChange={(e) => setSiteSettings(prev => ({ ...prev, cabServiceApiKey: e.target.value }))}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-indigo-500 font-mono"
-                  />
-                  <p className="text-[11px] text-slate-500 mt-1">Automates door-to-door site visit pickups for high-intent plot buyers.</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Group 4: Security & Authentication Settings */}
-            <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
-              <div className="flex items-center space-x-2.5 pb-2 border-b border-slate-800">
-                <Lock className="w-5 h-5 text-amber-400" />
-                <h4 className="text-sm font-bold text-white">Access Control & Security Policies</h4>
-              </div>
-
-              <div className="space-y-3 text-xs">
-                <div>
-                  <label className="text-slate-300 font-semibold block mb-1">Super Admin Master PIN</label>
-                  <input
-                    type="text"
-                    value={siteSettings.adminSecurityPin}
-                    onChange={(e) => setSiteSettings(prev => ({ ...prev, adminSecurityPin: e.target.value }))}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
-                  />
-                  <p className="text-[11px] text-slate-500 mt-1">Security PIN required for sensitive role promotions and payouts.</p>
-                </div>
-
-                <div>
-                  <label className="text-slate-300 font-semibold block mb-1">Allowed Super Admin Domains</label>
-                  <input
-                    type="text"
-                    value={siteSettings.allowedAdminDomains}
-                    onChange={(e) => setSiteSettings(prev => ({ ...prev, allowedAdminDomains: e.target.value }))}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-amber-500 font-mono"
-                  />
-                </div>
-              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* ================= TAB 4: DEVELOPER APPROVAL QUEUE ================= */}
+      {/* ================= TAB 5: APPROVAL QUEUE ================= */}
       {activeTab === 'approvals' && (
-        <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h3 className="text-lg font-bold text-white">Developer Project Approval Queue</h3>
-              <p className="text-xs text-slate-400">
-                Validate 30-year EC records, BDA layout sanctions, and K-RERA certificates before publishing live.
-              </p>
-            </div>
-            <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-3 py-1.5 rounded-xl border border-amber-500/30">
-              {pendingApprovals.length} Layouts Pending Review
-            </span>
+        <div className="space-y-6">
+          <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 shadow-xl">
+            <h3 className="text-lg font-bold text-white">Developer Project Submissions</h3>
+            <p className="text-xs text-slate-400">Review new plotted developments submitted by builders before making them live.</p>
           </div>
 
-          {pendingApprovals.length === 0 ? (
-            <div className="p-12 text-center bg-slate-900/40 rounded-2xl space-y-2">
-              <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto" />
-              <h4 className="text-sm font-bold text-white">Approval Queue Clean</h4>
-              <p className="text-xs text-slate-400">All submitted townships are fully audited and published live to the 3D marketplace.</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {pendingApprovals.map((sub) => (
-                <div
-                  key={sub.id}
-                  className="bg-slate-900/70 border border-slate-800 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4"
-                >
-                  <div className="space-y-1.5">
-                    <div className="flex items-center space-x-2">
-                      <h4 className="text-base font-bold text-white">{sub.townshipName}</h4>
-                      <span className="text-[10px] bg-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded-full border border-amber-500/30">
-                        {sub.status}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-400">
-                      Developer: <strong className="text-slate-200">{sub.developerName}</strong> • {sub.location}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 pt-1">
-                      <span>Parcel: <strong className="text-white">{sub.totalAcres}</strong></span>
-                      <span>Est. GMV: <strong className="text-emerald-400">{sub.estimatedGmv}</strong></span>
-                      <span>RERA: <span className="font-mono text-slate-300">{sub.reraNumber}</span></span>
-                      <span>{sub.documentsCount} Legal Docs Attached</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-2 flex-shrink-0">
-                    <button
-                      onClick={() => handleApprovalAction(sub.id, 'approve')}
-                      className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow transition flex items-center space-x-1.5"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Approve & Publish Live</span>
-                    </button>
-                    <button
-                      onClick={() => handleApprovalAction(sub.id, 'reject')}
-                      className="px-4 py-2.5 bg-slate-800 hover:bg-rose-950/40 border border-slate-700 hover:border-rose-500/40 text-slate-300 hover:text-rose-300 text-xs font-bold rounded-xl transition flex items-center space-x-1.5"
-                    >
-                      <XCircle className="w-4 h-4" />
-                      <span>Reject</span>
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ================= TAB 5: SECURITY AUDIT LOGS ================= */}
-      {activeTab === 'audit' && (
-        <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h3 className="text-lg font-bold text-white">Immutable Platform Security Audit Ledger</h3>
-              <p className="text-xs text-slate-400">
-                Chronological record of all authentication handshakes, role modifications, escrow locks, and setting updates.
-              </p>
-            </div>
-
-            <button
-              onClick={() => alert('Downloading cryptographic audit ledger in JSON format...')}
-              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center space-x-1.5 transition"
-            >
-              <Download className="w-3.5 h-3.5 text-amber-400" />
-              <span>Export Audit Trail (JSON)</span>
-            </button>
-          </div>
-
-          <div className="space-y-3">
-            {auditLogs.map((log) => (
-              <div
-                key={log.id}
-                className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-              >
+          <div className="space-y-4">
+            {pendingApprovals.map((sub) => (
+              <div key={sub.id} className="bg-slate-950 border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="space-y-1">
-                  <div className="flex items-center space-x-2">
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
-                      log.severity === 'SUCCESS'
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                        : log.severity === 'WARNING'
-                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                        : log.severity === 'CRITICAL'
-                        ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                        : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40'
-                    }`}>
-                      {log.action}
-                    </span>
-                    <span className="text-slate-400 text-[11px]">• Actor: <strong className="text-slate-200">{log.actor}</strong></span>
-                  </div>
-                  <p className="text-slate-300 text-xs">{log.details}</p>
+                  <span className="text-base font-bold text-white block">{sub.townshipName}</span>
+                  <span className="text-xs text-indigo-400 block">{sub.developerName} • {sub.location}</span>
+                  <span className="text-[11px] text-slate-400 font-mono">RERA: {sub.reraNumber}</span>
                 </div>
 
-                <div className="text-right flex-shrink-0 text-[11px] text-slate-500 font-mono">
-                  {log.timestamp}
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={() => handleApprovalAction(sub.id, 'approve')}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow transition"
+                  >
+                    Approve & Publish Live
+                  </button>
+                  <button
+                    onClick={() => handleApprovalAction(sub.id, 'reject')}
+                    className="px-4 py-2 bg-slate-900 hover:bg-rose-900/40 text-slate-300 hover:text-rose-300 font-bold text-xs rounded-xl border border-slate-800 transition"
+                  >
+                    Reject
+                  </button>
                 </div>
               </div>
             ))}
@@ -1073,116 +966,91 @@ export default function AdminPanel({
         </div>
       )}
 
-      {/* ================= MODAL: INVITE NEW USER ================= */}
+      {/* ================= TAB 6: AUDIT LOGS ================= */}
+      {activeTab === 'audit' && (
+        <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+          <h3 className="text-lg font-bold text-white">Platform Security Ledger & Audit Logs</h3>
+          <div className="space-y-2">
+            {auditLogs.map((log) => (
+              <div key={log.id} className="p-3 bg-slate-900/60 border border-slate-800 rounded-xl flex items-center justify-between text-xs">
+                <div>
+                  <span className="text-white font-bold block">{log.action}</span>
+                  <span className="text-[11px] text-slate-400">{log.details}</span>
+                </div>
+                <span className="text-[10px] text-slate-500 font-mono">{log.timestamp}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Invite User Modal */}
       {isInviteModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-          <div className="bg-slate-950 border border-slate-800 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl space-y-6">
-            {/* Header */}
-            <div className="p-6 bg-slate-900/80 border-b border-slate-800 flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
-                  <UserPlus className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-white">Invite & Provision Platform User</h3>
-                  <p className="text-xs text-slate-400">Dispatches a Firebase Auth invite link with assigned role claims</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsInviteModalOpen(false)}
-                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition"
-              >
+          <div className="bg-slate-950 border border-slate-800 rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-white">Invite / Provision User Account</h3>
+              <button onClick={() => setIsInviteModalOpen(false)} className="text-slate-400 hover:text-white">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Form */}
-            <form onSubmit={handleInviteUserSubmit} className="p-6 space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-slate-300 font-semibold block mb-1">Full Legal Name *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Suresh Gowda"
-                    value={newUserForm.name}
-                    onChange={(e) => setNewUserForm(prev => ({ ...prev, name: e.target.value }))}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-slate-300 font-semibold block mb-1">Email Address (Auth Identity) *</label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="user@domain.com"
-                    value={newUserForm.email}
-                    onChange={(e) => setNewUserForm(prev => ({ ...prev, email: e.target.value }))}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-slate-300 font-semibold block mb-1">Phone Number</label>
-                  <input
-                    type="text"
-                    placeholder="+91 98450 00000"
-                    value={newUserForm.phone}
-                    onChange={(e) => setNewUserForm(prev => ({ ...prev, phone: e.target.value }))}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-slate-300 font-semibold block mb-1">Assign Platform Role *</label>
-                  <select
-                    value={newUserForm.role}
-                    onChange={(e) => setNewUserForm(prev => ({ ...prev, role: e.target.value }))}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-amber-500 cursor-pointer"
-                  >
-                    <option value="BUYER">BUYER (Verified Land Buyer)</option>
-                    <option value="DEVELOPER">DEVELOPER (Builder SaaS Inventory & CRM)</option>
-                    <option value="LEGAL_AUDITOR">LEGAL_AUDITOR (5-Layer Title Advocate)</option>
-                    <option value="SUPER_ADMIN">SUPER_ADMIN (Full Platform Privileges)</option>
-                  </select>
-                </div>
-              </div>
-
+            <form onSubmit={handleInviteUserSubmit} className="space-y-3 text-xs">
               <div>
-                <label className="text-slate-300 font-semibold block mb-1">Organization / Builder Company</label>
+                <label className="text-slate-300 font-semibold block mb-1">Full Name *</label>
                 <input
                   type="text"
-                  placeholder="e.g. Prestige Plotted Estates or Individual"
-                  value={newUserForm.company}
-                  onChange={(e) => setNewUserForm(prev => ({ ...prev, company: e.target.value }))}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-amber-500"
+                  required
+                  value={newUserForm.name}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, name: e.target.value })}
+                  placeholder="e.g. Ramesh Reddy"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-amber-500"
                 />
               </div>
 
-              <div className="p-3 bg-slate-900/80 border border-slate-800 rounded-xl flex items-center space-x-2 text-[11px] text-slate-400">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                <span>An automated Firebase onboarding email will be triggered with custom security role tokens.</span>
+              <div>
+                <label className="text-slate-300 font-semibold block mb-1">Email Address *</label>
+                <input
+                  type="email"
+                  required
+                  value={newUserForm.email}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })}
+                  placeholder="user@domain.com"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-amber-500"
+                />
               </div>
 
-              <div className="flex items-center space-x-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsInviteModalOpen(false)}
-                  className="flex-1 py-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-bold rounded-xl transition"
+              <div>
+                <label className="text-slate-300 font-semibold block mb-1">Role Assignment</label>
+                <select
+                  value={newUserForm.role}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, role: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-amber-500"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl shadow-lg shadow-amber-950/50 transition flex items-center justify-center space-x-1.5"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  <span>Send Onboarding Invite</span>
-                </button>
+                  <option value="BUYER">BUYER (Retail Plot Buyer)</option>
+                  <option value="DEVELOPER">DEVELOPER (Builder SaaS Access)</option>
+                  <option value="LEGAL_AUDITOR">LEGAL_AUDITOR (Title Verifier)</option>
+                  <option value="SUPER_ADMIN">SUPER_ADMIN (Owner Level)</option>
+                </select>
               </div>
+
+              <div>
+                <label className="text-slate-300 font-semibold block mb-1">Organization / Entity Name</label>
+                <input
+                  type="text"
+                  value={newUserForm.company}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, company: e.target.value })}
+                  placeholder="e.g. Prestige Plotted Lands"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-amber-950/40 transition mt-3"
+              >
+                Dispatch Onboarding Credentials
+              </button>
             </form>
           </div>
         </div>
