@@ -370,17 +370,86 @@ export function createLegalTeamUser({
   return newLegalUser;
 }
 
+// Check if user is staff/internal team account
+export function isStaffUser(userOrRole) {
+  const role = typeof userOrRole === 'string' ? userOrRole : userOrRole?.role;
+  return ['LEGAL_AUDITOR', 'DEVELOPER', 'CAB_COORDINATOR', 'STAFF', 'SUPER_ADMIN'].includes(role);
+}
+
+// Generate Secure Temporary Password for Staff & Platform Accounts
+export function generateStaffTempPassword(role = 'STAFF') {
+  const rolePrefix = role === 'LEGAL_AUDITOR' ? 'LEGAL' : role === 'DEVELOPER' ? 'DEV' : 'STAFF';
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let rand = '';
+  for (let i = 0; i < 4; i++) {
+    rand += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  const digits = Math.floor(1000 + Math.random() * 9000);
+  return `PF-${rolePrefix}-${rand}${digits}`;
+}
+
 // Update User Password by Admin
-export function updateUserPasswordByAdmin(userId, newPassword) {
+export function updateUserPasswordByAdmin(userId, newPassword, isTemporary = false) {
   const users = getStoredUsers();
+  let targetUser = null;
   const updated = users.map(u => {
     if (u.uid === userId || u.email.toLowerCase() === userId.toLowerCase()) {
-      return { ...u, passwordHash: newPassword };
+      targetUser = {
+        ...u,
+        passwordHash: newPassword,
+        isTemporaryPassword: isTemporary,
+        tempPasswordCreatedAt: isTemporary ? new Date().toISOString() : null
+      };
+      return targetUser;
     }
     return u;
   });
   saveStoredUsers(updated);
-  return true;
+  return { success: true, user: targetUser, users: updated };
+}
+
+// Reset Staff Account with an auto-generated Temporary Password
+export function resetStaffTemporaryPassword(userId) {
+  const users = getStoredUsers();
+  const user = users.find(u => u.uid === userId || u.email.toLowerCase() === userId.toLowerCase());
+  if (!user) {
+    return { success: false, error: 'User not found in system directory.' };
+  }
+
+  const tempPassword = generateStaffTempPassword(user.role);
+  const result = updateUserPasswordByAdmin(user.uid, tempPassword, true);
+
+  // Dispatch credential log record
+  const logRecord = {
+    id: `log_temp_pwd_${Date.now()}`,
+    recipient: user.email,
+    subject: `🔑 Temporary Password Generated for ${user.name} (${user.role})`,
+    timestamp: new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }),
+    isoTimestamp: new Date().toISOString(),
+    status: 'TEMPORARY_PASSWORD_ACTIVE',
+    deliveryServer: 'plotflow-auth-gateway.internal',
+    credentials: {
+      accountName: user.name,
+      email: user.email,
+      temporaryPassword: tempPassword,
+      role: user.role,
+      issuedAt: new Date().toLocaleString()
+    }
+  };
+
+  try {
+    const existingLogs = getEmailDispatchLogs();
+    localStorage.setItem(EMAIL_LOGS_KEY, JSON.stringify([logRecord, ...existingLogs]));
+  } catch (e) {
+    console.warn('Could not persist email log:', e);
+  }
+
+  return {
+    success: true,
+    user: result.user,
+    temporaryPassword: tempPassword,
+    emailLog: logRecord
+  };
 }
 
 // Toggle User Status (Active <-> Deactivated)
@@ -395,7 +464,7 @@ export function toggleUserStatusByAdmin(userId) {
     return u;
   });
   saveStoredUsers(updated);
-  return updatedStatus;
+  return { success: true, status: updatedStatus, users: updated };
 }
 
 // Remove Developer or User Account
@@ -403,6 +472,6 @@ export function removeUserAccountByAdmin(userId) {
   const users = getStoredUsers();
   const updated = users.filter(u => u.uid !== userId && u.email.toLowerCase() !== userId.toLowerCase());
   saveStoredUsers(updated);
-  return updated;
+  return { success: true, users: updated };
 }
 
