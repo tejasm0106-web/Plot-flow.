@@ -208,12 +208,12 @@ export const INITIAL_LEADS = [
     email: 'vikram.sharma@techcorp.com',
     phone: '+91 98450 12345',
     townshipName: 'Prestige Sanctuary Greens',
-    interestedPlot: 'P-101 (1,500 sq.ft, East)',
+    interestedPlot: 'Master Layout Inquiry',
     budget: '₹75 Lakh',
     status: 'Site Visit Scheduled', // 'New Lead' | 'Site Visit Scheduled' | 'Token Advance Paid' | 'Sale Deed Registered'
     visitDate: '2026-08-29 (Saturday, 11:00 AM)',
     source: 'PlotFlow 3D Sun-Path Visualizer',
-    notes: 'Looking for East-facing plot near clubhouse. Pre-approved home loan from SBI.'
+    notes: 'Inquiring about future Phase releases near clubhouse. Pre-approved home loan from SBI.'
   },
   {
     id: 'lead_02',
@@ -221,7 +221,7 @@ export const INITIAL_LEADS = [
     email: 'ananya.d@fintech.io',
     phone: '+91 99801 88721',
     townshipName: 'Prestige Sanctuary Greens',
-    interestedPlot: 'P-104 (1,800 sq.ft, Lake View)',
+    interestedPlot: 'Lake View Sector Inquiry',
     budget: '₹90 Lakh',
     status: 'Token Advance Paid',
     visitDate: 'Completed on 2026-08-22',
@@ -234,7 +234,7 @@ export const INITIAL_LEADS = [
     email: 'karthik.ram@global.in',
     phone: '+91 97412 55432',
     townshipName: 'Green Valley Eco Enclave',
-    interestedPlot: 'A-01 (1,200 sq.ft, East)',
+    interestedPlot: 'Botanical Sector Inquiry',
     budget: '₹45 Lakh',
     status: 'New Lead',
     visitDate: 'Requested for Sunday',
@@ -247,12 +247,12 @@ export const INITIAL_LEADS = [
     email: 'hegde.suresh@apollo.org',
     phone: '+91 94480 67120',
     townshipName: 'Prestige Sanctuary Greens',
-    interestedPlot: 'P-107 (4,000 sq.ft Villa Plot)',
+    interestedPlot: 'Premium Villa Enclave Inquiry',
     budget: '₹2.1 Cr',
     status: 'Site Visit Scheduled',
     visitDate: '2026-08-30 (Sunday, 3:30 PM)',
     source: 'Shortlist & Compare Tool',
-    notes: 'Looking for large villa plot for retirement home with organic garden space.'
+    notes: 'Looking for large villa space for retirement home with organic garden space.'
   }
 ];
 
@@ -466,8 +466,8 @@ export const INITIAL_AUDIT_LOGS = [
     id: 'log_02',
     action: 'TOKEN_ESCROW_LOCKED',
     actor: 'ananya.d@fintech.io (Buyer)',
-    target: 'Plot P-104 (Prestige Sanctuary Greens)',
-    details: 'Refundable ₹25,000 token advance escrowed via UPI QR. Status transitioned to Reserved.',
+    target: 'Prestige Sanctuary Greens Phase 1 Registration',
+    details: 'Refundable ₹25,000 token advance escrowed via UPI QR. Status transitioned to Active Reservation.',
     timestamp: '2026-08-25 09:12 PM',
     severity: 'SUCCESS'
   },
