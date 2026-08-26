@@ -8,8 +8,8 @@ export const INITIAL_PROJECTS = [
     location: 'Devanahalli, North Bengaluru',
     city: 'Bengaluru',
     totalAcres: '45 Acres',
-    totalPlots: 120,
-    availablePlots: 34,
+    totalPlots: 0,
+    availablePlots: 0,
     pricePerSqFt: 4850,
     priceRange: '₹58.2 Lakh - ₹1.45 Cr',
     approvalAuthority: 'BDA & BIAPPA Sanctioned',
@@ -43,128 +43,7 @@ export const INITIAL_PROJECTS = [
       { place: 'STRR 6-Lane Expressway Exit', distance: '3 Mins (1.8 km)' },
       { place: 'Hebbal Flyover / Outer Ring Road', distance: '28 Mins (24 km)' }
     ],
-    plots: [
-      {
-        id: 'p_101',
-        number: 'P-101',
-        sizeSqFt: 1500,
-        dimension: '30 x 50 ft',
-        facing: 'East',
-        vastuScore: 96,
-        priceNumber: 7275000,
-        price: '₹72.75 Lakh',
-        status: 'Available', // 'Available' | 'Reserved' | 'Booked'
-        elevation: 'Park Facing with Sunrise View',
-        roadWidth: '40ft Internal Asphalt Road',
-        cornerPlot: false,
-        amenitiesDistance: '40m to Central Clubhouse'
-      },
-      {
-        id: 'p_102',
-        number: 'P-102',
-        sizeSqFt: 1200,
-        dimension: '30 x 40 ft',
-        facing: 'North',
-        vastuScore: 94,
-        priceNumber: 5820000,
-        price: '₹58.20 Lakh',
-        status: 'Available',
-        elevation: 'North-East Kuber Vastu Alignment',
-        roadWidth: '40ft Avenue Road',
-        cornerPlot: true,
-        amenitiesDistance: '80m to Tennis Court'
-      },
-      {
-        id: 'p_103',
-        number: 'P-103',
-        sizeSqFt: 2400,
-        dimension: '40 x 60 ft',
-        facing: 'East',
-        vastuScore: 98,
-        priceNumber: 11640000,
-        price: '₹1.16 Cr',
-        status: 'Reserved',
-        elevation: 'Clubhouse View & Dual Corner Access',
-        roadWidth: '60ft Boulevard',
-        cornerPlot: true,
-        amenitiesDistance: 'Direct Promenade Access'
-      },
-      {
-        id: 'p_104',
-        number: 'P-104',
-        sizeSqFt: 1800,
-        dimension: '30 x 60 ft',
-        facing: 'West',
-        vastuScore: 88,
-        priceNumber: 8730000,
-        price: '₹87.30 Lakh',
-        status: 'Available',
-        elevation: 'Overlooking Sunset Eco Lake',
-        roadWidth: '40ft Internal Road',
-        cornerPlot: false,
-        amenitiesDistance: '120m to Main Gate'
-      },
-      {
-        id: 'p_105',
-        number: 'P-105',
-        sizeSqFt: 1500,
-        dimension: '30 x 50 ft',
-        facing: 'North-East',
-        vastuScore: 99,
-        priceNumber: 7450000,
-        price: '₹74.50 Lakh',
-        status: 'Booked',
-        elevation: 'Prime Ishanya Corner with Green Verge',
-        roadWidth: '40ft Road',
-        cornerPlot: true,
-        amenitiesDistance: '60m to Children Play Area'
-      },
-      {
-        id: 'p_106',
-        number: 'P-106',
-        sizeSqFt: 2400,
-        dimension: '40 x 60 ft',
-        facing: 'North',
-        vastuScore: 95,
-        priceNumber: 11800000,
-        price: '₹1.18 Cr',
-        status: 'Available',
-        elevation: 'Grand Boulevard Frontage',
-        roadWidth: '60ft Boulevard Road',
-        cornerPlot: false,
-        amenitiesDistance: '100m to Clubhouse'
-      },
-      {
-        id: 'p_107',
-        number: 'P-107',
-        sizeSqFt: 4000,
-        dimension: '50 x 80 ft',
-        facing: 'East',
-        vastuScore: 97,
-        priceNumber: 19800000,
-        price: '₹1.98 Cr',
-        status: 'Available',
-        elevation: 'Estate Villa Plot with Hilltop Panorama',
-        roadWidth: '60ft Boulevard',
-        cornerPlot: true,
-        amenitiesDistance: 'Private Cul-de-sac Entrance'
-      },
-      {
-        id: 'p_108',
-        number: 'P-108',
-        sizeSqFt: 1200,
-        dimension: '30 x 40 ft',
-        facing: 'South',
-        vastuScore: 82,
-        priceNumber: 5650000,
-        price: '₹56.50 Lakh',
-        status: 'Available',
-        elevation: 'Quiet Residential Loop',
-        roadWidth: '30ft Internal Road',
-        cornerPlot: false,
-        amenitiesDistance: '150m to Clubhouse'
-      }
-    ]
+    plots: []
   },
   {
     id: 'ts_02',
@@ -175,8 +54,8 @@ export const INITIAL_PROJECTS = [
     location: 'Sarjapur Extn, East Bengaluru',
     city: 'Bengaluru',
     totalAcres: '28 Acres',
-    totalPlots: 85,
-    availablePlots: 18,
+    totalPlots: 0,
+    availablePlots: 0,
     pricePerSqFt: 3650,
     priceRange: '₹43.8 Lakh - ₹87.6 Lakh',
     approvalAuthority: 'BMRDA & RERA Approved',
@@ -206,68 +85,7 @@ export const INITIAL_PROJECTS = [
       { place: 'Sarjapur Town Center', distance: '6 Mins (3.8 km)' },
       { place: 'Carmelaram Railway / Metro Hub', distance: '22 Mins (16 km)' }
     ],
-    plots: [
-      {
-        id: 'p_201',
-        number: 'A-01',
-        sizeSqFt: 1200,
-        dimension: '30 x 40 ft',
-        facing: 'East',
-        vastuScore: 95,
-        priceNumber: 4380000,
-        price: '₹43.80 Lakh',
-        status: 'Available',
-        elevation: 'Facing Botanical Herbal Park',
-        roadWidth: '40ft Internal Road',
-        cornerPlot: true,
-        amenitiesDistance: '30m to Central Garden'
-      },
-      {
-        id: 'p_202',
-        number: 'A-02',
-        sizeSqFt: 1500,
-        dimension: '30 x 50 ft',
-        facing: 'North-East',
-        vastuScore: 98,
-        priceNumber: 5475000,
-        price: '₹54.75 Lakh',
-        status: 'Booked',
-        elevation: 'Corner Plot with Wide Turning Radius',
-        roadWidth: '40ft Road',
-        cornerPlot: true,
-        amenitiesDistance: '50m to Clubhouse'
-      },
-      {
-        id: 'p_203',
-        number: 'A-03',
-        sizeSqFt: 2000,
-        dimension: '40 x 50 ft',
-        facing: 'North',
-        vastuScore: 92,
-        priceNumber: 7300000,
-        price: '₹73.00 Lakh',
-        status: 'Available',
-        elevation: 'Wide 40ft Main Entry Avenue',
-        roadWidth: '40ft Avenue',
-        cornerPlot: false,
-        amenitiesDistance: '80m to Sports Arena'
-      },
-      {
-        id: 'p_204',
-        number: 'A-04',
-        sizeSqFt: 2400,
-        dimension: '40 x 60 ft',
-        facing: 'East',
-        vastuScore: 96,
-        priceNumber: 8760000,
-        price: '₹87.60 Lakh',
-        status: 'Reserved',
-        elevation: 'Prime Corner with Park Facing Verge',
-        roadWidth: '40ft Road',
-        cornerPlot: true,
-        amenitiesDistance: '40m to Club'
-      }
-    ]
+    plots: []
   },
   {
     id: 'ts_03',
@@ -278,8 +96,8 @@ export const INITIAL_PROJECTS = [
     location: 'Mysore Road / Bidadi Growth Hub',
     city: 'Bengaluru',
     totalAcres: '50 Acres',
-    totalPlots: 160,
-    availablePlots: 45,
+    totalPlots: 0,
+    availablePlots: 0,
     pricePerSqFt: 2950,
     priceRange: '₹35.4 Lakh - ₹70.8 Lakh',
     approvalAuthority: 'BMRDA & K-RERA Sanctioned',
@@ -306,38 +124,7 @@ export const INITIAL_PROJECTS = [
       { place: 'Bengaluru-Mysuru Expressway Toll', distance: '4 Mins (2.5 km)' },
       { place: 'Challaghatta Purple Line Metro', distance: '16 Mins (14 km)' }
     ],
-    plots: [
-      {
-        id: 'p_301',
-        number: 'H-10',
-        sizeSqFt: 1200,
-        dimension: '30 x 40 ft',
-        facing: 'East',
-        vastuScore: 94,
-        priceNumber: 3540000,
-        price: '₹35.40 Lakh',
-        status: 'Available',
-        elevation: 'Avenue View with Tree Canopy',
-        roadWidth: '40ft Internal Road',
-        cornerPlot: false,
-        amenitiesDistance: '50m to Clubhouse'
-      },
-      {
-        id: 'p_302',
-        number: 'H-11',
-        sizeSqFt: 1500,
-        dimension: '30 x 50 ft',
-        facing: 'North',
-        vastuScore: 93,
-        priceNumber: 4425000,
-        price: '₹44.25 Lakh',
-        status: 'Available',
-        elevation: 'Corner Plot with North Vastu',
-        roadWidth: '40ft Road',
-        cornerPlot: true,
-        amenitiesDistance: '70m to Park'
-      }
-    ]
+    plots: []
   }
 ];
 

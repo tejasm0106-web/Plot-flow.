@@ -249,85 +249,99 @@ export default function SunPathSimulator({
         </div>
 
         {/* Main Township Plotted Layout Grid */}
-        <div 
-          className={`relative z-10 my-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5 transition-transform duration-500 ${
-            viewMode === 'isometric' ? 'transform md:perspective-[1000px] md:rotate-x-[18deg]' : ''
-          }`}
-        >
-          {displayPlots.map((plot) => {
-            const isSelected = selectedPlot?.id === plot.id;
-            const isAvailable = plot.status === 'Available';
-            const isReserved = plot.status === 'Reserved';
+        {displayPlots.length === 0 ? (
+          <div className="relative z-10 my-12 py-12 px-6 border border-dashed border-slate-800 rounded-3xl bg-slate-900/40 text-center max-w-lg mx-auto space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mx-auto text-emerald-400">
+              <Layers className="w-7 h-7" />
+            </div>
+            <div>
+              <h4 className="text-base font-bold text-white">No Plots Registered in this Layout</h4>
+              <p className="text-xs text-slate-400 mt-1">
+                Demo plots have been cleared. To simulate sun-path and shadow dynamics on this 3D canvas, add real plots through the Developer SaaS Inventory console.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div 
+            className={`relative z-10 my-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5 transition-transform duration-500 ${
+              viewMode === 'isometric' ? 'transform md:perspective-[1000px] md:rotate-x-[18deg]' : ''
+            }`}
+          >
+            {displayPlots.map((plot) => {
+              const isSelected = selectedPlot?.id === plot.id;
+              const isAvailable = plot.status === 'Available';
+              const isReserved = plot.status === 'Reserved';
 
-            // Dynamic shadow styling based on sun angle
-            const shadowStyle = {
-              boxShadow: `${sunData.shadowOffsetX}px ${sunData.shadowOffsetY + 6}px ${sunData.shadowLength * 0.8}px rgba(0, 0, 0, 0.65)`
-            };
+              // Dynamic shadow styling based on sun angle
+              const shadowStyle = {
+                boxShadow: `${sunData.shadowOffsetX}px ${sunData.shadowOffsetY + 6}px ${sunData.shadowLength * 0.8}px rgba(0, 0, 0, 0.65)`
+              };
 
-            return (
-              <div
-                key={plot.id}
-                onClick={() => onSelectPlot(plot)}
-                style={shadowStyle}
-                className={`relative rounded-2xl p-4 cursor-pointer border transition-all duration-300 flex flex-col justify-between min-h-[140px] group ${
-                  isSelected
-                    ? 'bg-emerald-950/80 border-emerald-400 ring-2 ring-emerald-400 shadow-2xl scale-105 z-20'
-                    : isAvailable
-                    ? 'bg-slate-900/90 border-slate-800 hover:border-emerald-500/60 hover:bg-slate-900 hover:scale-102'
-                    : isReserved
-                    ? 'bg-amber-950/40 border-amber-500/40 hover:scale-101'
-                    : 'bg-slate-950/60 border-slate-800/40 opacity-60'
-                }`}
-              >
-                {/* Plot Top Header */}
-                <div className="flex items-start justify-between">
-                  <div>
-                    <span className="text-base font-black text-white tracking-tight">{plot.number}</span>
-                    <span className="text-[10px] text-slate-400 block">{plot.dimension}</span>
-                  </div>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
-                    isAvailable
-                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+              return (
+                <div
+                  key={plot.id}
+                  onClick={() => onSelectPlot(plot)}
+                  style={shadowStyle}
+                  className={`relative rounded-2xl p-4 cursor-pointer border transition-all duration-300 flex flex-col justify-between min-h-[140px] group ${
+                    isSelected
+                      ? 'bg-emerald-950/80 border-emerald-400 ring-2 ring-emerald-400 shadow-2xl scale-105 z-20'
+                      : isAvailable
+                      ? 'bg-slate-900/90 border-slate-800 hover:border-emerald-500/60 hover:bg-slate-900 hover:scale-102'
                       : isReserved
-                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                      : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                  }`}>
-                    {plot.status}
-                  </span>
-                </div>
-
-                {/* Plot Middle Details */}
-                <div className="my-2 space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-400 font-medium">{plot.sizeSqFt} sq.ft</span>
-                    <span className="font-bold text-amber-400">{plot.price}</span>
-                  </div>
-                  <div className="flex items-center space-x-1 text-[11px] text-emerald-400 font-semibold">
-                    <Compass className="w-3 h-3" />
-                    <span>Facing: {plot.facing} ({plot.vastuScore}% Vastu)</span>
-                  </div>
-                </div>
-
-                {/* Plot Elevation Tag */}
-                <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
-                  <span className="truncate max-w-[120px]">{plot.elevation}</span>
-                  {isSelected && (
-                    <span className="text-emerald-400 font-bold flex items-center">
-                      Selected <ArrowRight className="w-3 h-3 ml-0.5" />
+                      ? 'bg-amber-950/40 border-amber-500/40 hover:scale-101'
+                      : 'bg-slate-950/60 border-slate-800/40 opacity-60'
+                  }`}
+                >
+                  {/* Plot Top Header */}
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <span className="text-base font-black text-white tracking-tight">{plot.number}</span>
+                      <span className="text-[10px] text-slate-400 block">{plot.dimension || plot.size}</span>
+                    </div>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
+                      isAvailable
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                        : isReserved
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                        : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                    }`}>
+                      {plot.status}
                     </span>
+                  </div>
+
+                  {/* Plot Middle Details */}
+                  <div className="my-2 space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-400 font-medium">{plot.sizeSqFt || plot.size} sq.ft</span>
+                      <span className="font-bold text-amber-400">{plot.price}</span>
+                    </div>
+                    <div className="flex items-center space-x-1 text-[11px] text-emerald-400 font-semibold">
+                      <Compass className="w-3 h-3" />
+                      <span>Facing: {plot.facing} ({plot.vastuScore || 95}% Vastu)</span>
+                    </div>
+                  </div>
+
+                  {/* Plot Elevation Tag */}
+                  <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
+                    <span className="truncate max-w-[120px]">{plot.elevation || 'Internal Road'}</span>
+                    {isSelected && (
+                      <span className="text-emerald-400 font-bold flex items-center">
+                        Selected <ArrowRight className="w-3 h-3 ml-0.5" />
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Vastu Overlay Indicator badge */}
+                  {showVastuOverlay && (
+                    <div className="absolute top-2 right-2 -mt-1 -mr-1">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 block shadow-sm shadow-emerald-400"></span>
+                    </div>
                   )}
                 </div>
-
-                {/* Vastu Overlay Indicator badge */}
-                {showVastuOverlay && (
-                  <div className="absolute top-2 right-2 -mt-1 -mr-1">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 block shadow-sm shadow-emerald-400"></span>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Canvas Bottom Masterplan Features */}
         <div className="relative z-10 bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-300">
@@ -337,9 +351,15 @@ export default function SunPathSimulator({
           </div>
           <div className="flex items-center space-x-2">
             <span className="text-slate-500">Selected Plot:</span>
-            <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
-              {selectedPlot?.number} ({selectedPlot?.price})
-            </span>
+            {selectedPlot ? (
+              <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                {selectedPlot.number} ({selectedPlot.price})
+              </span>
+            ) : (
+              <span className="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-400 text-[11px]">
+                None Selected
+              </span>
+            )}
           </div>
         </div>
       </div>

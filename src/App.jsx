@@ -39,8 +39,8 @@ export default function App() {
   const [currentView, setCurrentView] = useState('landing'); 
   // 'landing' | 'marketplace' | 'project-detail' | '3d-twin' | 'verification' | 'compare' | 'developer-portal' | 'lead-crm' | 'admin-panel' | 'investor-pitch'
 
-  const [selectedTownshipId, setSelectedTownshipId] = useState(INITIAL_PROJECTS[0].id);
-  const [selectedPlot, setSelectedPlot] = useState(INITIAL_PROJECTS[0].plots[0]);
+  const [selectedTownshipId, setSelectedTownshipId] = useState(INITIAL_PROJECTS[0]?.id || 'ts_01');
+  const [selectedPlot, setSelectedPlot] = useState(null);
   const [shortlistedTownshipIds, setShortlistedTownshipIds] = useState(['ts_01', 'ts_02']);
   
   // User Authentication State

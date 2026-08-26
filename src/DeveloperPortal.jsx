@@ -206,17 +206,31 @@ export default function DeveloperPortal({ townships, onUpdateTownship, onAddTown
     e.preventDefault();
     if (!newPlotNumber.trim()) return;
 
+    const sizeSqFt = parseInt(newPlotSize.replace(/\D/g, '')) || 1500;
+    const dimension = newPlotSize.includes('(') ? newPlotSize.split('(')[1]?.replace(')', '') : '30 x 50 ft';
+    const vastuScore = newPlotFacing === 'East' || newPlotFacing === 'North-East' ? 98 : newPlotFacing === 'North' ? 95 : newPlotFacing === 'West' ? 88 : 84;
+    const priceNum = newPlotPrice.toLowerCase().includes('cr') 
+      ? (parseFloat(newPlotPrice.replace(/[^0-9.]/g, '')) || 1) * 10000000 
+      : (parseFloat(newPlotPrice.replace(/[^0-9.]/g, '')) || 50) * 100000;
+
     const newPlotObj = {
       id: `plot_${Date.now()}`,
       number: newPlotNumber.trim().toUpperCase(),
       size: newPlotSize,
+      sizeSqFt: sizeSqFt,
+      dimension: dimension,
       facing: newPlotFacing,
+      vastuScore: vastuScore,
       price: newPlotPrice,
+      priceNumber: Math.round(priceNum),
       status: newPlotStatus,
-      elevation: newPlotElevation
+      elevation: newPlotElevation,
+      roadWidth: '40ft Internal Asphalt Road',
+      cornerPlot: newPlotElevation.toLowerCase().includes('corner'),
+      amenitiesDistance: '60m to Central Park & Clubhouse'
     };
 
-    const updatedPlots = [...currentTownship.plots, newPlotObj];
+    const updatedPlots = [...(currentTownship.plots || []), newPlotObj];
     const updatedTownship = {
       ...currentTownship,
       totalPlots: updatedPlots.length,
@@ -231,6 +245,22 @@ export default function DeveloperPortal({ townships, onUpdateTownship, onAddTown
     // Reset Form
     setNewPlotNumber('');
     setShowAddPlotModal(false);
+  };
+
+  // Handle Clear All Plots
+  const handleClearAllPlots = () => {
+    if (!currentTownship) return;
+    if (confirm(`Remove all plots from "${currentTownship.name}"? This will reset the plot inventory to 0.`)) {
+      const updatedTownship = {
+        ...currentTownship,
+        totalPlots: 0,
+        availablePlots: 0,
+        plots: []
+      };
+      if (onUpdateTownship) {
+        onUpdateTownship(updatedTownship);
+      }
+    }
   };
 
   // Handle Document Upload Submit
@@ -263,16 +293,6 @@ export default function DeveloperPortal({ townships, onUpdateTownship, onAddTown
     if (!newTsForm.name.trim()) return;
 
     const newId = `ts_${Date.now()}`;
-    const generatedPlots = Array.from({ length: 8 }).map((_, i) => ({
-      id: `plot_${newId}_${i + 1}`,
-      number: `P-${100 + i + 1}`,
-      size: i % 2 === 0 ? '1,500 sq.ft (30x50)' : '2,400 sq.ft (40x60)',
-      facing: i % 3 === 0 ? 'North-East' : i % 2 === 0 ? 'East' : 'North',
-      price: i % 2 === 0 ? '₹67.5 Lakh' : '₹1.08 Cr',
-      status: 'Available',
-      elevation: i === 0 ? 'Park Facing Corner' : 'Boulevard View',
-      legalStatus: 'RERA Cleared'
-    }));
 
     const createdTownship = {
       id: newId,
@@ -281,8 +301,8 @@ export default function DeveloperPortal({ townships, onUpdateTownship, onAddTown
       location: newTsForm.location.trim() || 'Bengaluru Suburbs',
       city: newTsForm.city.trim() || 'Bengaluru',
       totalAcres: newTsForm.totalAcres.trim() || '25 Acres',
-      totalPlots: generatedPlots.length,
-      availablePlots: generatedPlots.length,
+      totalPlots: 0,
+      availablePlots: 0,
       priceRange: newTsForm.priceRange.trim() || '₹65 Lakh - ₹1.2 Cr',
       pricePerSqFt: Number(newTsForm.pricePerSqFt) || 4500,
       reraId: newTsForm.reraId.trim() || `PRM/KA/RERA/1250/303/PR/${Date.now().toString().slice(-6)}`,
@@ -300,7 +320,7 @@ export default function DeveloperPortal({ townships, onUpdateTownship, onAddTown
         ecThirtyYears: 'Nil Encumbrance (Form 15)',
         mutationRegistered: true
       },
-      plots: generatedPlots
+      plots: []
     };
 
     if (onAddTownship) {
@@ -493,13 +513,25 @@ export default function DeveloperPortal({ townships, onUpdateTownship, onAddTown
               </div>
             </div>
 
-            <button
-              onClick={() => setShowAddPlotModal(true)}
-              className="w-full sm:w-auto px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center justify-center space-x-2 shadow-lg shadow-emerald-900/30 transition"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add New Plot to Inventory</span>
-            </button>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              {townshipPlots.length > 0 && (
+                <button
+                  onClick={handleClearAllPlots}
+                  className="px-3 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-bold rounded-xl flex items-center justify-center space-x-1.5 transition"
+                  title="Remove all plots from this enclave"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                  <span>Clear All Plots</span>
+                </button>
+              )}
+              <button
+                onClick={() => setShowAddPlotModal(true)}
+                className="flex-1 sm:flex-initial px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center justify-center space-x-2 shadow-lg shadow-emerald-900/30 transition"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add New Plot to Inventory</span>
+              </button>
+            </div>
           </div>
 
           {/* Plots Table */}
@@ -520,8 +552,27 @@ export default function DeveloperPortal({ townships, onUpdateTownship, onAddTown
                 <tbody className="divide-y divide-slate-800/80">
                   {filteredPlots.length === 0 ? (
                     <tr>
-                      <td colSpan="7" className="px-5 py-8 text-center text-slate-500">
-                        No plots found matching your current filter criteria.
+                      <td colSpan="7" className="px-5 py-12 text-center text-slate-400">
+                        <div className="max-w-sm mx-auto space-y-3">
+                          <div className="w-12 h-12 mx-auto rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-500">
+                            <Layers className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-white">No Plots in Inventory</p>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              {searchQuery || plotFilter !== 'All' 
+                                ? 'No plots match your active filters.'
+                                : 'All demo plots removed. Click "Add New Plot to Inventory" to register live units for this township.'}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => setShowAddPlotModal(true)}
+                            className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-600/20 text-emerald-400 border border-emerald-500/40 rounded-xl text-xs font-bold hover:bg-emerald-600/30 transition"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Add Plot Now</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ) : (

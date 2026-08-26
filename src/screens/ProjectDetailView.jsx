@@ -189,57 +189,71 @@ export default function ProjectDetailView({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <h3 className="text-lg font-bold text-white">Available Plot Inventory</h3>
-            <p className="text-xs text-slate-400">Click any plot to preview elevation context or reserve with token advance.</p>
+            <p className="text-xs text-slate-400">Preview elevation context, Vastu orientation, and reserve with token advance.</p>
           </div>
           <span className="text-xs text-emerald-400 font-bold bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/30">
-            {township.plots.filter(p => p.status === 'Available').length} Plots Ready to Register
+            {(township.plots || []).filter(p => p.status === 'Available').length} Plots Ready to Register
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-          {township.plots.map((plot) => (
-            <div
-              key={plot.id}
-              onClick={() => onSelectPlot(plot)}
-              className="bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-emerald-500/60 rounded-2xl p-4 cursor-pointer transition flex flex-col justify-between space-y-3 group"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-base font-black text-white">{plot.number}</span>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
-                  plot.status === 'Available'
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                    : plot.status === 'Reserved'
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                    : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                }`}>
-                  {plot.status}
-                </span>
-              </div>
-
-              <div className="space-y-1 text-xs">
-                <div className="flex justify-between text-slate-400">
-                  <span>Size:</span>
-                  <span className="font-semibold text-white">{plot.sizeSqFt} sq.ft ({plot.dimension})</span>
-                </div>
-                <div className="flex justify-between text-slate-400">
-                  <span>Facing:</span>
-                  <span className="font-bold text-emerald-400">{plot.facing} ({plot.vastuScore}% Vastu)</span>
-                </div>
-                <div className="flex justify-between text-slate-400">
-                  <span>Total Price:</span>
-                  <span className="font-bold text-amber-400">{plot.price}</span>
-                </div>
-              </div>
-
-              <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[10px]">
-                <span className="text-slate-400 truncate max-w-[120px]">{plot.roadWidth}</span>
-                <span className="text-emerald-400 font-bold group-hover:translate-x-1 transition">
-                  View Spec →
-                </span>
-              </div>
+        {(!township.plots || township.plots.length === 0) ? (
+          <div className="p-10 border border-dashed border-slate-800 rounded-2xl text-center space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mx-auto text-emerald-400">
+              <Layers className="w-6 h-6" />
             </div>
-          ))}
-        </div>
+            <div>
+              <p className="text-sm font-bold text-white">No Plots Listed Yet</p>
+              <p className="text-xs text-slate-400 max-w-md mx-auto mt-1">
+                Demo plots have been cleared. Developers can register and publish inventory units via the Developer Portal.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            {township.plots.map((plot) => (
+              <div
+                key={plot.id}
+                onClick={() => onSelectPlot(plot)}
+                className="bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-emerald-500/60 rounded-2xl p-4 cursor-pointer transition flex flex-col justify-between space-y-3 group"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-base font-black text-white">{plot.number}</span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
+                    plot.status === 'Available'
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                      : plot.status === 'Reserved'
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                  }`}>
+                    {plot.status}
+                  </span>
+                </div>
+
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between text-slate-400">
+                    <span>Size:</span>
+                    <span className="font-semibold text-white">{plot.sizeSqFt || plot.size} sq.ft ({plot.dimension || plot.size})</span>
+                  </div>
+                  <div className="flex justify-between text-slate-400">
+                    <span>Facing:</span>
+                    <span className="font-bold text-emerald-400">{plot.facing} ({plot.vastuScore || 95}% Vastu)</span>
+                  </div>
+                  <div className="flex justify-between text-slate-400">
+                    <span>Total Price:</span>
+                    <span className="font-bold text-amber-400">{plot.price}</span>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[10px]">
+                  <span className="text-slate-400 truncate max-w-[120px]">{plot.roadWidth || '40ft Internal Road'}</span>
+                  <span className="text-emerald-400 font-bold group-hover:translate-x-1 transition">
+                    View Spec →
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
