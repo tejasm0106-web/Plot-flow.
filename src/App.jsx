@@ -19,8 +19,9 @@ import {
   Sparkles,
   PhoneCall
 } from 'lucide-react';
+import DeveloperPortal from './DeveloperPortal.jsx';
 
-const mockTownships = [
+const initialTownships = [
   {
     id: 'ts_01',
     name: 'Prestige Sanctuary Greens',
@@ -63,12 +64,20 @@ const mockTownships = [
 ];
 
 export default function App() {
+  const [townships, setTownships] = useState(initialTownships);
   const [activeTab, setActiveTab] = useState('marketplace');
-  const [selectedTownship, setSelectedTownship] = useState(mockTownships[0]);
-  const [selectedPlot, setSelectedPlot] = useState(mockTownships[0].plots[0]);
+  const [selectedTownshipId, setSelectedTownshipId] = useState(initialTownships[0].id);
+  const [selectedPlotId, setSelectedPlotId] = useState(initialTownships[0].plots[0].id);
   const [searchQuery, setSearchQuery] = useState('');
   const [userRole, setUserRole] = useState('buyer'); // 'buyer' | 'developer' | 'admin'
   const [view3DMode, setView3DMode] = useState(false);
+
+  const selectedTownship = townships.find(t => t.id === selectedTownshipId) || townships[0];
+  const selectedPlot = selectedTownship.plots.find(p => p.id === selectedPlotId) || selectedTownship.plots[0];
+
+  const handleUpdateTownship = (updatedTownship) => {
+    setTownships(prev => prev.map(t => t.id === updatedTownship.id ? updatedTownship : t));
+  };
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans">
@@ -139,19 +148,28 @@ export default function App() {
           <div className="flex items-center space-x-2">
             <div className="bg-slate-900 border border-slate-800 rounded-lg p-1 flex text-xs">
               <button 
-                onClick={() => setUserRole('buyer')}
+                onClick={() => {
+                  setUserRole('buyer');
+                  setActiveTab('marketplace');
+                }}
                 className={`px-2.5 py-1 rounded-md transition ${userRole === 'buyer' ? 'bg-emerald-600 text-white font-semibold' : 'text-slate-400'}`}
               >
                 Buyer
               </button>
               <button 
-                onClick={() => setUserRole('developer')}
+                onClick={() => {
+                  setUserRole('developer');
+                  setActiveTab('developer-crm');
+                }}
                 className={`px-2.5 py-1 rounded-md transition ${userRole === 'developer' ? 'bg-indigo-600 text-white font-semibold' : 'text-slate-400'}`}
               >
                 Builder
               </button>
               <button 
-                onClick={() => setUserRole('admin')}
+                onClick={() => {
+                  setUserRole('admin');
+                  setActiveTab('verification');
+                }}
                 className={`px-2.5 py-1 rounded-md transition ${userRole === 'admin' ? 'bg-amber-600 text-white font-semibold' : 'text-slate-400'}`}
               >
                 Admin
@@ -204,7 +222,7 @@ export default function App() {
 
             {/* Township Cards Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {mockTownships.map((ts) => (
+              {townships.map((ts) => (
                 <div 
                   key={ts.id} 
                   className="bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition shadow-xl flex flex-col"
@@ -255,8 +273,8 @@ export default function App() {
                     <div className="flex items-center justify-between pt-1">
                       <button
                         onClick={() => {
-                          setSelectedTownship(ts);
-                          setSelectedPlot(ts.plots[0]);
+                          setSelectedTownshipId(ts.id);
+                          if (ts.plots[0]) setSelectedPlotId(ts.plots[0].id);
                           setActiveTab('visualizer');
                         }}
                         className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-semibold rounded-xl flex items-center space-x-1.5 transition"
@@ -266,7 +284,7 @@ export default function App() {
                       </button>
                       <button
                         onClick={() => {
-                          setSelectedTownship(ts);
+                          setSelectedTownshipId(ts.id);
                           setActiveTab('verification');
                         }}
                         className="px-4 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-xs font-semibold rounded-xl flex items-center space-x-1.5 transition"
@@ -341,7 +359,7 @@ export default function App() {
                     return (
                       <div
                         key={plot.id}
-                        onClick={() => setSelectedPlot(plot)}
+                        onClick={() => setSelectedPlotId(plot.id)}
                         className={`p-4 rounded-xl cursor-pointer border transition-all duration-200 flex flex-col justify-between h-32 ${
                           isSelected
                             ? 'bg-emerald-600/30 border-emerald-400 ring-2 ring-emerald-500/40 shadow-lg scale-102'
@@ -468,34 +486,10 @@ export default function App() {
 
         {/* Developer SaaS & CRM Tab */}
         {activeTab === 'developer-crm' && (
-          <div className="space-y-6">
-            <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-white">Developer SaaS & Inventory Console</h2>
-                  <p className="text-xs text-slate-400">Manage real-time plot releases, CRM buyer leads, and milestone disbursements.</p>
-                </div>
-                <span className="px-3 py-1 bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 rounded-full text-xs font-semibold">
-                  Prestige Plotted Townships
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
-                <div className="p-4 bg-slate-900/60 rounded-xl border border-slate-800">
-                  <span className="text-xs text-slate-400">Total Township Units</span>
-                  <span className="text-2xl font-bold text-white block mt-1">120 Plots</span>
-                </div>
-                <div className="p-4 bg-slate-900/60 rounded-xl border border-slate-800">
-                  <span className="text-xs text-slate-400">Live CRM Buyer Enquiries</span>
-                  <span className="text-2xl font-bold text-emerald-400 block mt-1">48 Active</span>
-                </div>
-                <div className="p-4 bg-slate-900/60 rounded-xl border border-slate-800">
-                  <span className="text-xs text-slate-400">Pipeline Sales Value</span>
-                  <span className="text-2xl font-bold text-amber-400 block mt-1">₹14.8 Cr</span>
-                </div>
-              </div>
-            </div>
-          </div>
+          <DeveloperPortal 
+            townships={townships} 
+            onUpdateTownship={handleUpdateTownship} 
+          />
         )}
       </main>
 
