@@ -239,7 +239,7 @@ fun AuthScreen(
             }
         }
 
-        // Segmented Toggle UI: Login vs. Registration
+        // Segmented Toggle UI: Login vs. Registration vs. Admin Portal
         item {
             Card(
                 shape = RoundedCornerShape(12.dp),
@@ -271,18 +271,18 @@ fun AuthScreen(
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Icon(
                                     Icons.Default.Login,
                                     contentDescription = null,
                                     tint = if (activeTab == AuthTabMode.LOGIN) Color.White else PlotTextSecondary,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(15.dp)
                                 )
                                 Text(
                                     text = "Login",
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp,
+                                    fontSize = 12.sp,
                                     color = if (activeTab == AuthTabMode.LOGIN) Color.White else PlotTextSecondary
                                 )
                             }
@@ -308,251 +308,377 @@ fun AuthScreen(
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Icon(
                                     Icons.Default.PersonAdd,
                                     contentDescription = null,
                                     tint = if (activeTab == AuthTabMode.REGISTER) Color.White else PlotTextSecondary,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(15.dp)
                                 )
                                 Text(
                                     text = "Register",
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp,
+                                    fontSize = 12.sp,
                                     color = if (activeTab == AuthTabMode.REGISTER) Color.White else PlotTextSecondary
                                 )
                             }
                         }
                     }
+
+                    // Admin Portal Tab
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (activeTab == AuthTabMode.ADMIN) PlotGold else Color.Transparent,
+                        modifier = Modifier
+                            .weight(1.1f)
+                            .clickable {
+                                activeTab = AuthTabMode.ADMIN
+                                selectedRole = UserRole.ADMIN
+                                emailInput = "tejastej094@gmail.com"
+                                passwordInput = "Admin@PlotFlow2026"
+                                validationError = null
+                                viewModel.clearNotification()
+                            }
+                            .testTag("toggle_admin_tab")
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.padding(vertical = 10.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.AdminPanelSettings,
+                                    contentDescription = null,
+                                    tint = if (activeTab == AuthTabMode.ADMIN) PlotNavyDark else PlotTextSecondary,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Text(
+                                    text = "Admin Panel",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = if (activeTab == AuthTabMode.ADMIN) PlotNavyDark else PlotTextSecondary
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        // Role Specification Selector: Buyer vs. Developer (Dropdown & Card Selector)
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                // Dropdown Selection for Role
-                ExposedDropdownMenuBox(
-                    expanded = isRoleDropdownExpanded,
-                    onExpandedChange = { isRoleDropdownExpanded = !isRoleDropdownExpanded },
-                    modifier = Modifier.fillMaxWidth().testTag("role_dropdown_container")
-                ) {
-                    OutlinedTextField(
-                        value = if (selectedRole == UserRole.DEVELOPER) "Developer (Builder SaaS & CRM)" else "Buyer (Township & Plot Explorer)",
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Select Account Role") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isRoleDropdownExpanded) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = if (selectedRole == UserRole.DEVELOPER) Icons.Default.BusinessCenter else Icons.Default.Person,
-                                contentDescription = null,
-                                tint = if (selectedRole == UserRole.DEVELOPER) PlotNavyDark else PlotGreenPrimary
-                            )
-                        },
-                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(
-                            focusedContainerColor = PlotWhite,
-                            unfocusedContainerColor = PlotWhite
-                        ),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier
-                            .menuAnchor()
-                            .fillMaxWidth()
-                            .testTag("role_dropdown_input")
-                    )
-
-                    ExposedDropdownMenu(
+        // Role Specification Selector: Buyer vs. Developer (Only shown in Login & Register)
+        if (activeTab != AuthTabMode.ADMIN) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // Dropdown Selection for Role
+                    ExposedDropdownMenuBox(
                         expanded = isRoleDropdownExpanded,
-                        onDismissRequest = { isRoleDropdownExpanded = false }
+                        onExpandedChange = { isRoleDropdownExpanded = !isRoleDropdownExpanded },
+                        modifier = Modifier.fillMaxWidth().testTag("role_dropdown_container")
                     ) {
-                        DropdownMenuItem(
-                            text = {
-                                Column {
-                                    Text(
-                                        text = "Buyer",
-                                        fontWeight = FontWeight.Bold,
-                                        color = PlotNavyDark
-                                    )
-                                    Text(
-                                        text = "Explore plotted townships, 3D layouts, and book visits",
-                                        fontSize = 11.sp,
-                                        color = PlotTextSecondary
-                                    )
-                                }
-                            },
+                        OutlinedTextField(
+                            value = if (selectedRole == UserRole.DEVELOPER) "Developer (Builder SaaS & CRM)" else "Buyer (Township & Plot Explorer)",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Select Account Role") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isRoleDropdownExpanded) },
                             leadingIcon = {
-                                Icon(Icons.Default.Home, contentDescription = null, tint = PlotGreenDark)
-                            },
-                            onClick = {
-                                selectedRole = UserRole.BUYER
-                                isRoleDropdownExpanded = false
-                                validationError = null
-                            },
-                            modifier = Modifier.testTag("dropdown_item_buyer")
-                        )
-                        HorizontalDivider()
-                        DropdownMenuItem(
-                            text = {
-                                Column {
-                                    Text(
-                                        text = "Developer",
-                                        fontWeight = FontWeight.Bold,
-                                        color = PlotNavyDark
-                                    )
-                                    Text(
-                                        text = "Manage township inventory, CRM leads, and RERA milestones",
-                                        fontSize = 11.sp,
-                                        color = PlotTextSecondary
-                                    )
-                                }
-                            },
-                            leadingIcon = {
-                                Icon(Icons.Default.BusinessCenter, contentDescription = null, tint = PlotGold)
-                            },
-                            onClick = {
-                                selectedRole = UserRole.DEVELOPER
-                                isRoleDropdownExpanded = false
-                                validationError = null
-                            },
-                            modifier = Modifier.testTag("dropdown_item_developer")
-                        )
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    // Buyer Role Card
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (selectedRole == UserRole.BUYER) PlotGreenDark else PlotWhite,
-                        border = BorderStroke(
-                            width = if (selectedRole == UserRole.BUYER) 2.dp else 1.dp,
-                            color = if (selectedRole == UserRole.BUYER) PlotGreenPrimary else PlotCardBorder
-                        ),
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable {
-                                selectedRole = UserRole.BUYER
-                                validationError = null
-                            }
-                            .testTag("role_buyer_option")
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
                                 Icon(
-                                    imageVector = Icons.Default.Home,
+                                    imageVector = if (selectedRole == UserRole.DEVELOPER) Icons.Default.BusinessCenter else Icons.Default.Person,
                                     contentDescription = null,
-                                    tint = if (selectedRole == UserRole.BUYER) Color.White else PlotGreenDark,
-                                    modifier = Modifier.size(20.dp)
+                                    tint = if (selectedRole == UserRole.DEVELOPER) PlotNavyDark else PlotGreenPrimary
                                 )
-                                if (selectedRole == UserRole.BUYER) {
-                                    Icon(
-                                        imageVector = Icons.Default.CheckCircle,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = "Buyer",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (selectedRole == UserRole.BUYER) Color.White else PlotNavyDark
+                            },
+                            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(
+                                focusedContainerColor = PlotWhite,
+                                unfocusedContainerColor = PlotWhite
+                            ),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .menuAnchor()
+                                .fillMaxWidth()
+                                .testTag("role_dropdown_input")
+                        )
+
+                        ExposedDropdownMenu(
+                            expanded = isRoleDropdownExpanded,
+                            onDismissRequest = { isRoleDropdownExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Column {
+                                        Text(
+                                            text = "Buyer",
+                                            fontWeight = FontWeight.Bold,
+                                            color = PlotNavyDark
+                                        )
+                                        Text(
+                                            text = "Explore plotted townships, 3D layouts, and book visits",
+                                            fontSize = 11.sp,
+                                            color = PlotTextSecondary
+                                        )
+                                    }
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Home, contentDescription = null, tint = PlotGreenDark)
+                                },
+                                onClick = {
+                                    selectedRole = UserRole.BUYER
+                                    isRoleDropdownExpanded = false
+                                    validationError = null
+                                },
+                                modifier = Modifier.testTag("dropdown_item_buyer")
                             )
-                            Text(
-                                text = "Explore & Book Visits",
-                                fontSize = 10.sp,
-                                color = if (selectedRole == UserRole.BUYER) Color.White.copy(alpha = 0.85f) else PlotTextMuted
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = {
+                                    Column {
+                                        Text(
+                                            text = "Developer",
+                                            fontWeight = FontWeight.Bold,
+                                            color = PlotNavyDark
+                                        )
+                                        Text(
+                                            text = "Manage township inventory, CRM leads, and RERA milestones",
+                                            fontSize = 11.sp,
+                                            color = PlotTextSecondary
+                                        )
+                                    }
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.BusinessCenter, contentDescription = null, tint = PlotGold)
+                                },
+                                onClick = {
+                                    selectedRole = UserRole.DEVELOPER
+                                    isRoleDropdownExpanded = false
+                                    validationError = null
+                                },
+                                modifier = Modifier.testTag("dropdown_item_developer")
                             )
                         }
                     }
 
-                    // Developer Role Card
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (selectedRole == UserRole.DEVELOPER) PlotNavyDark else PlotWhite,
-                        border = BorderStroke(
-                            width = if (selectedRole == UserRole.DEVELOPER) 2.dp else 1.dp,
-                            color = if (selectedRole == UserRole.DEVELOPER) PlotGold else PlotCardBorder
-                        ),
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable {
-                                selectedRole = UserRole.DEVELOPER
-                                validationError = null
-                            }
-                            .testTag("role_developer_option")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.BusinessCenter,
-                                    contentDescription = null,
-                                    tint = if (selectedRole == UserRole.DEVELOPER) PlotGold else PlotNavyDark,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                if (selectedRole == UserRole.DEVELOPER) {
-                                    Icon(
-                                        imageVector = Icons.Default.CheckCircle,
-                                        contentDescription = null,
-                                        tint = PlotGold,
-                                        modifier = Modifier.size(16.dp)
-                                    )
+                        // Buyer Role Card
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (selectedRole == UserRole.BUYER) PlotGreenDark else PlotWhite,
+                            border = BorderStroke(
+                                width = if (selectedRole == UserRole.BUYER) 2.dp else 1.dp,
+                                color = if (selectedRole == UserRole.BUYER) PlotGreenPrimary else PlotCardBorder
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable {
+                                    selectedRole = UserRole.BUYER
+                                    validationError = null
                                 }
+                                .testTag("role_buyer_option")
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Home,
+                                        contentDescription = null,
+                                        tint = if (selectedRole == UserRole.BUYER) Color.White else PlotGreenDark,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    if (selectedRole == UserRole.BUYER) {
+                                        Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "Buyer",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (selectedRole == UserRole.BUYER) Color.White else PlotNavyDark
+                                )
+                                Text(
+                                    text = "Explore & Book Visits",
+                                    fontSize = 10.sp,
+                                    color = if (selectedRole == UserRole.BUYER) Color.White.copy(alpha = 0.85f) else PlotTextMuted
+                                )
                             }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = "Developer",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (selectedRole == UserRole.DEVELOPER) Color.White else PlotNavyDark
-                            )
-                            Text(
-                                text = "SaaS Inventory & CRM",
-                                fontSize = 10.sp,
-                                color = if (selectedRole == UserRole.DEVELOPER) PlotGold else PlotTextMuted
-                            )
+                        }
+
+                        // Developer Role Card
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (selectedRole == UserRole.DEVELOPER) PlotNavyDark else PlotWhite,
+                            border = BorderStroke(
+                                width = if (selectedRole == UserRole.DEVELOPER) 2.dp else 1.dp,
+                                color = if (selectedRole == UserRole.DEVELOPER) PlotGold else PlotCardBorder
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable {
+                                    selectedRole = UserRole.DEVELOPER
+                                    validationError = null
+                                }
+                                .testTag("role_developer_option")
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.BusinessCenter,
+                                        contentDescription = null,
+                                        tint = if (selectedRole == UserRole.DEVELOPER) PlotGold else PlotNavyDark,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    if (selectedRole == UserRole.DEVELOPER) {
+                                        Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = null,
+                                            tint = PlotGold,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "Developer",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (selectedRole == UserRole.DEVELOPER) Color.White else PlotNavyDark
+                                )
+                                Text(
+                                    text = "SaaS Inventory & CRM",
+                                    fontSize = 10.sp,
+                                    color = if (selectedRole == UserRole.DEVELOPER) PlotGold else PlotTextMuted
+                                )
+                            }
                         }
                     }
                 }
             }
         }
 
-        // Credentials Input Form Card
+        // Credentials Input Form Card / Admin Panel Card
         item {
             Card(
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = PlotWhite),
-                border = BorderStroke(1.dp, PlotCardBorder),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (activeTab == AuthTabMode.ADMIN) PlotNavyDark else PlotWhite
+                ),
+                border = BorderStroke(
+                    width = if (activeTab == AuthTabMode.ADMIN) 2.dp else 1.dp,
+                    color = if (activeTab == AuthTabMode.ADMIN) PlotGold else PlotCardBorder
+                ),
                 modifier = Modifier.fillMaxWidth().testTag("auth_form_fields")
             ) {
                 Column(
                     modifier = Modifier.padding(18.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(
-                        text = if (activeTab == AuthTabMode.LOGIN) {
-                            if (selectedRole == UserRole.DEVELOPER) "Developer Sign In Credentials" else "Buyer Sign In Credentials"
-                        } else {
-                            if (selectedRole == UserRole.DEVELOPER) "Developer Account Information" else "Buyer Account Information"
-                        },
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = PlotNavyDark
-                    )
+                    if (activeTab == AuthTabMode.ADMIN) {
+                        // Admin Panel Header
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = PlotGold,
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        Icons.Default.Security,
+                                        contentDescription = null,
+                                        tint = PlotNavyDark,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            }
+                            Column {
+                                Text(
+                                    text = "Super Admin Authentication Panel",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color.White
+                                )
+                                Text(
+                                    text = "Master Control & Platform Ownership Access",
+                                    fontSize = 11.sp,
+                                    color = PlotGold
+                                )
+                            }
+                        }
+
+                        // Credentials Info Callout Box
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color.White.copy(alpha = 0.08f),
+                            border = BorderStroke(1.dp, PlotGold.copy(alpha = 0.4f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(Icons.Default.Key, contentDescription = null, tint = PlotGold, modifier = Modifier.size(14.dp))
+                                    Text(
+                                        text = "Admin Credentials for User Email:",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = PlotGold
+                                    )
+                                }
+                                Text(
+                                    text = "User ID / Email: tejastej094@gmail.com",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White
+                                )
+                                Text(
+                                    text = "Password: Admin@PlotFlow2026",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White
+                                )
+                                Text(
+                                    text = "Master PIN: 2026 (Full Owner Privileges)",
+                                    fontSize = 11.sp,
+                                    color = Color.White.copy(alpha = 0.8f)
+                                )
+                            }
+                        }
+                    } else {
+                        Text(
+                            text = if (activeTab == AuthTabMode.LOGIN) {
+                                if (selectedRole == UserRole.DEVELOPER) "Developer Sign In Credentials" else "Buyer Sign In Credentials"
+                            } else {
+                                if (selectedRole == UserRole.DEVELOPER) "Developer Account Information" else "Buyer Account Information"
+                            },
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = PlotNavyDark
+                        )
+                    }
 
                     // Registration Additional Fields
                     if (activeTab == AuthTabMode.REGISTER) {
@@ -748,24 +874,36 @@ fun AuthScreen(
                     Button(
                         onClick = {
                             focusManager.clearFocus()
-                            executeAuth(
-                                activeTab = activeTab,
-                                selectedRole = selectedRole,
-                                fullName = fullNameInput,
-                                companyName = companyNameInput,
-                                roleTitle = roleTitleInput,
-                                phone = phoneInput,
-                                email = emailInput,
-                                pass = passwordInput,
-                                confirmPass = confirmPasswordInput,
-                                viewModel = viewModel,
-                                onValidationError = { validationError = it }
-                            )
+                            if (activeTab == AuthTabMode.ADMIN || selectedRole == UserRole.ADMIN) {
+                                viewModel.loginAdmin(
+                                    email = emailInput.ifEmpty { "tejastej094@gmail.com" },
+                                    pass = passwordInput.ifEmpty { "Admin@PlotFlow2026" },
+                                    pin = "2026"
+                                )
+                            } else {
+                                executeAuth(
+                                    activeTab = activeTab,
+                                    selectedRole = selectedRole,
+                                    fullName = fullNameInput,
+                                    companyName = companyNameInput,
+                                    roleTitle = roleTitleInput,
+                                    phone = phoneInput,
+                                    email = emailInput,
+                                    pass = passwordInput,
+                                    confirmPass = confirmPasswordInput,
+                                    viewModel = viewModel,
+                                    onValidationError = { validationError = it }
+                                )
+                            }
                         },
                         enabled = !uiState.isAuthLoading,
                         shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selectedRole == UserRole.DEVELOPER) PlotNavyDark else PlotGreenPrimary
+                            containerColor = when {
+                                activeTab == AuthTabMode.ADMIN -> PlotGold
+                                selectedRole == UserRole.DEVELOPER -> PlotNavyDark
+                                else -> PlotGreenPrimary
+                            }
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -773,24 +911,40 @@ fun AuthScreen(
                             .testTag("auth_action_submit_btn")
                     ) {
                         if (uiState.isAuthLoading) {
-                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            CircularProgressIndicator(
+                                color = if (activeTab == AuthTabMode.ADMIN) PlotNavyDark else Color.White,
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp
+                            )
                         } else {
                             Icon(
-                                imageVector = if (activeTab == AuthTabMode.LOGIN) Icons.Default.Login else Icons.Default.HowToReg,
+                                imageVector = when {
+                                    activeTab == AuthTabMode.ADMIN -> Icons.Default.Security
+                                    activeTab == AuthTabMode.LOGIN -> Icons.Default.Login
+                                    else -> Icons.Default.HowToReg
+                                },
                                 contentDescription = null,
-                                tint = if (selectedRole == UserRole.DEVELOPER) PlotGold else Color.White,
+                                tint = when {
+                                    activeTab == AuthTabMode.ADMIN -> PlotNavyDark
+                                    selectedRole == UserRole.DEVELOPER -> PlotGold
+                                    else -> Color.White
+                                },
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = if (activeTab == AuthTabMode.LOGIN) {
-                                    if (selectedRole == UserRole.DEVELOPER) "Sign In to Developer Console" else "Sign In as Buyer"
-                                } else {
-                                    if (selectedRole == UserRole.DEVELOPER) "Register Developer Account" else "Create Buyer Account"
+                                text = when {
+                                    activeTab == AuthTabMode.ADMIN -> "Sign In to Admin Panel (Tejas)"
+                                    activeTab == AuthTabMode.LOGIN -> {
+                                        if (selectedRole == UserRole.DEVELOPER) "Sign In to Developer Console" else "Sign In as Buyer"
+                                    }
+                                    else -> {
+                                        if (selectedRole == UserRole.DEVELOPER) "Register Developer Account" else "Create Buyer Account"
+                                    }
                                 },
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = if (activeTab == AuthTabMode.ADMIN) PlotNavyDark else Color.White
                             )
                         }
                     }
@@ -816,7 +970,7 @@ fun AuthScreen(
                     ) {
                         Icon(Icons.Default.VpnKey, contentDescription = null, tint = PlotNavyDark, modifier = Modifier.size(18.dp))
                         Text(
-                            text = "Quick Demo Accounts (1-Tap)",
+                            text = "Quick 1-Tap Auth Profiles",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = PlotNavyDark
@@ -824,9 +978,25 @@ fun AuthScreen(
                     }
 
                     Text(
-                        text = "Instantly test authentication sessions and role permissions without typing:",
+                        text = "Instant 1-tap testing credentials with verified roles and permissions:",
                         fontSize = 11.sp,
                         color = PlotTextSecondary
+                    )
+
+                    // Primary Super Admin / Owner Account: Tejas
+                    AuthDemoAccountItem(
+                        title = "Tejas (Super Admin & Master Owner)",
+                        email = "tejastej094@gmail.com",
+                        roleBadge = "Super Admin (Full Access)",
+                        badgeBg = PlotGold,
+                        badgeText = PlotNavyDark,
+                        onClick = {
+                            activeTab = AuthTabMode.ADMIN
+                            selectedRole = UserRole.ADMIN
+                            emailInput = "tejastej094@gmail.com"
+                            passwordInput = "Admin@PlotFlow2026"
+                            viewModel.loginAdmin("tejastej094@gmail.com", "Admin@PlotFlow2026", "2026")
+                        }
                     )
 
                     // Developer 1: Green Valley Developers
@@ -842,18 +1012,6 @@ fun AuthScreen(
                             emailInput = "dev@greenvalley.in"
                             passwordInput = "plotflow2026"
                             viewModel.loginWithFirebaseAuth("dev@greenvalley.in", "plotflow2026", UserRole.DEVELOPER)
-                        }
-                    )
-
-                    // App Owner / Super Admin
-                    AuthDemoAccountItem(
-                        title = "App Owner & Super Admin (Master Control)",
-                        email = "owner@plotflow.in",
-                        roleBadge = "Owner Admin",
-                        badgeBg = PlotGold,
-                        badgeText = PlotNavyDark,
-                        onClick = {
-                            viewModel.loginAdmin()
                         }
                     )
 
