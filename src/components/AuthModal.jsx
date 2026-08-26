@@ -7,20 +7,22 @@ import {
   Building2, 
   Sparkles, 
   ArrowRight,
-  CheckCircle2,
-  KeyRound,
-  Mail,
-  UserPlus,
-  LogIn,
-  Send,
-  Eye,
-  EyeOff,
-  Phone,
-  MapPin,
-  Check,
-  AlertCircle,
-  Shield,
-  FileText
+  CheckCircle2, 
+  KeyRound, 
+  Mail, 
+  UserPlus, 
+  LogIn, 
+  Send, 
+  Eye, 
+  EyeOff, 
+  Phone, 
+  MapPin, 
+  Check, 
+  AlertCircle, 
+  Shield, 
+  FileText,
+  Scale,
+  Award
 } from 'lucide-react';
 import { 
   loginWithEmailAndPassword, 
@@ -37,7 +39,7 @@ export default function AuthModal({
   onClose, 
   onLoginSuccess 
 }) {
-  // Navigation Mode: 'login' | 'register' | 'admin_credentials'
+  // Navigation Mode: 'login' | 'register' | 'legal_login' | 'admin_credentials'
   const [activeMode, setActiveMode] = useState('login');
   
   // Registration Role: 'BUYER' | 'DEVELOPER'
@@ -100,11 +102,11 @@ export default function AuthModal({
     setLoading(true);
     try {
       const user = await loginWithEmailAndPassword(loginEmail, loginPassword);
-      setSuccessMsg(`Welcome back, ${user.name}!`);
+      setSuccessMsg(`Welcome back, ${user.name}! (${user.roleTitle || user.role})`);
       setTimeout(() => {
         if (onLoginSuccess) onLoginSuccess(user);
         onClose();
-      }, 500);
+      }, 600);
     } catch (err) {
       setError(err.message || 'Failed to sign in. Please verify your credentials.');
     } finally {
@@ -234,12 +236,16 @@ export default function AuthModal({
             <div className={`w-11 h-11 rounded-2xl flex items-center justify-center border shadow-inner ${
               activeMode === 'admin_credentials' 
                 ? 'bg-amber-500/20 border-amber-500/30 text-amber-400' 
+                : activeMode === 'legal_login'
+                ? 'bg-teal-500/20 border-teal-500/30 text-teal-400'
                 : activeMode === 'register'
                 ? 'bg-indigo-500/20 border-indigo-500/30 text-indigo-400'
                 : 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
             }`}>
               {activeMode === 'admin_credentials' ? (
                 <ShieldCheck className="w-6 h-6" />
+              ) : activeMode === 'legal_login' ? (
+                <Scale className="w-6 h-6" />
               ) : activeMode === 'register' ? (
                 <UserPlus className="w-6 h-6" />
               ) : (
@@ -250,6 +256,8 @@ export default function AuthModal({
               <h3 className="text-lg font-black text-white tracking-tight">
                 {activeMode === 'admin_credentials' 
                   ? 'Master Admin Credentials & Mailer' 
+                  : activeMode === 'legal_login'
+                  ? 'Legal Compliance Team Portal'
                   : activeMode === 'register' 
                   ? 'Create Platform Account' 
                   : 'Account Authentication'}
@@ -257,9 +265,11 @@ export default function AuthModal({
               <p className="text-xs text-slate-400">
                 {activeMode === 'admin_credentials'
                   ? 'Manage password & dispatch credentials to tejastej094@gmail.com'
+                  : activeMode === 'legal_login'
+                  ? 'Audit Title Deeds, Encumbrances & Approve/Reject Developer Plots'
                   : activeMode === 'register'
                   ? 'Register as real Buyer or Developer to buy & sell plotted land'
-                  : 'Sign in to access 3D plots, tokens, or Developer SaaS'}
+                  : 'Sign in to access 3D plots, tokens, legal audit, or Developer SaaS'}
               </p>
             </div>
           </div>
@@ -272,11 +282,11 @@ export default function AuthModal({
           </button>
         </div>
 
-        {/* Primary Action Tabs: Sign In | Create Account | Super Admin Access */}
-        <div className="grid grid-cols-3 border-b border-slate-800 bg-slate-900/40 text-xs font-bold text-center">
+        {/* Primary Action Tabs: Sign In | Legal Team | Create Account | Admin Mailer */}
+        <div className="grid grid-cols-4 border-b border-slate-800 bg-slate-900/40 text-[11px] font-bold text-center">
           <button
             onClick={() => { setActiveMode('login'); setError(''); setSuccessMsg(''); }}
-            className={`py-3 transition border-b-2 flex items-center justify-center space-x-1.5 ${
+            className={`py-3 transition border-b-2 flex items-center justify-center space-x-1 ${
               activeMode === 'login' 
                 ? 'border-emerald-400 text-emerald-400 bg-emerald-500/10' 
                 : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -287,27 +297,45 @@ export default function AuthModal({
           </button>
 
           <button
+            onClick={() => { 
+              setActiveMode('legal_login'); 
+              setLoginEmail('legal.auditor@plotflow.in'); 
+              setLoginPassword('Legal@2026');
+              setError(''); 
+              setSuccessMsg(''); 
+            }}
+            className={`py-3 transition border-b-2 flex items-center justify-center space-x-1 ${
+              activeMode === 'legal_login' 
+                ? 'border-teal-400 text-teal-300 bg-teal-500/10 font-black' 
+                : 'border-transparent text-teal-400/80 hover:text-teal-300'
+            }`}
+          >
+            <Scale className="w-3.5 h-3.5" />
+            <span>Legal Team</span>
+          </button>
+
+          <button
             onClick={() => { setActiveMode('register'); setError(''); setSuccessMsg(''); }}
-            className={`py-3 transition border-b-2 flex items-center justify-center space-x-1.5 ${
+            className={`py-3 transition border-b-2 flex items-center justify-center space-x-1 ${
               activeMode === 'register' 
                 ? 'border-indigo-400 text-indigo-400 bg-indigo-500/10' 
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             <UserPlus className="w-3.5 h-3.5" />
-            <span>Create Account</span>
+            <span>Register</span>
           </button>
 
           <button
             onClick={() => { setActiveMode('admin_credentials'); setError(''); setSuccessMsg(''); }}
-            className={`py-3 transition border-b-2 flex items-center justify-center space-x-1.5 ${
+            className={`py-3 transition border-b-2 flex items-center justify-center space-x-1 ${
               activeMode === 'admin_credentials' 
                 ? 'border-amber-400 text-amber-400 bg-amber-500/10' 
                 : 'border-transparent text-amber-500/70 hover:text-amber-400'
             }`}
           >
             <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Admin Mailer</span>
+            <span>Admin</span>
           </button>
         </div>
 
@@ -329,41 +357,92 @@ export default function AuthModal({
             </div>
           )}
 
-          {/* ================= MODE 1: SIGN IN ================= */}
-          {activeMode === 'login' && (
+          {/* ================= MODE 1 & 2: SIGN IN / LEGAL TEAM LOGIN ================= */}
+          {(activeMode === 'login' || activeMode === 'legal_login') && (
             <div className="space-y-4">
-              {/* Quick Switch for Super Admin Login */}
-              <div className="p-3 bg-amber-950/30 border border-amber-500/30 rounded-2xl flex items-center justify-between text-xs">
-                <div className="flex items-center space-x-2.5">
-                  <Shield className="w-4 h-4 text-amber-400 flex-shrink-0" />
+              {/* Quick Role Fill Switcher */}
+              <div className="p-3 bg-slate-900 border border-slate-800 rounded-2xl space-y-2">
+                <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold block">
+                  1-Click Role Login Credentials
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px] font-bold">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginEmail('legal.auditor@plotflow.in');
+                      setLoginPassword('Legal@2026');
+                      setActiveMode('legal_login');
+                    }}
+                    className="p-1.5 rounded-lg bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 border border-teal-500/40 transition flex items-center justify-center space-x-1"
+                  >
+                    <Scale className="w-3 h-3" />
+                    <span>Legal Team</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginEmail('tejastej094@gmail.com');
+                      const creds = getAdminCredentials();
+                      setLoginPassword(creds.password || 'Admin@2026');
+                      setActiveMode('login');
+                    }}
+                    className="p-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 transition flex items-center justify-center space-x-1"
+                  >
+                    <Shield className="w-3 h-3" />
+                    <span>Super Admin</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginEmail('rohit@prestigeplotted.com');
+                      setLoginPassword('Prestige@123');
+                      setActiveMode('login');
+                    }}
+                    className="p-1.5 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 transition flex items-center justify-center space-x-1"
+                  >
+                    <Building2 className="w-3 h-3" />
+                    <span>Developer</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginEmail('vikram.sharma@techcorp.com');
+                      setLoginPassword('Buyer@123');
+                      setActiveMode('login');
+                    }}
+                    className="p-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition flex items-center justify-center space-x-1"
+                  >
+                    <User className="w-3 h-3" />
+                    <span>Plot Buyer</span>
+                  </button>
+                </div>
+              </div>
+
+              {activeMode === 'legal_login' && (
+                <div className="p-3 bg-teal-950/40 border border-teal-500/30 rounded-2xl flex items-center space-x-3 text-xs">
+                  <Award className="w-5 h-5 text-teal-400 flex-shrink-0" />
                   <div>
-                    <span className="font-bold text-white block">Logging in as Master Owner?</span>
-                    <span className="text-[11px] text-amber-300/80">tejastej094@gmail.com</span>
+                    <span className="font-bold text-white block">Legal Compliance & Title Due Diligence Wing</span>
+                    <span className="text-[11px] text-teal-300/80">Authorized to inspect Title Deeds, ECs, and Approve/Reject plots.</span>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoginEmail('tejastej094@gmail.com');
-                    const creds = getAdminCredentials();
-                    setLoginPassword(creds.password || 'Admin@2026');
-                  }}
-                  className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold rounded-lg transition text-[11px]"
-                >
-                  Fill Admin ID
-                </button>
-              </div>
+              )}
 
               {/* Standard Email & Password Form */}
               <form onSubmit={handleSignIn} className="space-y-3 text-xs">
                 <div>
-                  <label className="text-slate-300 font-semibold block mb-1">Email Address</label>
+                  <label className="text-slate-300 font-semibold block mb-1">
+                    {activeMode === 'legal_login' ? 'Legal Auditor Email / User ID *' : 'Registered Email / User ID *'}
+                  </label>
                   <div className="relative">
                     <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
                     <input
                       type="email"
                       required
-                      placeholder="e.g. yourname@domain.com or builder@company.com"
+                      placeholder={activeMode === 'legal_login' ? 'legal.auditor@plotflow.in' : 'yourname@domain.com or builder@company.com'}
                       value={loginEmail}
                       onChange={(e) => setLoginEmail(e.target.value)}
                       className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 text-xs"
@@ -373,13 +452,13 @@ export default function AuthModal({
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-slate-300 font-semibold">Password</label>
+                    <label className="text-slate-300 font-semibold">Password *</label>
                     <button
                       type="button"
                       onClick={() => setActiveMode('admin_credentials')}
                       className="text-[11px] text-amber-400 hover:underline"
                     >
-                      Admin Password Help?
+                      Admin Password Reset?
                     </button>
                   </div>
                   <div className="relative">
@@ -405,14 +484,20 @@ export default function AuthModal({
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-950/50 transition flex items-center justify-center space-x-2 mt-2"
+                  className={`w-full py-3 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center space-x-2 mt-2 ${
+                    activeMode === 'legal_login'
+                      ? 'bg-teal-600 hover:bg-teal-500 shadow-teal-950/50'
+                      : 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-950/50'
+                  }`}
                 >
                   {loading ? (
                     <span>Signing In...</span>
                   ) : (
                     <>
                       <LogIn className="w-4 h-4" />
-                      <span>Sign In to Account</span>
+                      <span>
+                        {activeMode === 'legal_login' ? 'Sign In to Legal Compliance Console' : 'Sign In to Account'}
+                      </span>
                     </>
                   )}
                 </button>

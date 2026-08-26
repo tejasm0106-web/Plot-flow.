@@ -38,7 +38,10 @@ import {
   Send,
   UserCheck,
   Shield,
-  Copy
+  Copy,
+  Scale,
+  UserX,
+  Plus
 } from 'lucide-react';
 
 import { 
@@ -50,7 +53,10 @@ import {
   saveStoredUsers, 
   getAdminCredentials, 
   updateAdminCredentials, 
-  dispatchAdminCredentialEmail,
+  createLegalTeamUser,
+  toggleUserStatusByAdmin,
+  updateUserPasswordByAdmin,
+  removeUserAccountByAdmin,
   getEmailDispatchLogs
 } from '../services/userService';
 import { auth, firebaseConfig } from '../services/firebase';
@@ -58,22 +64,39 @@ import { auth, firebaseConfig } from '../services/firebase';
 export default function AdminPanel({ 
   currentUser, 
   townships = [], 
+  onUpdateTownship,
+  onRemoveTownship,
   onApproveProject, 
   onRejectProject 
 }) {
-  // Navigation Sub-Tabs: 'overview' | 'users' | 'admin_creds' | 'settings' | 'approvals' | 'audit'
+  // Navigation Sub-Tabs: 'overview' | 'users' | 'plots_devs' | 'admin_creds' | 'settings' | 'approvals' | 'audit'
   const [activeTab, setActiveTab] = useState('overview');
 
-  // User Management State (Synchronized with localStorage & Auth)
+  // User Management State
   const [usersList, setUsersList] = useState(() => getStoredUsers());
   const [userSearchQuery, setUserSearchQuery] = useState('');
   const [selectedRoleFilter, setSelectedRoleFilter] = useState('ALL');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState('ALL');
+  
+  // Modals state
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [isCreateLegalModalOpen, setIsCreateLegalModalOpen] = useState(false);
+  const [resetPasswordModalUser, setResetPasswordModalUser] = useState(null);
+  const [newPasswordForUser, setNewPasswordForUser] = useState('');
   const [editingUserId, setEditingUserId] = useState(null);
   const [editUserRole, setEditUserRole] = useState('BUYER');
 
-  // New User Invite Form State
+  // New Legal User Form
+  const [legalForm, setLegalForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    phone: '',
+    barCouncilId: '',
+    specialization: 'Land Revenue & RERA Title Verification'
+  });
+
+  // New Generic User Invite Form State
   const [newUserForm, setNewUserForm] = useState({
     name: '',
     email: '',
@@ -89,7 +112,10 @@ export default function AdminPanel({
   const [adminPinInput, setAdminPinInput] = useState(adminCreds.securityPin || '2026');
   const [emailLogs, setEmailLogs] = useState(() => getEmailDispatchLogs());
   const [latestEmailPacket, setLatestEmailPacket] = useState(null);
-  const [copiedKey, setCopiedKey] = useState(false);
+
+  // Developer & Plot Governance State
+  const [selectedTownshipFilter, setSelectedTownshipFilter] = useState('ALL');
+  const [plotSearchQuery, setPlotSearchQuery] = useState('');
 
   // Site-Wide Settings State
   const [siteSettings, setSiteSettings] = useState(INITIAL_SITE_SETTINGS);
@@ -97,7 +123,7 @@ export default function AdminPanel({
   const [firebaseSyncing, setFirebaseSyncing] = useState(false);
   const [firebaseSyncSuccess, setFirebaseSyncSuccess] = useState(false);
 
-  // Developer Layout Approval Queue State
+  // Approval Queue State
   const [pendingApprovals, setPendingApprovals] = useState([
     {
       id: 'sub_09',
@@ -140,7 +166,8 @@ export default function AdminPanel({
       user.name.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
       (user.company && user.company.toLowerCase().includes(userSearchQuery.toLowerCase())) ||
-      (user.phone && user.phone.includes(userSearchQuery));
+      (user.phone && user.phone.includes(userSearchQuery)) ||
+      (user.barCouncilId && user.barCouncilId.toLowerCase().includes(userSearchQuery.toLowerCase()));
 
     const matchesRole = selectedRoleFilter === 'ALL' || user.role === selectedRoleFilter;
     const matchesStatus = selectedStatusFilter === 'ALL' || user.status === selectedStatusFilter;
@@ -148,24 +175,21 @@ export default function AdminPanel({
     return matchesSearch && matchesRole && matchesStatus;
   });
 
-  // User Actions
+  // User Action Handlers
   const handleToggleUserStatus = (userId) => {
-    const updated = usersList.map(u => {
-      if (u.uid === userId) {
-        const nextStatus = u.status === 'Active' ? 'Suspended' : 'Active';
-        addAuditLog('USER_STATUS_TOGGLED', `Changed status of ${u.email} to ${nextStatus}`, 'WARNING');
-        return { ...u, status: nextStatus };
-      }
-      return u;
-    });
-    setUsersList(updated);
-    saveStoredUsers(updated);
+    const result = toggleUserStatusByAdmin(userId);
+    if (result.success) {
+      setUsersList(getStoredUsers());
+      addAuditLog('USER_STATUS_TOGGLED', `Admin changed user status for ${result.user?.email} to ${result.user?.status}`, 'WARNING');
+    } else {
+      alert(result.error || 'Failed to update user status.');
+    }
   };
 
   const handleSaveUserRole = (userId) => {
     const updated = usersList.map(u => {
       if (u.uid === userId) {
-        addAuditLog('USER_ROLE_UPDATED', `Elevated / modified role of ${u.email} to ${editUserRole}`, 'INFO');
+        addAuditLog('USER_ROLE_UPDATED', `Admin modified role of ${u.email} to ${editUserRole}`, 'INFO');
         return { ...u, role: editUserRole };
       }
       return u;
@@ -176,14 +200,68 @@ export default function AdminPanel({
   };
 
   const handleDeleteUser = (userId, userEmail) => {
-    if (confirm(`Are you sure you want to remove user ${userEmail}? This will revoke their platform access.`)) {
-      const updated = usersList.filter(u => u.uid !== userId);
-      setUsersList(updated);
-      saveStoredUsers(updated);
-      addAuditLog('USER_DELETED', `Deleted user account ${userEmail}`, 'CRITICAL');
+    if (userEmail === 'tejastej094@gmail.com') {
+      alert('Cannot delete the Master Super Admin account.');
+      return;
+    }
+    if (confirm(`Are you sure you want to permanently remove ${userEmail}? This will revoke their platform access.`)) {
+      const result = removeUserAccountByAdmin(userId);
+      if (result.success) {
+        setUsersList(getStoredUsers());
+        addAuditLog('USER_DELETED', `Admin permanently removed account ${userEmail}`, 'CRITICAL');
+      } else {
+        alert(result.error || 'Failed to delete user.');
+      }
     }
   };
 
+  // Reset User Password
+  const handleResetUserPasswordSubmit = (e) => {
+    e.preventDefault();
+    if (!resetPasswordModalUser || !newPasswordForUser) return;
+    if (newPasswordForUser.length < 6) {
+      alert('Password must be at least 6 characters.');
+      return;
+    }
+    const result = updateUserPasswordByAdmin(resetPasswordModalUser.uid, newPasswordForUser);
+    if (result.success) {
+      setUsersList(getStoredUsers());
+      addAuditLog('USER_PASSWORD_RESET', `Super Admin reset password for user ${resetPasswordModalUser.email}`, 'CRITICAL');
+      alert(`Password for ${resetPasswordModalUser.name} (${resetPasswordModalUser.email}) successfully reset.`);
+      setResetPasswordModalUser(null);
+      setNewPasswordForUser('');
+    } else {
+      alert(result.error || 'Failed to reset password.');
+    }
+  };
+
+  // Create Legal Team User Submit
+  const handleCreateLegalUserSubmit = (e) => {
+    e.preventDefault();
+    if (!legalForm.name || !legalForm.email || !legalForm.password) {
+      alert('Please fill all required fields.');
+      return;
+    }
+    const result = createLegalTeamUser(legalForm);
+    if (result.success) {
+      setUsersList(getStoredUsers());
+      addAuditLog('LEGAL_USER_CREATED', `Super Admin created Legal Auditor account for ${legalForm.name} (${legalForm.email})`, 'INFO');
+      alert(`Legal Team account for Advocate ${legalForm.name} created successfully.`);
+      setIsCreateLegalModalOpen(false);
+      setLegalForm({
+        name: '',
+        email: '',
+        password: '',
+        phone: '',
+        barCouncilId: '',
+        specialization: 'Land Revenue & RERA Title Verification'
+      });
+    } else {
+      alert(result.error || 'Failed to create legal account.');
+    }
+  };
+
+  // Generic Invite Form
   const handleInviteUserSubmit = (e) => {
     e.preventDefault();
     if (!newUserForm.name || !newUserForm.email) return;
@@ -195,7 +273,7 @@ export default function AdminPanel({
       phone: newUserForm.phone || '+91 98000 00000',
       role: newUserForm.role,
       company: newUserForm.company || (newUserForm.role === 'DEVELOPER' ? 'Plotted Developer Partner' : 'Individual User'),
-      authProvider: 'firebase.auth',
+      authProvider: 'email.password',
       status: 'Active',
       verified: true,
       lastSignIn: 'Invitation Dispatched',
@@ -206,7 +284,7 @@ export default function AdminPanel({
     const updated = [newCreatedUser, ...usersList];
     setUsersList(updated);
     saveStoredUsers(updated);
-    addAuditLog('USER_INVITED', `Dispatched Firebase Auth onboarding invitation to ${newUserForm.email} as ${newUserForm.role}`, 'INFO');
+    addAuditLog('USER_INVITED', `Super Admin provisioned user ${newUserForm.email} with role ${newUserForm.role}`, 'INFO');
     setIsInviteModalOpen(false);
     setNewUserForm({
       name: '',
@@ -229,6 +307,47 @@ export default function AdminPanel({
     setLatestEmailPacket(emailDispatchResult);
     setEmailLogs(getEmailDispatchLogs());
     addAuditLog('ADMIN_PASSWORD_UPDATED', `Master credentials updated & email dispatched to tejastej094@gmail.com`, 'SUCCESS');
+    alert('Master Super Admin credentials updated! Confirmation mail sent to tejastej094@gmail.com.');
+  };
+
+  // Developer Removal Handler
+  const handleRemoveDeveloper = (developerUser) => {
+    if (confirm(`Remove developer ${developerUser.name} (${developerUser.company || developerUser.email}) and revoke all platform credentials?`)) {
+      removeUserAccountByAdmin(developerUser.uid);
+      setUsersList(getStoredUsers());
+      addAuditLog('DEVELOPER_REMOVED', `Super Admin removed developer ${developerUser.email}`, 'CRITICAL');
+      alert(`Developer ${developerUser.name} removed successfully.`);
+    }
+  };
+
+  // Plot Removal Handler (Admin can remove any plot)
+  const handleAdminRemovePlot = (townshipId, plotId, plotNumber) => {
+    if (confirm(`Are you sure you want to permanently delete Plot ${plotNumber} from inventory?`)) {
+      const targetTs = townships.find(t => t.id === townshipId);
+      if (targetTs && onUpdateTownship) {
+        const updatedPlots = (targetTs.plots || []).filter(p => p.id !== plotId);
+        const updatedTownship = {
+          ...targetTs,
+          plots: updatedPlots,
+          totalPlots: updatedPlots.length,
+          availablePlots: updatedPlots.filter(p => p.status === 'Available' && (p.legalStatus || 'Approved') === 'Approved').length
+        };
+        onUpdateTownship(updatedTownship);
+        addAuditLog('PLOT_REMOVED_BY_ADMIN', `Super Admin deleted plot ${plotNumber} from township ${targetTs.name}`, 'WARNING');
+        alert(`Plot ${plotNumber} removed from ${targetTs.name}.`);
+      }
+    }
+  };
+
+  // Township Removal Handler
+  const handleAdminRemoveTownship = (townshipId, townshipName) => {
+    if (confirm(`Are you sure you want to delete entire township "${townshipName}" and all its plots? This cannot be undone.`)) {
+      if (onRemoveTownship) {
+        onRemoveTownship(townshipId);
+      }
+      addAuditLog('TOWNSHIP_DELETED_BY_ADMIN', `Super Admin deleted township ${townshipName}`, 'CRITICAL');
+      alert(`Township "${townshipName}" removed.`);
+    }
   };
 
   // Approval Actions
@@ -251,16 +370,6 @@ export default function AdminPanel({
     setTimeout(() => setSettingsSavedAlert(false), 3000);
   };
 
-  const handleSyncFirebaseAuth = () => {
-    setFirebaseSyncing(true);
-    setTimeout(() => {
-      setFirebaseSyncing(false);
-      setFirebaseSyncSuccess(true);
-      addAuditLog('FIREBASE_AUTH_SYNCED', 'Synchronized Firebase project token claims and auth directory.', 'INFO');
-      setTimeout(() => setFirebaseSyncSuccess(false), 3000);
-    }, 1000);
-  };
-
   // Helper to add audit logs
   const addAuditLog = (action, details, severity = 'INFO') => {
     const newLog = {
@@ -275,9 +384,29 @@ export default function AdminPanel({
     setAuditLogs(prev => [newLog, ...prev]);
   };
 
+  // All plots across all townships for Governance view
+  const allPlotsAcrossTownships = townships.flatMap(ts => 
+    (ts.plots || []).map(p => ({
+      ...p,
+      townshipId: ts.id,
+      townshipName: ts.name,
+      developerName: ts.developer
+    }))
+  ).filter(p => {
+    const matchesTs = selectedTownshipFilter === 'ALL' || p.townshipId === selectedTownshipFilter;
+    const matchesQuery = !plotSearchQuery || 
+      p.number.toLowerCase().includes(plotSearchQuery.toLowerCase()) ||
+      p.townshipName.toLowerCase().includes(plotSearchQuery.toLowerCase()) ||
+      p.facing.toLowerCase().includes(plotSearchQuery.toLowerCase());
+    return matchesTs && matchesQuery;
+  });
+
+  const developerUsers = usersList.filter(u => u.role === 'DEVELOPER');
+  const legalUsers = usersList.filter(u => u.role === 'LEGAL_AUDITOR');
+
   return (
     <div className="space-y-8 pb-16">
-      {/* Super Admin Top Header with Firebase Auth Indicator */}
+      {/* Super Admin Top Header */}
       <div className="bg-slate-950 border border-amber-500/30 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -292,7 +421,7 @@ export default function AdminPanel({
                   Super Admin Master Console
                 </h1>
                 <span className="px-3 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-bold">
-                  Tejas (Master Owner)
+                  Tejas (Master Super Admin)
                 </span>
                 <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold flex items-center space-x-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -300,61 +429,52 @@ export default function AdminPanel({
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-1">
-                Admin ID: <strong className="text-amber-300">tejastej094@gmail.com</strong> • Full Platform Privileges & Escrow Release Authority
+                Root System Controller • Master Key: <span className="text-amber-400 font-mono">tejastej094@gmail.com</span> • Full CRUD & Role Governance
               </p>
             </div>
           </div>
 
-          {/* Quick Actions & Live Sync */}
           <div className="flex flex-wrap items-center gap-3">
             <button
-              onClick={() => setActiveTab('admin_creds')}
-              className="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-xl flex items-center space-x-2 transition shadow shadow-amber-950/50"
+              onClick={() => setIsCreateLegalModalOpen(true)}
+              className="px-4 py-2.5 bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-teal-950/50 flex items-center space-x-2 transition"
             >
-              <Mail className="w-3.5 h-3.5" />
-              <span>Admin Password & Mailer</span>
+              <Scale className="w-4 h-4" />
+              <span>+ Create Legal Team Account</span>
             </button>
 
             <button
-              onClick={handleSyncFirebaseAuth}
-              disabled={firebaseSyncing}
-              className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center space-x-2 transition shadow"
+              onClick={() => setIsInviteModalOpen(true)}
+              className="px-4 py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-amber-950/40 flex items-center space-x-2 transition"
             >
-              <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${firebaseSyncing ? 'animate-spin' : ''}`} />
-              <span>{firebaseSyncing ? 'Syncing...' : 'Sync Auth State'}</span>
+              <UserPlus className="w-4 h-4" />
+              <span>Provision User</span>
             </button>
-
-            {/* Platform Maintenance Mode Switch */}
-            <div className="flex items-center space-x-3 bg-slate-900/90 border border-slate-800 px-3.5 py-2 rounded-xl">
-              <Power className={`w-4 h-4 ${siteSettings.maintenanceMode ? 'text-rose-400 animate-pulse' : 'text-emerald-400'}`} />
-              <div className="text-xs">
-                <span className="text-white font-bold block text-[11px]">Maintenance Mode</span>
-                <span className="text-[10px] text-slate-400">{siteSettings.maintenanceMode ? 'Active (Restricted)' : 'Normal'}</span>
-              </div>
-              <button
-                onClick={() => {
-                  const nextState = !siteSettings.maintenanceMode;
-                  setSiteSettings(prev => ({ ...prev, maintenanceMode: nextState }));
-                  addAuditLog('MAINTENANCE_TOGGLED', `Turned maintenance mode ${nextState ? 'ON' : 'OFF'}`, 'WARNING');
-                }}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition ml-1 ${
-                  siteSettings.maintenanceMode 
-                    ? 'bg-rose-600 text-white shadow' 
-                    : 'bg-slate-800 text-slate-300 hover:text-white'
-                }`}
-              >
-                {siteSettings.maintenanceMode ? 'Disable' : 'Enable'}
-              </button>
-            </div>
           </div>
         </div>
 
-        {firebaseSyncSuccess && (
-          <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs font-semibold flex items-center space-x-2 animate-fadeIn">
-            <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-            <span>Platform auth directory, active session tokens, and security claims synchronized successfully.</span>
+        {/* Quick Metrics Bar */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+          <div className="bg-slate-900/80 border border-slate-800 p-3.5 rounded-2xl">
+            <span className="text-[11px] text-slate-400 block font-semibold">Total Accounts</span>
+            <span className="text-xl font-black text-white">{usersList.length}</span>
           </div>
-        )}
+
+          <div className="bg-slate-900/80 border border-slate-800 p-3.5 rounded-2xl">
+            <span className="text-[11px] text-teal-400 block font-semibold">Legal Team Auditors</span>
+            <span className="text-xl font-black text-teal-300">{legalUsers.length}</span>
+          </div>
+
+          <div className="bg-slate-900/80 border border-slate-800 p-3.5 rounded-2xl">
+            <span className="text-[11px] text-indigo-400 block font-semibold">Active Developers</span>
+            <span className="text-xl font-black text-indigo-300">{developerUsers.length}</span>
+          </div>
+
+          <div className="bg-slate-900/80 border border-slate-800 p-3.5 rounded-2xl">
+            <span className="text-[11px] text-emerald-400 block font-semibold">Live Townships</span>
+            <span className="text-xl font-black text-emerald-300">{townships.length}</span>
+          </div>
+        </div>
       </div>
 
       {/* Admin Panel Sub-Navigation Tabs */}
@@ -380,7 +500,19 @@ export default function AdminPanel({
           }`}
         >
           <Users className="w-4 h-4" />
-          <span>User Management ({usersList.length})</span>
+          <span>User & Legal Team Management ({usersList.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('plots_devs')}
+          className={`px-4 py-2.5 rounded-xl transition flex items-center space-x-2 flex-shrink-0 ${
+            activeTab === 'plots_devs' 
+              ? 'bg-amber-600 text-white shadow-lg shadow-amber-950/40' 
+              : 'bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-white'
+          }`}
+        >
+          <Layers className="w-4 h-4" />
+          <span>Developer & Plot Governance</span>
         </button>
 
         <button
@@ -392,7 +524,7 @@ export default function AdminPanel({
           }`}
         >
           <KeyRound className="w-4 h-4" />
-          <span>Admin Password & Mailer</span>
+          <span>Admin Password & Credentials Reset</span>
         </button>
 
         <button
@@ -405,18 +537,6 @@ export default function AdminPanel({
         >
           <Settings className="w-4 h-4" />
           <span>Site-Wide Settings</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('approvals')}
-          className={`px-4 py-2.5 rounded-xl transition flex items-center space-x-2 flex-shrink-0 ${
-            activeTab === 'approvals' 
-              ? 'bg-amber-600 text-white shadow-lg shadow-amber-950/40' 
-              : 'bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-white'
-          }`}
-        >
-          <ShieldAlert className="w-4 h-4" />
-          <span>Approval Queue ({pendingApprovals.length})</span>
         </button>
 
         <button
@@ -435,82 +555,484 @@ export default function AdminPanel({
       {/* ================= TAB 1: PLATFORM OVERVIEW ================= */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
-          {/* Key Metrics */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-slate-950 border border-slate-800 p-5 rounded-3xl shadow-xl space-y-1">
-              <div className="flex items-center justify-between text-xs text-slate-400">
-                <span>Total GMV Pipeline</span>
-                <TrendingUp className="w-4 h-4 text-emerald-400" />
+              <span className="text-xs text-slate-400 font-semibold uppercase">Total Platform Escrow GMV</span>
+              <div className="flex items-baseline justify-between pt-1">
+                <span className="text-2xl font-black text-white">₹148.5 Cr</span>
+                <span className="text-xs text-emerald-400 font-bold">+18.4% MoM</span>
               </div>
-              <span className="text-2xl font-black text-white block">₹348.5 Cr</span>
-              <span className="text-[10px] text-emerald-400 font-bold">+18.4% this month</span>
             </div>
 
             <div className="bg-slate-950 border border-slate-800 p-5 rounded-3xl shadow-xl space-y-1">
-              <div className="flex items-center justify-between text-xs text-slate-400">
-                <span>Platform Commission ({siteSettings.takeRateFee}%)</span>
-                <DollarSign className="w-4 h-4 text-amber-400" />
+              <span className="text-xs text-slate-400 font-semibold uppercase">Plotted Townships Active</span>
+              <div className="flex items-baseline justify-between pt-1">
+                <span className="text-2xl font-black text-indigo-400">{townships.length}</span>
+                <span className="text-xs text-slate-400">100% 3D Mapped</span>
               </div>
-              <span className="text-2xl font-black text-amber-400 block">₹2.61 Cr</span>
-              <span className="text-[10px] text-slate-400">Realized transaction escrow</span>
             </div>
 
             <div className="bg-slate-950 border border-slate-800 p-5 rounded-3xl shadow-xl space-y-1">
-              <div className="flex items-center justify-between text-xs text-slate-400">
-                <span>Registered Platform Users</span>
-                <Users className="w-4 h-4 text-indigo-400" />
+              <span className="text-xs text-slate-400 font-semibold uppercase">Legal Compliance Officers</span>
+              <div className="flex items-baseline justify-between pt-1">
+                <span className="text-2xl font-black text-teal-400">{legalUsers.length}</span>
+                <span className="text-xs text-teal-300">Bar Certified</span>
               </div>
-              <span className="text-2xl font-black text-indigo-400 block">{usersList.length} Accounts</span>
-              <span className="text-[10px] text-slate-400">
-                {usersList.filter(u => u.role === 'DEVELOPER').length} Builders • {usersList.filter(u => u.role === 'BUYER').length} Buyers
-              </span>
             </div>
 
             <div className="bg-slate-950 border border-slate-800 p-5 rounded-3xl shadow-xl space-y-1">
-              <div className="flex items-center justify-between text-xs text-slate-400">
-                <span>Verified Plotted Enclaves</span>
-                <Building2 className="w-4 h-4 text-emerald-400" />
+              <span className="text-xs text-slate-400 font-semibold uppercase">Token Advances Locked</span>
+              <div className="flex items-baseline justify-between pt-1">
+                <span className="text-2xl font-black text-amber-400">₹42.5 Lakh</span>
+                <span className="text-xs text-emerald-400 font-bold">100% Refundable</span>
               </div>
-              <span className="text-2xl font-black text-emerald-400 block">{townships.length} Live</span>
-              <span className="text-[10px] text-slate-400">100% 5-Layer RERA verified</span>
             </div>
           </div>
 
-          {/* Quick Super Admin Credentials Banner */}
-          <div className="bg-slate-950 border border-amber-500/30 rounded-3xl p-6 sm:p-8 space-y-5 shadow-xl flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="space-y-2">
-              <div className="flex items-center space-x-2 text-amber-400 font-bold text-sm">
-                <ShieldCheck className="w-5 h-5" />
-                <span>Super Administrator Master Account</span>
+          {/* Quick Shortcuts */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div 
+              onClick={() => setActiveTab('users')}
+              className="bg-slate-950 border border-slate-800 hover:border-teal-500/50 p-5 rounded-2xl cursor-pointer transition space-y-2 group shadow-lg"
+            >
+              <div className="w-10 h-10 rounded-xl bg-teal-500/20 text-teal-400 flex items-center justify-center">
+                <Scale className="w-5 h-5" />
               </div>
-              <p className="text-xs text-slate-300 max-w-xl">
-                The master administrator account is linked to <strong className="text-white">tejastej094@gmail.com</strong>. You can change your password anytime or dispatch an instant copy of login credentials and session keys directly to your email.
-              </p>
+              <h4 className="text-sm font-bold text-white group-hover:text-teal-300">Manage Legal Team Accounts</h4>
+              <p className="text-xs text-slate-400">Create new advocate accounts, toggle active/deactivated status, or reset credentials.</p>
             </div>
 
-            <button
-              onClick={() => setActiveTab('admin_creds')}
-              className="px-5 py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-amber-950/40 flex items-center space-x-2 flex-shrink-0 transition"
+            <div 
+              onClick={() => setActiveTab('plots_devs')}
+              className="bg-slate-950 border border-slate-800 hover:border-indigo-500/50 p-5 rounded-2xl cursor-pointer transition space-y-2 group shadow-lg"
             >
-              <Mail className="w-4 h-4" />
-              <span>Configure Password & Dispatch Email →</span>
-            </button>
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                <Layers className="w-5 h-5" />
+              </div>
+              <h4 className="text-sm font-bold text-white group-hover:text-indigo-300">Remove Developers & Plots</h4>
+              <p className="text-xs text-slate-400">Remove non-compliant developers or purge invalid plots across all townships.</p>
+            </div>
+
+            <div 
+              onClick={() => setActiveTab('admin_creds')}
+              className="bg-slate-950 border border-slate-800 hover:border-amber-500/50 p-5 rounded-2xl cursor-pointer transition space-y-2 group shadow-lg"
+            >
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                <KeyRound className="w-5 h-5" />
+              </div>
+              <h4 className="text-sm font-bold text-white group-hover:text-amber-300">Reset Super Admin Credentials</h4>
+              <p className="text-xs text-slate-400">Update master password or PIN anytime with transactional mailer to tejastej094@gmail.com.</p>
+            </div>
           </div>
         </div>
       )}
 
-      {/* ================= TAB 2: ADMIN PASSWORD & MAILER GATEWAY ================= */}
+      {/* ================= TAB 2: USER MANAGEMENT ================= */}
+      {activeTab === 'users' && (
+        <div className="space-y-6">
+          <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-bold text-white">Registered User Directory & Roles</h3>
+                <p className="text-xs text-slate-400">
+                  Manage Legal Team accounts, Developers, and Buyers. You can create accounts, toggle active/deactivated status, reset passwords, or remove accounts.
+                </p>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setIsCreateLegalModalOpen(true)}
+                  className="px-4 py-2.5 bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-teal-950/40 flex items-center space-x-1.5 transition flex-shrink-0"
+                >
+                  <Scale className="w-4 h-4" />
+                  <span>+ Create Legal Account</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Search and Filters */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                <input
+                  type="text"
+                  placeholder="Search name, email, Bar Council ID..."
+                  value={userSearchQuery}
+                  onChange={(e) => setUserSearchQuery(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              {/* Role Filter */}
+              <div className="flex items-center space-x-2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5">
+                <Filter className="w-3.5 h-3.5 text-slate-400" />
+                <select
+                  value={selectedRoleFilter}
+                  onChange={(e) => setSelectedRoleFilter(e.target.value)}
+                  className="bg-transparent text-slate-300 text-xs focus:outline-none w-full cursor-pointer"
+                >
+                  <option value="ALL" className="bg-slate-900">All Roles ({usersList.length})</option>
+                  <option value="LEGAL_AUDITOR" className="bg-slate-900">Legal Auditors ({legalUsers.length})</option>
+                  <option value="DEVELOPER" className="bg-slate-900">Developers ({developerUsers.length})</option>
+                  <option value="BUYER" className="bg-slate-900">Buyers</option>
+                  <option value="SUPER_ADMIN" className="bg-slate-900">Super Admin</option>
+                </select>
+              </div>
+
+              {/* Status Filter */}
+              <div className="flex items-center space-x-2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5">
+                <Activity className="w-3.5 h-3.5 text-slate-400" />
+                <select
+                  value={selectedStatusFilter}
+                  onChange={(e) => setSelectedStatusFilter(e.target.value)}
+                  className="bg-transparent text-slate-300 text-xs focus:outline-none w-full cursor-pointer"
+                >
+                  <option value="ALL" className="bg-slate-900">All Account Statuses</option>
+                  <option value="Active" className="bg-slate-900">Active</option>
+                  <option value="Deactivated" className="bg-slate-900">Deactivated</option>
+                  <option value="Suspended" className="bg-slate-900">Suspended</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Users Table */}
+          <div className="bg-slate-950 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-800 bg-slate-900/80 text-slate-400">
+                    <th className="p-4 font-bold">User Identity & Details</th>
+                    <th className="p-4 font-bold">Assigned Role</th>
+                    <th className="p-4 font-bold">Bar Council Reg / Entity</th>
+                    <th className="p-4 font-bold">Account Status</th>
+                    <th className="p-4 font-bold text-right">Administrative Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/80">
+                  {filteredUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan="5" className="p-8 text-center text-slate-400">
+                        No user accounts match your search filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredUsers.map((user) => {
+                      const isSuperAdmin = user.email === 'tejastej094@gmail.com';
+                      const isActive = user.status === 'Active';
+
+                      return (
+                        <tr key={user.uid} className="hover:bg-slate-900/40 transition">
+                          <td className="p-4">
+                            <div className="flex items-center space-x-3">
+                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs ${
+                                user.role === 'SUPER_ADMIN'
+                                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                  : user.role === 'LEGAL_AUDITOR'
+                                  ? 'bg-teal-500/20 text-teal-400 border border-teal-500/30'
+                                  : user.role === 'DEVELOPER'
+                                  ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
+                                  : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                              }`}>
+                                {user.role === 'SUPER_ADMIN' ? 'A' : user.role === 'LEGAL_AUDITOR' ? 'L' : user.role === 'DEVELOPER' ? 'D' : 'B'}
+                              </div>
+                              <div>
+                                <span className="font-bold text-white block">{user.name}</span>
+                                <span className="text-[11px] text-slate-400 font-mono">{user.email}</span>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="p-4">
+                            {editingUserId === user.uid ? (
+                              <div className="flex items-center space-x-2">
+                                <select
+                                  value={editUserRole}
+                                  onChange={(e) => setEditUserRole(e.target.value)}
+                                  className="bg-slate-900 border border-amber-500 text-white rounded-lg px-2 py-1 text-xs"
+                                >
+                                  <option value="BUYER">BUYER</option>
+                                  <option value="DEVELOPER">DEVELOPER</option>
+                                  <option value="LEGAL_AUDITOR">LEGAL_AUDITOR</option>
+                                  <option value="SUPER_ADMIN">SUPER_ADMIN</option>
+                                </select>
+                                <button
+                                  onClick={() => handleSaveUserRole(user.uid)}
+                                  className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-500"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => setEditingUserId(null)}
+                                  className="p-1 bg-slate-800 text-slate-400 rounded hover:text-white"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                                user.role === 'SUPER_ADMIN'
+                                  ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                                  : user.role === 'LEGAL_AUDITOR'
+                                  ? 'bg-teal-500/10 text-teal-300 border-teal-500/30'
+                                  : user.role === 'DEVELOPER'
+                                  ? 'bg-indigo-500/10 text-indigo-300 border-indigo-500/30'
+                                  : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                              }`}>
+                                {user.role}
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="p-4 text-slate-300">
+                            {user.barCouncilId ? (
+                              <span className="text-teal-300 font-mono text-[11px] font-semibold">{user.barCouncilId}</span>
+                            ) : (
+                              <span>{user.company || 'Individual Account'}</span>
+                            )}
+                          </td>
+
+                          <td className="p-4">
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                              isActive
+                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                                : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                            }`}>
+                              {isActive ? '● Active' : '● Deactivated'}
+                            </span>
+                          </td>
+
+                          <td className="p-4 text-right">
+                            <div className="flex items-center justify-end space-x-2">
+                              {/* Reset Password Button */}
+                              <button
+                                onClick={() => {
+                                  setResetPasswordModalUser(user);
+                                  setNewPasswordForUser('');
+                                }}
+                                title="Reset User Password"
+                                className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-amber-400 rounded-lg transition text-[11px] font-bold flex items-center space-x-1"
+                              >
+                                <Key className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">Reset Password</span>
+                              </button>
+
+                              {/* Toggle Active / Deactivate */}
+                              {!isSuperAdmin && (
+                                <button
+                                  onClick={() => handleToggleUserStatus(user.uid)}
+                                  title={isActive ? 'Deactivate User Account' : 'Activate User Account'}
+                                  className={`px-2.5 py-1.5 border rounded-lg transition text-[11px] font-bold flex items-center space-x-1 ${
+                                    isActive 
+                                      ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-rose-400' 
+                                      : 'bg-emerald-950/40 border-emerald-500/30 text-emerald-400'
+                                  }`}
+                                >
+                                  <Power className="w-3.5 h-3.5" />
+                                  <span>{isActive ? 'Deactivate' : 'Activate'}</span>
+                                </button>
+                              )}
+
+                              {/* Delete Account */}
+                              {!isSuperAdmin && (
+                                <button
+                                  onClick={() => handleDeleteUser(user.uid, user.email)}
+                                  title="Delete User"
+                                  className="p-1.5 bg-slate-900 hover:bg-rose-950/40 border border-slate-800 hover:border-rose-500/40 text-slate-400 hover:text-rose-400 rounded-lg transition"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= TAB 3: DEVELOPER & PLOT GOVERNANCE ================= */}
+      {activeTab === 'plots_devs' && (
+        <div className="space-y-6">
+          {/* Section 1: Developer Management & Removal */}
+          <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-white flex items-center space-x-2">
+                  <Building2 className="w-5 h-5 text-indigo-400" />
+                  <span>Registered Developers ({developerUsers.length})</span>
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Super Admin authority to monitor registered builders, revoke licenses, or completely remove developers from PlotFlow.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+              {developerUsers.map((dev) => (
+                <div key={dev.uid} className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-3 shadow">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <span className="font-bold text-white block text-sm">{dev.name}</span>
+                      <span className="text-xs text-indigo-400 font-medium">{dev.company || 'Builder Partner'}</span>
+                      <span className="text-[11px] text-slate-400 font-mono block mt-0.5">{dev.email}</span>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                      dev.status === 'Active' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                    }`}>
+                      {dev.status}
+                    </span>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-2">
+                    <button
+                      onClick={() => handleToggleUserStatus(dev.uid)}
+                      className="px-3 py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-700 text-slate-300 text-xs font-bold rounded-lg transition"
+                    >
+                      {dev.status === 'Active' ? 'Suspend Access' : 'Reactivate'}
+                    </button>
+
+                    <button
+                      onClick={() => handleRemoveDeveloper(dev)}
+                      className="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/40 text-xs font-bold rounded-lg transition flex items-center space-x-1"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Remove Developer</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 2: Master Plot Inventory & Removal */}
+          <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-bold text-white flex items-center space-x-2">
+                  <Layers className="w-5 h-5 text-amber-400" />
+                  <span>Master Plot Directory & Removal Authority</span>
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Search and remove specific plots across any township or delete entire project enclaves.
+                </p>
+              </div>
+
+              {/* Township & Search Filters */}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    placeholder="Search plot number, facing..."
+                    value={plotSearchQuery}
+                    onChange={(e) => setPlotSearchQuery(e.target.value)}
+                    className="bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <select
+                  value={selectedTownshipFilter}
+                  onChange={(e) => setSelectedTownshipFilter(e.target.value)}
+                  className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white font-bold focus:outline-none focus:border-amber-500"
+                >
+                  <option value="ALL">All Townships</option>
+                  {townships.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Plots Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-800 bg-slate-900/80 text-slate-400">
+                    <th className="p-3.5 font-bold">Plot Identifier</th>
+                    <th className="p-3.5 font-bold">Township & Developer</th>
+                    <th className="p-3.5 font-bold">Dimensions & Area</th>
+                    <th className="p-3.5 font-bold">Vastu / Facing</th>
+                    <th className="p-3.5 font-bold">Price Guide</th>
+                    <th className="p-3.5 font-bold">Legal Clearance</th>
+                    <th className="p-3.5 font-bold text-right">Admin Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/80">
+                  {allPlotsAcrossTownships.length === 0 ? (
+                    <tr>
+                      <td colSpan="7" className="p-8 text-center text-slate-400">
+                        No plots listed or matching search filter.
+                      </td>
+                    </tr>
+                  ) : (
+                    allPlotsAcrossTownships.map((plot) => (
+                      <tr key={`${plot.townshipId}_${plot.id}`} className="hover:bg-slate-900/40 transition">
+                        <td className="p-3.5 font-bold text-white">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block mr-2"></span>
+                          <span>{plot.number}</span>
+                        </td>
+                        <td className="p-3.5">
+                          <span className="text-white font-semibold block">{plot.townshipName}</span>
+                          <span className="text-[10px] text-slate-400">{plot.developerName}</span>
+                        </td>
+                        <td className="p-3.5 text-slate-300">
+                          {plot.dimensions} ({plot.areaSqFt} sq.ft)
+                        </td>
+                        <td className="p-3.5">
+                          <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-emerald-400 font-semibold">
+                            {plot.facing}
+                          </span>
+                        </td>
+                        <td className="p-3.5 font-bold text-amber-400">
+                          ₹{(plot.price / 100000).toFixed(1)} L
+                        </td>
+                        <td className="p-3.5">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                            (plot.legalStatus || 'Approved') === 'Approved'
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                              : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                          }`}>
+                            {plot.legalStatus || 'Approved'}
+                          </span>
+                        </td>
+                        <td className="p-3.5 text-right">
+                          <button
+                            onClick={() => handleAdminRemovePlot(plot.townshipId, plot.id, plot.number)}
+                            className="px-2.5 py-1.5 bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/40 rounded-lg text-[11px] font-bold transition flex items-center space-x-1 ml-auto"
+                            title="Remove Plot from Inventory"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Remove Plot</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= TAB 4: ADMIN PASSWORD & MAILER ================= */}
       {activeTab === 'admin_creds' && (
         <div className="space-y-6">
           <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
               <div>
                 <h3 className="text-lg font-bold text-white flex items-center space-x-2">
                   <KeyRound className="w-5 h-5 text-amber-400" />
-                  <span>Super Admin Password & Transactional Mailer</span>
+                  <span>Super Admin Password & Credentials Reset</span>
                 </h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  Manage your master login credentials and dispatch encrypted access packages directly to <strong>tejastej094@gmail.com</strong>.
+                  Reset your master login password and PIN anytime. An encrypted access package is automatically dispatched to <strong>tejastej094@gmail.com</strong>.
                 </p>
               </div>
 
@@ -527,7 +1049,7 @@ export default function AdminPanel({
                 
                 <div className="space-y-3 text-xs">
                   <div>
-                    <label className="text-slate-400 font-semibold block mb-1">Super Admin Email (Immutable)</label>
+                    <label className="text-slate-400 font-semibold block mb-1">Super Admin Email (Master)</label>
                     <input
                       type="text"
                       disabled
@@ -630,228 +1152,13 @@ export default function AdminPanel({
         </div>
       )}
 
-      {/* ================= TAB 3: USER MANAGEMENT ================= */}
-      {activeTab === 'users' && (
-        <div className="space-y-6">
-          {/* User Management Toolbar */}
-          <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <h3 className="text-lg font-bold text-white">Registered User Directory & Roles</h3>
-                <p className="text-xs text-slate-400">
-                  Real registered buyers and developers. Manage permissions, activate/suspend accounts, or inspect onboarding details.
-                </p>
-              </div>
-
-              <button
-                onClick={() => setIsInviteModalOpen(true)}
-                className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-amber-950/40 flex items-center justify-center space-x-2 transition flex-shrink-0"
-              >
-                <UserPlus className="w-4 h-4" />
-                <span>Invite New User</span>
-              </button>
-            </div>
-
-            {/* Search and Filters */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-              <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                <input
-                  type="text"
-                  placeholder="Search by name, email, phone..."
-                  value={userSearchQuery}
-                  onChange={(e) => setUserSearchQuery(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              {/* Role Filter */}
-              <div className="flex items-center space-x-2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5">
-                <Filter className="w-3.5 h-3.5 text-slate-400" />
-                <select
-                  value={selectedRoleFilter}
-                  onChange={(e) => setSelectedRoleFilter(e.target.value)}
-                  className="bg-transparent text-slate-300 text-xs focus:outline-none w-full cursor-pointer"
-                >
-                  <option value="ALL" className="bg-slate-900">All Roles</option>
-                  <option value="SUPER_ADMIN" className="bg-slate-900">Super Admins</option>
-                  <option value="DEVELOPER" className="bg-slate-900">Developers / Builders</option>
-                  <option value="BUYER" className="bg-slate-900">Verified Buyers</option>
-                  <option value="LEGAL_AUDITOR" className="bg-slate-900">Legal Auditors</option>
-                </select>
-              </div>
-
-              {/* Status Filter */}
-              <div className="flex items-center space-x-2 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5">
-                <Activity className="w-3.5 h-3.5 text-slate-400" />
-                <select
-                  value={selectedStatusFilter}
-                  onChange={(e) => setSelectedStatusFilter(e.target.value)}
-                  className="bg-transparent text-slate-300 text-xs focus:outline-none w-full cursor-pointer"
-                >
-                  <option value="ALL" className="bg-slate-900">All Statuses</option>
-                  <option value="Active" className="bg-slate-900">Active</option>
-                  <option value="Pending Verification" className="bg-slate-900">Pending Verification</option>
-                  <option value="Suspended" className="bg-slate-900">Suspended</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Users Table */}
-          <div className="bg-slate-950 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-800 bg-slate-900/80 text-slate-400">
-                    <th className="p-4 font-bold">User Identity</th>
-                    <th className="p-4 font-bold">Role & Permissions</th>
-                    <th className="p-4 font-bold">Organization / Entity</th>
-                    <th className="p-4 font-bold">Auth Provider</th>
-                    <th className="p-4 font-bold">Status</th>
-                    <th className="p-4 font-bold text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/80">
-                  {filteredUsers.length === 0 ? (
-                    <tr>
-                      <td colSpan="6" className="p-8 text-center text-slate-400">
-                        No user accounts match your search filters.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredUsers.map((user) => (
-                      <tr key={user.uid} className="hover:bg-slate-900/40 transition">
-                        <td className="p-4">
-                          <div className="flex items-center space-x-3">
-                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs ${
-                              user.role === 'SUPER_ADMIN'
-                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                                : user.role === 'DEVELOPER'
-                                ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
-                                : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                            }`}>
-                              {user.name.charAt(0)}
-                            </div>
-                            <div>
-                              <span className="font-bold text-white block">{user.name}</span>
-                              <span className="text-[11px] text-slate-400">{user.email}</span>
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="p-4">
-                          {editingUserId === user.uid ? (
-                            <div className="flex items-center space-x-2">
-                              <select
-                                value={editUserRole}
-                                onChange={(e) => setEditUserRole(e.target.value)}
-                                className="bg-slate-900 border border-amber-500 text-white rounded-lg px-2 py-1 text-xs"
-                              >
-                                <option value="BUYER">BUYER</option>
-                                <option value="DEVELOPER">DEVELOPER</option>
-                                <option value="LEGAL_AUDITOR">LEGAL_AUDITOR</option>
-                                <option value="SUPER_ADMIN">SUPER_ADMIN</option>
-                              </select>
-                              <button
-                                onClick={() => handleSaveUserRole(user.uid)}
-                                className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-500"
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => setEditingUserId(null)}
-                                className="p-1 bg-slate-800 text-slate-400 rounded hover:text-white"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          ) : (
-                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${
-                              user.role === 'SUPER_ADMIN'
-                                ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
-                                : user.role === 'DEVELOPER'
-                                ? 'bg-indigo-500/10 text-indigo-300 border-indigo-500/30'
-                                : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
-                            }`}>
-                              {user.role}
-                            </span>
-                          )}
-                        </td>
-
-                        <td className="p-4 text-slate-300">
-                          {user.company || 'Individual Buyer'}
-                        </td>
-
-                        <td className="p-4">
-                          <span className="font-mono text-[11px] text-slate-400">
-                            {user.authProvider || 'email.password'}
-                          </span>
-                        </td>
-
-                        <td className="p-4">
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                            user.status === 'Active'
-                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                              : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
-                          }`}>
-                            {user.status}
-                          </span>
-                        </td>
-
-                        <td className="p-4 text-right">
-                          <div className="flex items-center justify-end space-x-2">
-                            <button
-                              onClick={() => {
-                                setEditingUserId(user.uid);
-                                setEditUserRole(user.role);
-                              }}
-                              title="Edit Role"
-                              className="p-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-lg transition"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
-
-                            <button
-                              onClick={() => handleToggleUserStatus(user.uid)}
-                              title={user.status === 'Active' ? 'Suspend Access' : 'Activate User'}
-                              className={`p-1.5 border rounded-lg transition ${
-                                user.status === 'Active' 
-                                  ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-amber-400' 
-                                  : 'bg-emerald-950/40 border-emerald-500/30 text-emerald-400'
-                              }`}
-                            >
-                              <Power className="w-3.5 h-3.5" />
-                            </button>
-
-                            {user.email !== 'tejastej094@gmail.com' && (
-                              <button
-                                onClick={() => handleDeleteUser(user.uid, user.email)}
-                                title="Remove User"
-                                className="p-1.5 bg-slate-900 hover:bg-rose-950/40 border border-slate-800 hover:border-rose-500/40 text-slate-400 hover:text-rose-400 rounded-lg transition"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ================= TAB 4: SITE-WIDE SETTINGS ================= */}
+      {/* ================= TAB 5: SITE-WIDE SETTINGS ================= */}
       {activeTab === 'settings' && (
         <div className="space-y-6">
           <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl flex items-center justify-between">
             <div>
               <h3 className="text-lg font-bold text-white">Platform Settings & Global Parameters</h3>
-              <p className="text-xs text-slate-400">Configure escrow fees, RERA gate strictness, and third-party webhooks.</p>
+              <p className="text-xs text-slate-400">Configure escrow fees, RERA gate strictness, and legal audit rules.</p>
             </div>
             <button
               onClick={handleSaveSettings}
@@ -862,106 +1169,61 @@ export default function AdminPanel({
           </div>
 
           {settingsSavedAlert && (
-            <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs font-semibold flex items-center space-x-2 animate-fadeIn">
+            <div className="p-4 bg-emerald-950/40 border border-emerald-500/40 rounded-2xl text-xs text-emerald-300 font-bold flex items-center space-x-2">
               <CheckCircle2 className="w-4 h-4" />
-              <span>Platform settings updated and synchronized across all nodes.</span>
+              <span>Platform configurations saved and deployed site-wide.</span>
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-              <h4 className="text-sm font-bold text-white flex items-center space-x-2">
-                <DollarSign className="w-4 h-4 text-emerald-400" />
-                <span>Financial & Escrow Economics</span>
-              </h4>
-
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs">
-                  <span className="text-slate-300 font-semibold">Platform Take-Rate:</span>
-                  <span className="font-mono text-emerald-400 font-bold">{siteSettings.takeRateFee}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="0.25"
-                  max="2.5"
-                  step="0.05"
-                  value={siteSettings.takeRateFee}
-                  onChange={(e) => setSiteSettings(prev => ({ ...prev, takeRateFee: parseFloat(e.target.value) }))}
-                  className="w-full accent-emerald-500 cursor-pointer"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs">
-                  <span className="text-slate-300 font-semibold">Mandatory Token Advance Lock:</span>
-                  <span className="font-mono text-amber-400 font-bold">₹{siteSettings.tokenDepositAmount.toLocaleString()}</span>
-                </div>
-                <input
-                  type="number"
-                  step="5000"
-                  value={siteSettings.tokenDepositAmount}
-                  onChange={(e) => setSiteSettings(prev => ({ ...prev, tokenDepositAmount: parseInt(e.target.value) || 0 }))}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
-                />
-              </div>
-            </div>
-
-            <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-              <h4 className="text-sm font-bold text-white flex items-center space-x-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span>Title Verification & Compliance Gates</span>
-              </h4>
-
-              <div className="flex items-center justify-between p-3 bg-slate-900/60 border border-slate-800 rounded-2xl">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+            <div className="bg-slate-950 border border-slate-800 p-6 rounded-3xl space-y-4">
+              <h4 className="font-bold text-white text-sm">Escrow & Financial Controls</h4>
+              <div className="space-y-3">
                 <div>
-                  <span className="text-xs font-bold text-white block">Strict 5-Layer Due Diligence Gate</span>
-                  <span className="text-[11px] text-slate-400">Require all 5 RERA certificates before public listing.</span>
+                  <label className="text-slate-400 font-semibold block mb-1">Standard Token Advance (INR)</label>
+                  <input
+                    type="number"
+                    value={siteSettings.tokenAmount}
+                    onChange={(e) => setSiteSettings({ ...siteSettings, tokenAmount: Number(e.target.value) })}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white"
+                  />
                 </div>
-                <input
-                  type="checkbox"
-                  checked={siteSettings.strictReraGate}
-                  onChange={(e) => setSiteSettings(prev => ({ ...prev, strictReraGate: e.target.checked }))}
-                  className="w-5 h-5 accent-emerald-500 cursor-pointer"
-                />
+                <div>
+                  <label className="text-slate-400 font-semibold block mb-1">Platform Convenience Fee (%)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={siteSettings.platformFeePercentage}
+                    onChange={(e) => setSiteSettings({ ...siteSettings, platformFeePercentage: Number(e.target.value) })}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white"
+                  />
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* ================= TAB 5: APPROVAL QUEUE ================= */}
-      {activeTab === 'approvals' && (
-        <div className="space-y-6">
-          <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 shadow-xl">
-            <h3 className="text-lg font-bold text-white">Developer Project Submissions</h3>
-            <p className="text-xs text-slate-400">Review new plotted developments submitted by builders before making them live.</p>
-          </div>
-
-          <div className="space-y-4">
-            {pendingApprovals.map((sub) => (
-              <div key={sub.id} className="bg-slate-950 border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <span className="text-base font-bold text-white block">{sub.townshipName}</span>
-                  <span className="text-xs text-indigo-400 block">{sub.developerName} • {sub.location}</span>
-                  <span className="text-[11px] text-slate-400 font-mono">RERA: {sub.reraNumber}</span>
-                </div>
-
-                <div className="flex items-center space-x-3">
-                  <button
-                    onClick={() => handleApprovalAction(sub.id, 'approve')}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow transition"
-                  >
-                    Approve & Publish Live
-                  </button>
-                  <button
-                    onClick={() => handleApprovalAction(sub.id, 'reject')}
-                    className="px-4 py-2 bg-slate-900 hover:bg-rose-900/40 text-slate-300 hover:text-rose-300 font-bold text-xs rounded-xl border border-slate-800 transition"
-                  >
-                    Reject
-                  </button>
-                </div>
+            <div className="bg-slate-950 border border-slate-800 p-6 rounded-3xl space-y-4">
+              <h4 className="font-bold text-white text-sm">Statutory Legal Strictness Policy</h4>
+              <div className="space-y-3 text-slate-300">
+                <label className="flex items-center space-x-3 p-3 bg-slate-900/60 rounded-xl border border-slate-800 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={true}
+                    disabled
+                    className="rounded text-emerald-600 focus:ring-0"
+                  />
+                  <span>Enforce Strict Legal Gate: Hide plots from retail buyers until approved by Legal Team.</span>
+                </label>
+                <label className="flex items-center space-x-3 p-3 bg-slate-900/60 rounded-xl border border-slate-800 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={true}
+                    disabled
+                    className="rounded text-emerald-600 focus:ring-0"
+                  />
+                  <span>Mandate 30-Year Encumbrance Certificate (Form 15) verification.</span>
+                </label>
               </div>
-            ))}
+            </div>
           </div>
         </div>
       )}
@@ -984,12 +1246,160 @@ export default function AdminPanel({
         </div>
       )}
 
-      {/* Invite User Modal */}
+      {/* MODAL 1: Create Legal Team User Account */}
+      {isCreateLegalModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
+          <div className="bg-slate-950 border border-teal-500/40 rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center space-x-2 text-teal-400">
+                <Scale className="w-5 h-5" />
+                <h3 className="text-base font-bold text-white">Create Legal Team Account</h3>
+              </div>
+              <button onClick={() => setIsCreateLegalModalOpen(false)} className="text-slate-400 hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateLegalUserSubmit} className="space-y-3 text-xs">
+              <div>
+                <label className="text-slate-300 font-semibold block mb-1">Advocate / Auditor Full Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={legalForm.name}
+                  onChange={(e) => setLegalForm({ ...legalForm, name: e.target.value })}
+                  placeholder="e.g. Advocate Rajeshwari Iyer"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-teal-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-300 font-semibold block mb-1">Legal Team Email ID (Login) *</label>
+                <input
+                  type="email"
+                  required
+                  value={legalForm.email}
+                  onChange={(e) => setLegalForm({ ...legalForm, email: e.target.value })}
+                  placeholder="advocate.iyer@plotflow.in"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-teal-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-300 font-semibold block mb-1">Initial Login Password *</label>
+                <input
+                  type="text"
+                  required
+                  value={legalForm.password}
+                  onChange={(e) => setLegalForm({ ...legalForm, password: e.target.value })}
+                  placeholder="Legal@2026"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-teal-500 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-300 font-semibold block mb-1">Bar Council Registration Number *</label>
+                <input
+                  type="text"
+                  required
+                  value={legalForm.barCouncilId}
+                  onChange={(e) => setLegalForm({ ...legalForm, barCouncilId: e.target.value })}
+                  placeholder="KAR/1482/2012"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-teal-500 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-300 font-semibold block mb-1">Phone Number</label>
+                <input
+                  type="text"
+                  value={legalForm.phone}
+                  onChange={(e) => setLegalForm({ ...legalForm, phone: e.target.value })}
+                  placeholder="+91 98450 99881"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-teal-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-300 font-semibold block mb-1">Audit Specialization</label>
+                <input
+                  type="text"
+                  value={legalForm.specialization}
+                  onChange={(e) => setLegalForm({ ...legalForm, specialization: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-teal-500"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3 bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-teal-950/40 transition mt-3"
+              >
+                Create Legal Auditor Account & Activate
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: Reset User Password Modal */}
+      {resetPasswordModalUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
+          <div className="bg-slate-950 border border-amber-500/40 rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center space-x-2 text-amber-400">
+                <Key className="w-5 h-5" />
+                <h3 className="text-base font-bold text-white">Reset User Password</h3>
+              </div>
+              <button onClick={() => setResetPasswordModalUser(null)} className="text-slate-400 hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleResetUserPasswordSubmit} className="space-y-3 text-xs">
+              <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800 space-y-1">
+                <span className="text-slate-400 block text-[11px]">Target Account:</span>
+                <span className="text-white font-bold block">{resetPasswordModalUser.name}</span>
+                <span className="text-amber-400 font-mono text-[11px] block">{resetPasswordModalUser.email}</span>
+              </div>
+
+              <div>
+                <label className="text-slate-300 font-semibold block mb-1">New Password *</label>
+                <input
+                  type="text"
+                  required
+                  value={newPasswordForUser}
+                  onChange={(e) => setNewPasswordForUser(e.target.value)}
+                  placeholder="Enter new password (min 6 characters)"
+                  className="w-full bg-slate-900 border border-amber-500/50 rounded-xl px-3.5 py-2.5 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setResetPasswordModalUser(null)}
+                  className="px-4 py-2 bg-slate-900 text-slate-300 hover:text-white text-xs font-bold rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-xl shadow"
+                >
+                  Save & Update Password
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: Generic Invite User Modal */}
       {isInviteModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
           <div className="bg-slate-950 border border-slate-800 rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-white">Invite / Provision User Account</h3>
+              <h3 className="text-base font-bold text-white">Provision User Account</h3>
               <button onClick={() => setIsInviteModalOpen(false)} className="text-slate-400 hover:text-white">
                 <X className="w-4 h-4" />
               </button>
@@ -1003,7 +1413,7 @@ export default function AdminPanel({
                   required
                   value={newUserForm.name}
                   onChange={(e) => setNewUserForm({ ...newUserForm, name: e.target.value })}
-                  placeholder="e.g. Ramesh Reddy"
+                  placeholder="e.g. Vikramaditya Sharma"
                   className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-amber-500"
                 />
               </div>
@@ -1049,7 +1459,7 @@ export default function AdminPanel({
                 type="submit"
                 className="w-full py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-amber-950/40 transition mt-3"
               >
-                Dispatch Onboarding Credentials
+                Create User Account
               </button>
             </form>
           </div>

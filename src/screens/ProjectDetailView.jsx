@@ -188,29 +188,54 @@ export default function ProjectDetailView({
       <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h3 className="text-lg font-bold text-white">Available Plot Inventory</h3>
+            <div className="flex items-center space-x-2">
+              <h3 className="text-lg font-bold text-white">Verified Plot Inventory</h3>
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                township.legalClearance === 'Approved'
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                  : township.legalClearance === 'Rejected'
+                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                  : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+              }`}>
+                Legal Status: {township.legalClearance || 'Approved'}
+              </span>
+            </div>
             <p className="text-xs text-slate-400">Preview elevation context, Vastu orientation, and reserve with token advance.</p>
           </div>
           <span className="text-xs text-emerald-400 font-bold bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/30">
-            {(township.plots || []).filter(p => p.status === 'Available').length} Plots Ready to Register
+            {(township.plots || []).filter(p => p.status === 'Available' && (p.legalStatus || 'Approved') === 'Approved').length} Verified Plots Live to Buyers
           </span>
         </div>
 
-        {(!township.plots || township.plots.length === 0) ? (
+        {township.legalClearance === 'Rejected' ? (
+          <div className="p-8 bg-rose-950/20 border border-rose-500/40 rounded-2xl text-center space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-rose-900/40 border border-rose-500/40 flex items-center justify-center mx-auto text-rose-400">
+              <ShieldCheck className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-rose-300">Plots Withheld by Legal Compliance Team</p>
+              <p className="text-xs text-slate-300 max-w-lg mx-auto mt-1">
+                {township.legalRejectionNotice || 'Statutory documents or layout dimensions require developer rectification before plots can be released for retail buyer booking.'}
+              </p>
+            </div>
+          </div>
+        ) : (!township.plots || township.plots.filter(p => (p.legalStatus || 'Approved') === 'Approved').length === 0) ? (
           <div className="p-10 border border-dashed border-slate-800 rounded-2xl text-center space-y-3">
             <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mx-auto text-emerald-400">
               <Layers className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-sm font-bold text-white">No Plots Listed Yet</p>
+              <p className="text-sm font-bold text-white">No Approved Plots Available</p>
               <p className="text-xs text-slate-400 max-w-md mx-auto mt-1">
-                Demo plots have been cleared. Developers can register and publish inventory units via the Developer Portal.
+                Plots are currently undergoing statutory due diligence by the Legal Team. Without legal verification, no plots are visible to buyers.
               </p>
             </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-            {township.plots.map((plot) => (
+            {township.plots
+              .filter(p => (p.legalStatus || 'Approved') === 'Approved')
+              .map((plot) => (
               <div
                 key={plot.id}
                 onClick={() => onSelectPlot(plot)}

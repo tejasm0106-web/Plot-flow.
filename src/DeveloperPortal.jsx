@@ -392,6 +392,70 @@ export default function DeveloperPortal({ townships, onUpdateTownship, onAddTown
         </div>
       </div>
 
+      {/* Legal Clearance & Compliance Status Banner */}
+      <div className={`border rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition shadow-lg ${
+        currentTownship?.legalClearance === 'Approved'
+          ? 'bg-emerald-950/20 border-emerald-500/40 text-emerald-300'
+          : currentTownship?.legalClearance === 'Rejected'
+          ? 'bg-rose-950/30 border-rose-500/50 text-rose-300'
+          : 'bg-amber-950/20 border-amber-500/40 text-amber-300'
+      }`}>
+        <div className="flex items-start space-x-3.5">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+            currentTownship?.legalClearance === 'Approved'
+              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+              : currentTownship?.legalClearance === 'Rejected'
+              ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
+              : 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+          }`}>
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-bold text-white">
+                Legal Compliance Status: {currentTownship?.legalClearance || 'Pending Legal Review'}
+              </span>
+              <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${
+                currentTownship?.legalClearance === 'Approved'
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                  : currentTownship?.legalClearance === 'Rejected'
+                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                  : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+              }`}>
+                {currentTownship?.legalClearance === 'Approved' ? 'Marketplace Live' : 'Marketplace Gated'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+              {currentTownship?.legalClearance === 'Approved'
+                ? 'All 7 statutory documents and plot dimensions are verified by Advocate Rajeshwari Iyer. Plots are actively visible to buyers.'
+                : currentTownship?.legalClearance === 'Rejected'
+                ? `Defect Notice: ${currentTownship?.legalRejectionNotice || 'Statutory documents or plot boundaries were rejected by the Legal Team. Plots remain hidden from buyers until corrected.'}`
+                : 'Your uploaded documents are currently queued for statutory title audit. Plots will be published to buyers once approved.'}
+            </p>
+          </div>
+        </div>
+
+        {currentTownship?.legalClearance === 'Rejected' && (
+          <button
+            onClick={() => {
+              if (onUpdateTownship) {
+                const updated = {
+                  ...currentTownship,
+                  legalClearance: 'Pending Review',
+                  legalRejectionNotice: null
+                };
+                onUpdateTownship(updated);
+                alert('Corrected documents and layout plan re-submitted to Legal Audit Queue. Advocate will review shortly.');
+              }
+            }}
+            className="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl shadow transition flex items-center space-x-1.5 flex-shrink-0"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Re-Upload Corrected Documents</span>
+          </button>
+        )}
+      </div>
+
       {/* Sub Navigation Bar */}
       <div className="flex border-b border-slate-800 space-x-2 sm:space-x-4 overflow-x-auto pb-1">
         <button

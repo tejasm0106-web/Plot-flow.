@@ -25,6 +25,24 @@ export const DEFAULT_PLATFORM_USERS = [
     passwordHash: 'Admin@2026'
   },
   {
+    uid: 'usr_legal_01',
+    name: 'Advocate Rajeshwari Iyer',
+    email: 'legal.auditor@plotflow.in',
+    phone: '+91 98450 77889',
+    role: 'LEGAL_AUDITOR',
+    roleTitle: 'Senior Legal & Title Due Diligence Auditor',
+    company: 'PlotFlow Legal Compliance Wing',
+    barCouncilId: 'KAR/1482/2012',
+    specialization: '30-Yr Land Title Search & RERA Compliance',
+    authProvider: 'email.password',
+    status: 'Active',
+    verified: true,
+    lastSignIn: '2026-08-26 06:10 AM',
+    createdAt: '2025-02-15',
+    assignedProjectsCount: 3,
+    passwordHash: 'Legal@2026'
+  },
+  {
     uid: 'usr_dev_01',
     name: 'Rohit Kulkarni',
     email: 'rohit@prestigeplotted.com',
@@ -294,14 +312,97 @@ export async function loginWithEmailAndPassword(email, password) {
   // Check user in stored database
   const user = users.find(u => u.email.toLowerCase() === cleanEmail);
   if (!user) {
-    throw new Error('No account found with this email address. Please click "Create Account" to register.');
+    throw new Error('No account found with this email address. Please check your credentials or register.');
+  }
+
+  // Account Status Check (Admin Deactivation Check)
+  if (user.status === 'Suspended' || user.status === 'Deactivated' || user.status === 'Inactive') {
+    throw new Error(`This account (${user.email}) has been deactivated by the Super Administrator. Please contact Platform Admin (tejastej094@gmail.com) for clearance.`);
   }
 
   if (user.passwordHash && user.passwordHash !== password) {
-    throw new Error('Incorrect password. Please try again or create a new account.');
+    throw new Error('Incorrect password. Please verify your password credentials.');
   }
 
   user.lastSignIn = new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
   saveStoredUsers(users);
   return user;
 }
+
+// Create a New Legal Team User (Admin Authority)
+export function createLegalTeamUser({
+  name,
+  email,
+  password = 'Legal@2026',
+  phone = '+91 98000 77889',
+  barCouncilId = 'BAR/KA/2026/01',
+  specialization = 'Land Title Due Diligence & RERA Compliance'
+}) {
+  const users = getStoredUsers();
+  const cleanEmail = email.toLowerCase().trim();
+
+  const existing = users.find(u => u.email.toLowerCase() === cleanEmail);
+  if (existing) {
+    throw new Error(`User with email "${cleanEmail}" already exists.`);
+  }
+
+  const newLegalUser = {
+    uid: `usr_legal_${Date.now()}`,
+    name: name.trim(),
+    email: cleanEmail,
+    phone: phone.trim(),
+    role: 'LEGAL_AUDITOR',
+    roleTitle: `Legal Compliance Auditor (${specialization})`,
+    company: 'PlotFlow Legal & Regulatory Wing',
+    barCouncilId: barCouncilId.trim(),
+    specialization: specialization.trim(),
+    authProvider: 'email.password',
+    status: 'Active',
+    verified: true,
+    lastSignIn: 'Newly Registered by Super Admin',
+    createdAt: new Date().toISOString().split('T')[0],
+    assignedProjectsCount: 3,
+    passwordHash: password
+  };
+
+  const updated = [newLegalUser, ...users];
+  saveStoredUsers(updated);
+  return newLegalUser;
+}
+
+// Update User Password by Admin
+export function updateUserPasswordByAdmin(userId, newPassword) {
+  const users = getStoredUsers();
+  const updated = users.map(u => {
+    if (u.uid === userId || u.email.toLowerCase() === userId.toLowerCase()) {
+      return { ...u, passwordHash: newPassword };
+    }
+    return u;
+  });
+  saveStoredUsers(updated);
+  return true;
+}
+
+// Toggle User Status (Active <-> Deactivated)
+export function toggleUserStatusByAdmin(userId) {
+  const users = getStoredUsers();
+  let updatedStatus = 'Active';
+  const updated = users.map(u => {
+    if (u.uid === userId || u.email.toLowerCase() === userId.toLowerCase()) {
+      updatedStatus = (u.status === 'Active' ? 'Deactivated' : 'Active');
+      return { ...u, status: updatedStatus };
+    }
+    return u;
+  });
+  saveStoredUsers(updated);
+  return updatedStatus;
+}
+
+// Remove Developer or User Account
+export function removeUserAccountByAdmin(userId) {
+  const users = getStoredUsers();
+  const updated = users.filter(u => u.uid !== userId && u.email.toLowerCase() !== userId.toLowerCase());
+  saveStoredUsers(updated);
+  return updated;
+}
+

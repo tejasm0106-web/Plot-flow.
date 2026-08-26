@@ -14,7 +14,8 @@ import {
   Car, 
   Sparkles,
   PhoneCall,
-  LogOut
+  LogOut,
+  Scale
 } from 'lucide-react';
 
 import { INITIAL_PROJECTS, DEMO_USERS } from './data/mockData';
@@ -26,6 +27,7 @@ import CompareView from './screens/CompareView';
 import LeadCrmView from './screens/LeadCrmView';
 import AdminPanelView from './screens/AdminPanelView';
 import InvestorPitchView from './screens/InvestorPitchView';
+import LegalAuditPortal from './screens/LegalAuditPortal';
 import DeveloperPortal from './DeveloperPortal';
 import SunPathSimulator from './components/SunPathSimulator';
 import PlotDetailDrawer from './components/PlotDetailDrawer';
@@ -37,7 +39,7 @@ export default function App() {
   // Master state
   const [townships, setTownships] = useState(INITIAL_PROJECTS);
   const [currentView, setCurrentView] = useState('landing'); 
-  // 'landing' | 'marketplace' | 'project-detail' | '3d-twin' | 'verification' | 'compare' | 'developer-portal' | 'lead-crm' | 'admin-panel' | 'investor-pitch'
+  // 'landing' | 'marketplace' | 'project-detail' | '3d-twin' | 'verification' | 'compare' | 'developer-portal' | 'lead-crm' | 'admin-panel' | 'investor-pitch' | 'legal-portal'
 
   const [selectedTownshipId, setSelectedTownshipId] = useState(INITIAL_PROJECTS[0]?.id || 'ts_01');
   const [selectedPlot, setSelectedPlot] = useState(null);
@@ -55,6 +57,14 @@ export default function App() {
 
   const handleUpdateTownship = (updatedTownship) => {
     setTownships(prev => prev.map(t => t.id === updatedTownship.id ? updatedTownship : t));
+  };
+
+  const handleRemoveTownship = (townshipId) => {
+    setTownships(prev => prev.filter(t => t.id !== townshipId));
+    if (selectedTownshipId === townshipId) {
+      const remaining = townships.filter(t => t.id !== townshipId);
+      if (remaining.length > 0) setSelectedTownshipId(remaining[0].id);
+    }
   };
 
   const handleAddTownship = (newTownship) => {
@@ -161,6 +171,19 @@ export default function App() {
               <span>Saved ({shortlistedTownshipIds.length})</span>
             </button>
             
+            {/* Legal Audit Team Access */}
+            {(currentUser?.role === 'LEGAL_AUDITOR' || currentUser?.role === 'SUPER_ADMIN') && (
+              <button
+                onClick={() => setCurrentView('legal-portal')}
+                className={`px-3 py-2 rounded-xl transition flex items-center space-x-1.5 ${
+                  currentView === 'legal-portal' ? 'bg-teal-600 text-white shadow' : 'text-teal-400 hover:bg-teal-500/10'
+                }`}
+              >
+                <Scale className="w-3.5 h-3.5" />
+                <span>Legal Audit Team</span>
+              </button>
+            )}
+
             {/* Developer CRM & Builder SaaS Access */}
             <button
               onClick={() => setCurrentView('developer-portal')}
@@ -276,6 +299,14 @@ export default function App() {
                 className="w-full text-left p-2.5 rounded-xl hover:bg-slate-800 font-bold text-amber-400"
               >
                 Super Admin Panel
+              </button>
+            )}
+            {(currentUser?.role === 'LEGAL_AUDITOR' || currentUser?.role === 'SUPER_ADMIN') && (
+              <button
+                onClick={() => { setCurrentView('legal-portal'); setMobileMenuOpen(false); }}
+                className="w-full text-left p-2.5 rounded-xl hover:bg-slate-800 font-bold text-teal-400"
+              >
+                Legal Audit Team
               </button>
             )}
             <button
@@ -448,10 +479,20 @@ export default function App() {
           </div>
         )}
 
+        {currentView === 'legal-portal' && (
+          <LegalAuditPortal
+            currentUser={currentUser}
+            townships={townships}
+            onUpdateTownship={handleUpdateTownship}
+          />
+        )}
+
         {currentView === 'admin-panel' && (
           <AdminPanelView
             currentUser={currentUser}
             townships={townships}
+            onUpdateTownship={handleUpdateTownship}
+            onRemoveTownship={handleRemoveTownship}
             onApproveProject={() => {}}
             onRejectProject={() => {}}
           />
@@ -511,6 +552,10 @@ export default function App() {
             setCurrentView('admin-panel');
           } else if (user.role === 'DEVELOPER') {
             setCurrentView('developer-portal');
+          } else if (user.role === 'LEGAL_AUDITOR') {
+            setCurrentView('legal-portal');
+          } else {
+            setCurrentView('marketplace');
           }
         }}
       />

@@ -82,11 +82,14 @@ export default function SunPathSimulator({
     };
   }, [timeOfDay]);
 
-  // Filter plots
-  const displayPlots = township?.plots?.filter(p => {
+  // Filter plots (Strictly ensure unverified / rejected plots are hidden from buyers)
+  const displayPlots = (township?.plots || []).filter(p => {
+    const isApproved = (p.legalStatus || 'Approved') === 'Approved';
+    if (!isApproved) return false;
+
     if (selectedFacingFilter === 'ALL') return true;
     return p.facing.toLowerCase().includes(selectedFacingFilter.toLowerCase());
-  }) || [];
+  });
 
   return (
     <div className="space-y-4">
