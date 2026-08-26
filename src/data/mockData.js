@@ -471,25 +471,236 @@ export const INITIAL_LEADS = [
 
 export const DEMO_USERS = {
   superAdmin: {
+    uid: 'usr_admin_01',
     name: 'Tejas',
     email: 'tejastej094@gmail.com',
     role: 'SUPER_ADMIN',
     roleTitle: 'Master Platform Owner & Super Admin',
-    securityPin: '2026'
+    securityPin: '2026',
+    authProvider: 'firebase.google',
+    status: 'Active',
+    verified: true,
+    lastSignIn: '2026-08-26 06:48 AM',
+    createdAt: '2025-01-10'
   },
   developer: {
+    uid: 'usr_dev_01',
     name: 'Rohit Kulkarni',
     companyName: 'Prestige Plotted Townships',
     email: 'rohit@prestigeplotted.com',
     role: 'DEVELOPER',
     roleTitle: 'VP of Plotted Land Sales & Inventory',
-    reraRegNumber: 'PRM/KA/RERA/1250/303/PR/210324/004055'
+    reraRegNumber: 'PRM/KA/RERA/1250/303/PR/210324/004055',
+    authProvider: 'firebase.password',
+    status: 'Active',
+    verified: true,
+    lastSignIn: '2026-08-25 04:15 PM',
+    createdAt: '2025-03-12'
   },
   buyer: {
+    uid: 'usr_buyer_01',
     name: 'Vikramaditya Sharma',
     email: 'vikram.sharma@techcorp.com',
     phone: '+91 98450 12345',
     role: 'BUYER',
-    roleTitle: 'Verified Plot Buyer'
+    roleTitle: 'Verified Plot Buyer',
+    authProvider: 'firebase.google',
+    status: 'Active',
+    verified: true,
+    lastSignIn: '2026-08-26 05:20 AM',
+    createdAt: '2025-06-04'
   }
 };
+
+export const INITIAL_PLATFORM_USERS = [
+  {
+    uid: 'usr_admin_01',
+    name: 'Tejas',
+    email: 'tejastej094@gmail.com',
+    phone: '+91 99000 11223',
+    role: 'SUPER_ADMIN',
+    company: 'PlotFlow Technologies Pvt Ltd',
+    authProvider: 'firebase.google',
+    status: 'Active',
+    verified: true,
+    lastSignIn: '2026-08-26 06:48 AM',
+    createdAt: '2025-01-10',
+    assignedProjectsCount: 3,
+    tokenBalance: '₹2.61 Cr (Escrow Lead)'
+  },
+  {
+    uid: 'usr_dev_01',
+    name: 'Rohit Kulkarni',
+    email: 'rohit@prestigeplotted.com',
+    phone: '+91 98440 98765',
+    role: 'DEVELOPER',
+    company: 'Prestige Plotted Townships',
+    authProvider: 'firebase.password',
+    status: 'Active',
+    verified: true,
+    lastSignIn: '2026-08-25 04:15 PM',
+    createdAt: '2025-03-12',
+    assignedProjectsCount: 1,
+    reraId: 'PRM/KA/RERA/1250/303/PR/210324/004055'
+  },
+  {
+    uid: 'usr_dev_02',
+    name: 'Siddharth Rao',
+    email: 'siddharth@greenvalleyplots.in',
+    phone: '+91 99011 23456',
+    role: 'DEVELOPER',
+    company: 'Green Valley Developers Pvt Ltd',
+    authProvider: 'firebase.password',
+    status: 'Active',
+    verified: true,
+    lastSignIn: '2026-08-24 11:30 AM',
+    createdAt: '2025-04-18',
+    assignedProjectsCount: 1,
+    reraId: 'PRM/KA/RERA/1251/308/PR/220815/005120'
+  },
+  {
+    uid: 'usr_dev_03',
+    name: 'Meenakshi Sundaram',
+    email: 'meenakshi@brigadegroup.com',
+    phone: '+91 97400 44332',
+    role: 'DEVELOPER',
+    company: 'Brigade Group Lands',
+    authProvider: 'firebase.google',
+    status: 'Active',
+    verified: true,
+    lastSignIn: '2026-08-26 02:10 AM',
+    createdAt: '2025-05-02',
+    assignedProjectsCount: 1,
+    reraId: 'PRM/KA/RERA/1252/310/PR/230110/005690'
+  },
+  {
+    uid: 'usr_buyer_01',
+    name: 'Vikramaditya Sharma',
+    email: 'vikram.sharma@techcorp.com',
+    phone: '+91 98450 12345',
+    role: 'BUYER',
+    company: 'Individual Retail Buyer',
+    authProvider: 'firebase.google',
+    status: 'Active',
+    verified: true,
+    lastSignIn: '2026-08-26 05:20 AM',
+    createdAt: '2025-06-04',
+    assignedProjectsCount: 0,
+    kycStatus: 'Aadhaar + PAN Verified'
+  },
+  {
+    uid: 'usr_buyer_02',
+    name: 'Ananya Deshmukh',
+    email: 'ananya.d@fintech.io',
+    phone: '+91 99801 88721',
+    role: 'BUYER',
+    company: 'Individual NRI Investor',
+    authProvider: 'firebase.google',
+    status: 'Active',
+    verified: true,
+    lastSignIn: '2026-08-25 09:12 PM',
+    createdAt: '2025-07-22',
+    assignedProjectsCount: 0,
+    kycStatus: 'Aadhaar + PAN Verified (Token Paid: ₹25k)'
+  },
+  {
+    uid: 'usr_buyer_03',
+    name: 'Karthik Ramanathan',
+    email: 'karthik.ram@global.in',
+    phone: '+91 97412 55432',
+    role: 'BUYER',
+    company: 'Tech Founder / Private Buyer',
+    authProvider: 'firebase.password',
+    status: 'Pending Verification',
+    verified: false,
+    lastSignIn: '2026-08-23 01:45 PM',
+    createdAt: '2025-08-01',
+    assignedProjectsCount: 0,
+    kycStatus: 'Pending PAN Upload'
+  },
+  {
+    uid: 'usr_auditor_01',
+    name: 'Advocate V. Narayanswamy',
+    email: 'narayan.legal@highcourt-adv.in',
+    phone: '+91 98452 77889',
+    role: 'LEGAL_AUDITOR',
+    company: 'Karnataka High Court Title Cell',
+    authProvider: 'firebase.google',
+    status: 'Active',
+    verified: true,
+    lastSignIn: '2026-08-26 06:15 AM',
+    createdAt: '2025-02-14',
+    assignedProjectsCount: 3,
+    kycStatus: 'Bar Council Certified #KAR/4412/1998'
+  }
+];
+
+export const INITIAL_SITE_SETTINGS = {
+  // Platform Operations
+  maintenanceMode: false,
+  maintenanceNotice: 'PlotFlow 3D Engine is undergoing scheduled Kaveri-2 registry database indexing. All existing reservations remain protected.',
+  publicRegistrationOpen: true,
+  strictReraGate: true, // Requires 5-layer clearance before layout displays on marketplace
+  enableSunPathHighDef: true, // High-definition 3D shadow shaders
+
+  // Financial & Escrow
+  takeRateFee: 0.75, // 0.75% take rate
+  tokenDepositAmount: 25000, // ₹25,000 token deposit
+  stampDutyPercent: 6.6, // 6.6% Karnataka stamp duty standard
+  escrowAutoReleaseTrigger: 'SALE_DEED_REGISTERED', // 'AGREEMENT_SIGNED' | 'SALE_DEED_REGISTERED'
+  paymentGatewayMode: 'LIVE_ESCROW_UPI', // 'MOCK_SANDBOX' | 'LIVE_ESCROW_UPI'
+
+  // Integrations & Webhooks
+  kaveri2SyncEnabled: true,
+  kaveri2SyncIntervalMinutes: 30,
+  enableCabSiteVisits: true,
+  cabServiceApiKey: 'sk_live_ola_realestate_blr_8812',
+  whatsappWebhookEnabled: true,
+  whatsappBusinessNumber: '+91 80 4712 9900',
+  
+  // Security & Authentication
+  enforce2FAForAdmins: true,
+  adminSecurityPin: '2026',
+  sessionTimeoutMinutes: 60,
+  allowedAdminDomains: 'gmail.com, plotflow.in'
+};
+
+export const INITIAL_AUDIT_LOGS = [
+  {
+    id: 'log_01',
+    action: 'SUPER_ADMIN_AUTH_SYNC',
+    actor: 'tejastej094@gmail.com (Tejas)',
+    target: 'Firebase Auth Session Token',
+    details: 'Authenticated with master platform privileges via Firebase Google Provider.',
+    timestamp: '2026-08-26 06:48 AM',
+    severity: 'INFO'
+  },
+  {
+    id: 'log_02',
+    action: 'TOKEN_ESCROW_LOCKED',
+    actor: 'ananya.d@fintech.io (Buyer)',
+    target: 'Plot P-104 (Prestige Sanctuary Greens)',
+    details: 'Refundable ₹25,000 token advance escrowed via UPI QR. Status transitioned to Reserved.',
+    timestamp: '2026-08-25 09:12 PM',
+    severity: 'SUCCESS'
+  },
+  {
+    id: 'log_03',
+    action: 'LEGAL_DOSSIER_COMPILED',
+    actor: 'narayan.legal@highcourt-adv.in (Auditor)',
+    target: 'Form 15 Nil Encumbrance Certificate',
+    details: '42-point title search certified against Kaveri-2 sub-registrar registry.',
+    timestamp: '2026-08-25 03:20 PM',
+    severity: 'INFO'
+  },
+  {
+    id: 'log_04',
+    action: 'SITE_SETTINGS_UPDATED',
+    actor: 'tejastej094@gmail.com (Tejas)',
+    target: 'Platform Take-Rate Configuration',
+    details: 'Commission take-rate verified at 0.75% for Q3 developer cohort.',
+    timestamp: '2026-08-24 10:00 AM',
+    severity: 'WARNING'
+  }
+];
+
