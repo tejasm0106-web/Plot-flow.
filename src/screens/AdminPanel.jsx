@@ -158,6 +158,14 @@ export default function AdminPanel({
   useEffect(() => {
     setUsersList(getStoredUsers());
     setEmailLogs(getEmailDispatchLogs());
+
+    const handleEmailDispatched = () => {
+      setEmailLogs(getEmailDispatchLogs());
+    };
+    window.addEventListener('plotflow_email_dispatched', handleEmailDispatched);
+    return () => {
+      window.removeEventListener('plotflow_email_dispatched', handleEmailDispatched);
+    };
   }, [activeTab]);
 
   // Filtered Users
