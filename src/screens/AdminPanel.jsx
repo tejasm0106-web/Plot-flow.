@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import AdminDashboard from '../components/AdminDashboard';
 import { 
   ShieldCheck, 
   Settings, 
@@ -429,14 +430,27 @@ export default function AdminPanel({
   };
 
   return (
-    <div className="space-y-6 pb-16">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center space-x-2 text-xs font-bold animate-fadeIn">
-          <CheckCircle2 className="w-4 h-4" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
+    <AdminDashboard
+      user={currentUser}
+      activeTab={activeTab}
+      onTabChange={setActiveTab}
+      onExploreMarketplace={onExploreMarketplace}
+      badgeCounts={{
+        townships: townships.length,
+        users: usersList.length,
+        leads: leadsList.length,
+        plots: townships.reduce((acc, t) => acc + (t.plots?.length || t.totalPlots || 0), 0),
+        audit_logs: auditLogs.length
+      }}
+    >
+      <div className="space-y-6">
+        {/* Toast Notification */}
+        {toastMessage && (
+          <div className="fixed bottom-6 right-6 z-50 bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center space-x-2 text-xs font-bold animate-fadeIn">
+            <CheckCircle2 className="w-4 h-4" />
+            <span>{toastMessage}</span>
+          </div>
+        )}
 
       {/* Admin Header Banner */}
       <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
@@ -1411,6 +1425,7 @@ export default function AdminPanel({
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </AdminDashboard>
   );
 }
