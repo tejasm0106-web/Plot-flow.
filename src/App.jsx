@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Layers, 
   Compass, 
@@ -15,20 +15,36 @@ import {
   Sparkles,
   PhoneCall,
   LogOut,
-  Scale
+  Scale,
+  Settings,
+  Mail,
+  Info
 } from 'lucide-react';
 
 import { INITIAL_PROJECTS, DEMO_USERS } from './data/mockData';
+import { 
+  getStoredTownships, 
+  saveStoredTownships, 
+  getSiteSettings, 
+  getShortlist, 
+  toggleShortlistInStore 
+} from './services/storeService';
+import { getStoredUsers } from './services/userService';
+
 import LandingView from './screens/LandingView';
 import MarketplaceView from './screens/MarketplaceView';
 import ProjectDetailView from './screens/ProjectDetailView';
 import VerificationView from './screens/VerificationView';
 import CompareView from './screens/CompareView';
 import LeadCrmView from './screens/LeadCrmView';
-import AdminPanelView from './screens/AdminPanelView';
+import AdminPanel from './screens/AdminPanel';
 import InvestorPitchView from './screens/InvestorPitchView';
 import LegalAuditPortal from './screens/LegalAuditPortal';
 import DeveloperPortal from './DeveloperPortal';
+import AboutView from './screens/AboutView';
+import ContactView from './screens/ContactView';
+import UserProfileView from './screens/UserProfileView';
+
 import SunPathSimulator from './components/SunPathSimulator';
 import PlotDetailDrawer from './components/PlotDetailDrawer';
 import BookingModal from './components/BookingModal';
@@ -36,14 +52,19 @@ import SiteVisitModal from './components/SiteVisitModal';
 import AuthModal from './components/AuthModal';
 
 export default function App() {
-  // Master state
-  const [townships, setTownships] = useState(INITIAL_PROJECTS);
-  const [currentView, setCurrentView] = useState('landing'); 
-  // 'landing' | 'marketplace' | 'project-detail' | '3d-twin' | 'verification' | 'compare' | 'developer-portal' | 'lead-crm' | 'admin-panel' | 'investor-pitch' | 'legal-portal'
+  // Master persistent state for townships
+  const [townships, setTownships] = useState(() => getStoredTownships());
+  const [siteSettings, setSiteSettings] = useState(() => getSiteSettings());
+  const [shortlistedTownshipIds, setShortlistedTownshipIds] = useState(() => getShortlist());
 
-  const [selectedTownshipId, setSelectedTownshipId] = useState(INITIAL_PROJECTS[0]?.id || 'ts_01');
+  const [currentView, setCurrentView] = useState('landing'); 
+  // 'landing' | 'marketplace' | 'project-detail' | '3d-twin' | 'verification' | 'compare' | 'developer-portal' | 'lead-crm' | 'admin-panel' | 'investor-pitch' | 'legal-portal' | 'about' | 'contact' | 'profile'
+
+  const [selectedTownshipId, setSelectedTownshipId] = useState(() => {
+    const list = getStoredTownships();
+    return list[0]?.id || 'ts_01';
+  });
   const [selectedPlot, setSelectedPlot] = useState(null);
-  const [shortlistedTownshipIds, setShortlistedTownshipIds] = useState(['ts_01', 'ts_02']);
   
   // User Authentication State
   const [currentUser, setCurrentUser] = useState(DEMO_USERS.superAdmin); // Initialized with Tejas Super Admin
@@ -53,31 +74,50 @@ export default function App() {
   const [isSiteVisitModalOpen, setIsSiteVisitModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Sync state on external updates
+  useEffect(() => {
+    const handleTownshipsUpdate = (e) => setTownships(e.detail || getStoredTownships());
+    const handleSettingsUpdate = (e) => setSiteSettings(e.detail || getSiteSettings());
+    const handleShortlistUpdate = (e) => setShortlistedTownshipIds(e.detail || getShortlist());
+
+    window.addEventListener('plotflow_townships_updated', handleTownshipsUpdate);
+    window.addEventListener('plotflow_settings_updated', handleSettingsUpdate);
+    window.addEventListener('plotflow_shortlist_updated', handleShortlistUpdate);
+
+    return () => {
+      window.removeEventListener('plotflow_townships_updated', handleTownshipsUpdate);
+      window.removeEventListener('plotflow_settings_updated', handleSettingsUpdate);
+      window.removeEventListener('plotflow_shortlist_updated', handleShortlistUpdate);
+    };
+  }, []);
+
   const selectedTownship = townships.find(t => t.id === selectedTownshipId) || townships[0];
 
   const handleUpdateTownship = (updatedTownship) => {
-    setTownships(prev => prev.map(t => t.id === updatedTownship.id ? updatedTownship : t));
+    const updatedList = townships.map(t => t.id === updatedTownship.id ? updatedTownship : t);
+    setTownships(updatedList);
+    saveStoredTownships(updatedList);
   };
 
   const handleRemoveTownship = (townshipId) => {
-    setTownships(prev => prev.filter(t => t.id !== townshipId));
+    const updatedList = townships.filter(t => t.id !== townshipId);
+    setTownships(updatedList);
+    saveStoredTownships(updatedList);
     if (selectedTownshipId === townshipId) {
-      const remaining = townships.filter(t => t.id !== townshipId);
-      if (remaining.length > 0) setSelectedTownshipId(remaining[0].id);
+      if (updatedList.length > 0) setSelectedTownshipId(updatedList[0].id);
     }
   };
 
   const handleAddTownship = (newTownship) => {
-    setTownships(prev => [newTownship, ...prev]);
+    const updatedList = [newTownship, ...townships];
+    setTownships(updatedList);
+    saveStoredTownships(updatedList);
     setSelectedTownshipId(newTownship.id);
   };
 
   const handleToggleShortlist = (townshipId) => {
-    setShortlistedTownshipIds(prev => 
-      prev.includes(townshipId) 
-        ? prev.filter(id => id !== townshipId)
-        : [...prev, townshipId]
-    );
+    const nextShortlist = toggleShortlistInStore(townshipId);
+    setShortlistedTownshipIds(nextShortlist);
   };
 
   const handleSelectPlotAndOpen = (plot) => {
@@ -87,20 +127,30 @@ export default function App() {
 
   const handleBookingSuccess = (plotId) => {
     // Update plot status to Reserved
-    setTownships(prev => prev.map(ts => {
-      if (ts.id === selectedTownship.id) {
+    const updatedList = townships.map(ts => {
+      if (ts.id === selectedTownship?.id) {
         return {
           ...ts,
-          plots: ts.plots.map(p => p.id === plotId ? { ...p, status: 'Reserved' } : p),
-          availablePlots: Math.max(0, ts.availablePlots - 1)
+          plots: (ts.plots || []).map(p => p.id === plotId ? { ...p, status: 'Reserved' } : p),
+          availablePlots: Math.max(0, (ts.availablePlots || 1) - 1)
         };
       }
       return ts;
-    }));
+    });
+    setTownships(updatedList);
+    saveStoredTownships(updatedList);
   };
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
+      {/* Optional Top Announcement Bar from CMS */}
+      {siteSettings.announcementEnabled && siteSettings.announcementText && (
+        <div className="bg-gradient-to-r from-emerald-700 via-teal-700 to-indigo-800 text-white text-[11px] font-bold py-1.5 px-4 text-center tracking-wide flex items-center justify-center space-x-2">
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>{siteSettings.announcementText}</span>
+        </div>
+      )}
+
       {/* Top Main Navigation Bar */}
       <header className="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-md border-b border-slate-800/80 px-4 sm:px-8 py-3.5">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -114,7 +164,7 @@ export default function App() {
             </div>
             <div>
               <div className="flex items-center space-x-1.5">
-                <span className="text-xl font-black text-white tracking-tight">PlotFlow</span>
+                <span className="text-xl font-black text-white tracking-tight">{siteSettings.siteName || 'PlotFlow'}</span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">
                   3D Twin
                 </span>
@@ -192,7 +242,7 @@ export default function App() {
               }`}
             >
               <Building2 className="w-3.5 h-3.5" />
-              <span>Builder SaaS & CRM</span>
+              <span>Builder SaaS</span>
             </button>
 
             {/* Tejas Super Admin Link */}
@@ -204,7 +254,7 @@ export default function App() {
                 }`}
               >
                 <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Super Admin</span>
+                <span>Admin CMS</span>
               </button>
             )}
           </nav>
@@ -214,7 +264,7 @@ export default function App() {
             {currentUser ? (
               <div className="flex items-center space-x-2">
                 <div 
-                  onClick={() => setIsAuthModalOpen(true)}
+                  onClick={() => setCurrentView('profile')}
                   className="bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-2xl px-3 py-1.5 flex items-center space-x-2.5 cursor-pointer transition shadow"
                 >
                   <div className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-bold ${
@@ -222,9 +272,11 @@ export default function App() {
                       ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                       : currentUser.role === 'DEVELOPER'
                       ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
+                      : currentUser.role === 'LEGAL_AUDITOR'
+                      ? 'bg-teal-500/20 text-teal-400 border border-teal-500/30'
                       : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                   }`}>
-                    {currentUser.role === 'SUPER_ADMIN' ? 'A' : currentUser.role === 'DEVELOPER' ? 'D' : 'B'}
+                    {currentUser.role === 'SUPER_ADMIN' ? 'A' : currentUser.role === 'DEVELOPER' ? 'D' : currentUser.role === 'LEGAL_AUDITOR' ? 'L' : 'B'}
                   </div>
                   <div className="hidden sm:block text-left">
                     <span className="text-xs font-bold text-white block">{currentUser.name}</span>
@@ -291,7 +343,7 @@ export default function App() {
               onClick={() => { setCurrentView('developer-portal'); setMobileMenuOpen(false); }}
               className="w-full text-left p-2.5 rounded-xl hover:bg-slate-800 font-bold text-indigo-300"
             >
-              Builder SaaS & CRM
+              Builder SaaS & Inventory
             </button>
             {currentUser?.role === 'SUPER_ADMIN' && (
               <button
@@ -309,6 +361,18 @@ export default function App() {
                 Legal Audit Team
               </button>
             )}
+            <button
+              onClick={() => { setCurrentView('about'); setMobileMenuOpen(false); }}
+              className="w-full text-left p-2.5 rounded-xl hover:bg-slate-800 font-bold text-slate-300"
+            >
+              About PlotFlow
+            </button>
+            <button
+              onClick={() => { setCurrentView('contact'); setMobileMenuOpen(false); }}
+              className="w-full text-left p-2.5 rounded-xl hover:bg-slate-800 font-bold text-slate-300"
+            >
+              Contact & Concierge
+            </button>
             <button
               onClick={() => { setCurrentView('investor-pitch'); setMobileMenuOpen(false); }}
               className="w-full text-left p-2.5 rounded-xl hover:bg-slate-800 font-bold text-slate-400"
@@ -382,7 +446,7 @@ export default function App() {
                 <select
                   value={selectedTownshipId}
                   onChange={(e) => setSelectedTownshipId(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white font-bold focus:outline-none focus:border-emerald-500"
+                  className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white font-bold focus:outline-none focus:border-emerald-500 cursor-pointer"
                 >
                   {townships.map(t => (
                     <option key={t.id} value={t.id}>{t.name} ({t.location})</option>
@@ -442,13 +506,13 @@ export default function App() {
                 onClick={() => setCurrentView('developer-portal')}
                 className="px-4 py-2 bg-indigo-600 text-white rounded-xl shadow"
               >
-                Inventory & Analytics
+                Inventory & Masterplan
               </button>
               <button
                 onClick={() => setCurrentView('lead-crm')}
                 className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-xl"
               >
-                Buyer Lead CRM Pipeline
+                Buyer Lead CRM
               </button>
             </div>
             <DeveloperPortal
@@ -466,13 +530,13 @@ export default function App() {
                 onClick={() => setCurrentView('developer-portal')}
                 className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-xl"
               >
-                Inventory & Analytics
+                Inventory & Masterplan
               </button>
               <button
                 onClick={() => setCurrentView('lead-crm')}
                 className="px-4 py-2 bg-indigo-600 text-white rounded-xl shadow"
               >
-                Buyer Lead CRM Pipeline
+                Buyer Lead CRM
               </button>
             </div>
             <LeadCrmView />
@@ -488,19 +552,60 @@ export default function App() {
         )}
 
         {currentView === 'admin-panel' && (
-          <AdminPanelView
+          <AdminPanel
             currentUser={currentUser}
             townships={townships}
             onUpdateTownship={handleUpdateTownship}
+            onAddTownship={handleAddTownship}
             onRemoveTownship={handleRemoveTownship}
-            onApproveProject={() => {}}
-            onRejectProject={() => {}}
+            onExploreMarketplace={() => setCurrentView('marketplace')}
           />
         )}
 
         {currentView === 'investor-pitch' && (
           <InvestorPitchView
             onExplore={() => setCurrentView('marketplace')}
+          />
+        )}
+
+        {currentView === 'about' && (
+          <AboutView
+            onExplore={() => setCurrentView('marketplace')}
+            onContact={() => setCurrentView('contact')}
+          />
+        )}
+
+        {currentView === 'contact' && (
+          <ContactView
+            townships={townships}
+            onExplore={() => setCurrentView('marketplace')}
+          />
+        )}
+
+        {currentView === 'profile' && (
+          <UserProfileView
+            currentUser={currentUser}
+            onLogout={() => {
+              setCurrentUser(null);
+              setCurrentView('landing');
+            }}
+            onSwitchUser={(user) => {
+              setCurrentUser(user);
+              if (user.role === 'SUPER_ADMIN') setCurrentView('admin-panel');
+              else if (user.role === 'DEVELOPER') setCurrentView('developer-portal');
+              else if (user.role === 'LEGAL_AUDITOR') setCurrentView('legal-portal');
+            }}
+            townships={townships}
+            shortlistedTownships={shortlistedTownshipIds}
+            onToggleShortlist={handleToggleShortlist}
+            onViewTownship={(ts) => {
+              setSelectedTownshipId(ts.id);
+              setCurrentView('project-detail');
+            }}
+            onLaunch3D={(ts) => {
+              setSelectedTownshipId(ts.id);
+              setCurrentView('3d-twin');
+            }}
           />
         )}
       </main>
@@ -561,19 +666,32 @@ export default function App() {
       />
 
       {/* Footer */}
-      <footer className="bg-slate-950 border-t border-slate-800/80 py-8 px-4 text-center text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center space-x-2">
-            <span className="font-bold text-slate-300">PlotFlow</span>
-            <span>• Verified Plotted Townships & 3D Digital Twins</span>
+      <footer className="bg-slate-950 border-t border-slate-800/80 py-10 px-4 text-xs text-slate-500">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-3">
+            <div className="flex items-center space-x-2">
+              <div className="w-6 h-6 rounded-lg bg-emerald-600 flex items-center justify-center text-white font-black text-[11px]">
+                PF
+              </div>
+              <span className="font-bold text-slate-200">{siteSettings.siteName || 'PlotFlow'}</span>
+            </div>
+            <span className="hidden sm:inline">•</span>
+            <span>Verified Plotted Townships & 3D Digital Twin Platform</span>
           </div>
-          <div className="flex items-center space-x-4">
+
+          <div className="flex flex-wrap justify-center items-center gap-4">
+            <button onClick={() => setCurrentView('about')} className="hover:text-emerald-400 transition">About</button>
             <button onClick={() => setCurrentView('verification')} className="hover:text-emerald-400 transition">5-Layer Legal Vault</button>
+            <button onClick={() => setCurrentView('contact')} className="hover:text-emerald-400 transition">Concierge & Contact</button>
             <button onClick={() => setCurrentView('investor-pitch')} className="hover:text-indigo-400 transition">Investor TAM</button>
             <button onClick={() => setCurrentView('developer-portal')} className="hover:text-amber-400 transition">Developer SaaS</button>
+            {currentUser?.role === 'SUPER_ADMIN' && (
+              <button onClick={() => setCurrentView('admin-panel')} className="text-amber-400 hover:text-amber-300 font-bold transition">Admin Master CMS</button>
+            )}
           </div>
+
           <div>
-            <span>© 2026 PlotFlow Technologies Pvt. Ltd. All rights reserved.</span>
+            <span>© 2026 {siteSettings.siteName || 'PlotFlow'} Technologies Pvt. Ltd. All rights reserved.</span>
           </div>
         </div>
       </footer>

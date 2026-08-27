@@ -13,7 +13,8 @@ import {
   Maximize2,
   CheckCircle2,
   Lock,
-  ArrowRight
+  ArrowRight,
+  MapPin
 } from 'lucide-react';
 
 export default function SunPathSimulator({ 
@@ -23,30 +24,25 @@ export default function SunPathSimulator({
   onBookPlot, 
   onScheduleVisit 
 }) {
-  // Time slider: 6 to 19 (6 AM to 7 PM) in 0.5 hour increments
+  // Time slider: 6 to 18.5 (6:00 AM to 6:30 PM)
   const [timeOfDay, setTimeOfDay] = useState(10.5); // 10:30 AM
   const [viewMode, setViewMode] = useState('isometric'); // 'isometric' | 'orthographic'
   const [showVastuOverlay, setShowVastuOverlay] = useState(true);
   const [showElevationContours, setShowElevationContours] = useState(false);
   const [selectedFacingFilter, setSelectedFacingFilter] = useState('ALL'); // 'ALL' | 'East' | 'North' | 'West' | 'South'
 
-  // Calculate Sun Angle and Shadow Vector based on timeOfDay (6 to 18)
+  // Calculate Sun Angle and Shadow Vector based on timeOfDay (6 to 18.5)
   const sunData = useMemo(() => {
-    // 6 AM = 0 deg (East), 12 PM = 90 deg (South/Noon Zenith), 18 PM = 180 deg (West)
-    const normalizedTime = (timeOfDay - 6) / 12; // 0 to 1
+    const normalizedTime = (timeOfDay - 6) / 12.5; // 0 to 1
     const sunAngleDeg = normalizedTime * 180; // 0 (East) to 180 (West)
     const sunAngleRad = (sunAngleDeg * Math.PI) / 180;
     
-    // Altitude angle (elevation from horizon): 0 at 6am, 75 deg at 12pm, 0 at 6pm
+    // Altitude angle: 0 at 6am, 75 deg at 12pm, 0 at 6:30pm
     const altitudeDeg = Math.sin(normalizedTime * Math.PI) * 75;
     const altitudeRad = (altitudeDeg * Math.PI) / 180;
 
     // Shadow length inversely proportional to altitude
     const shadowLength = Math.max(8, (1 - Math.sin(altitudeRad)) * 48);
-    // Shadow direction is opposite to sun
-    // Sun at East (0 deg) -> Shadow points West (-x)
-    // Sun at South (90 deg) -> Shadow points North (-y)
-    // Sun at West (180 deg) -> Shadow points East (+x)
     const shadowOffsetX = -Math.cos(sunAngleRad) * shadowLength;
     const shadowOffsetY = -Math.sin(sunAngleRad) * shadowLength * 0.4;
 
@@ -82,31 +78,31 @@ export default function SunPathSimulator({
     };
   }, [timeOfDay]);
 
-  // Filter plots (Strictly ensure unverified / rejected plots are hidden from buyers)
+  // Filter plots
   const displayPlots = (township?.plots || []).filter(p => {
     const isApproved = (p.legalStatus || 'Approved') === 'Approved';
     if (!isApproved) return false;
 
     if (selectedFacingFilter === 'ALL') return true;
-    return p.facing.toLowerCase().includes(selectedFacingFilter.toLowerCase());
+    return (p.facing || '').toLowerCase().includes(selectedFacingFilter.toLowerCase());
   });
 
   return (
     <div className="space-y-4">
       {/* Visualizer Header Toolbar */}
-      <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-xl">
+      <div className="bg-slate-950 border border-slate-800 rounded-3xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-xl">
         <div>
           <div className="flex items-center space-x-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
             <h2 className="text-lg font-black text-white tracking-tight">
               3D Digital Twin & Sun-Path Shadow Simulator
             </h2>
-            <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[10px] font-bold">
+            <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[10px] font-bold">
               Physics-Based
             </span>
           </div>
           <p className="text-xs text-slate-400 mt-1">
-            Simulate real solar orientation, shadow casting, and 100% Vastu energy alignment for each villa plot.
+            Simulate real solar orientation, shadow casting, and Vastu directional alignment for {township?.name || 'this plotted township'}.
           </p>
         </div>
 
@@ -144,7 +140,7 @@ export default function SunPathSimulator({
             }`}
           >
             <Compass className="w-3.5 h-3.5" />
-            <span>Vastu Energy Grid</span>
+            <span>Vastu Grid</span>
           </button>
 
           {/* Elevation Contours */}
@@ -157,20 +153,20 @@ export default function SunPathSimulator({
             }`}
           >
             <Sliders className="w-3.5 h-3.5" />
-            <span>Elevation Contours</span>
+            <span>Elevation</span>
           </button>
         </div>
       </div>
 
       {/* Interactive Sun Slider Bar */}
-      <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl space-y-3">
+      <div className="bg-slate-950 border border-slate-800 rounded-3xl p-5 shadow-xl space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
               <Sun className="w-4 h-4 text-amber-400 animate-spin-slow" />
             </div>
             <div>
-              <span className="font-bold text-white block">Solar Position & Shadow Engine</span>
+              <span className="font-bold text-white block">Solar Trajectory & Shadows</span>
               <span className="text-[11px] text-amber-300 font-semibold">{sunData.sunLabel}</span>
             </div>
           </div>
@@ -181,7 +177,7 @@ export default function SunPathSimulator({
               <span className="font-mono text-sm font-black text-white">{sunData.timeFormatted}</span>
             </div>
             <span className="text-slate-400 text-[11px] hidden sm:inline">
-              Solar Zenith: <strong className="text-slate-200">{sunData.altitudeDeg}°</strong>
+              Altitude: <strong className="text-slate-200">{sunData.altitudeDeg}° Zenith</strong>
             </span>
           </div>
         </div>
@@ -200,7 +196,7 @@ export default function SunPathSimulator({
           <div className="flex justify-between text-[10px] text-slate-500 font-semibold mt-1">
             <span>6:00 AM (Sunrise East)</span>
             <span>9:00 AM</span>
-            <span>12:00 PM (Noon Zenith)</span>
+            <span>12:00 PM (Noon)</span>
             <span>3:00 PM</span>
             <span>6:30 PM (Sunset West)</span>
           </div>
@@ -208,45 +204,45 @@ export default function SunPathSimulator({
       </div>
 
       {/* 3D Canvas / Plotted Township Interactive Board */}
-      <div className="relative bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 min-h-[500px] overflow-hidden shadow-2xl flex flex-col justify-between">
+      <div className="relative bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 min-h-[480px] overflow-hidden shadow-2xl flex flex-col justify-between">
         {/* Dynamic Sun Ray Ambient Wash */}
         <div 
           className="absolute inset-0 pointer-events-none transition-all duration-300"
           style={{
-            background: `radial-gradient(circle at ${((timeOfDay - 6) / 12) * 100}% 10%, ${sunData.ambientColor}, transparent 70%)`
+            background: `radial-gradient(circle at ${((timeOfDay - 6) / 12.5) * 100}% 10%, ${sunData.ambientColor}, transparent 70%)`
           }}
         />
 
         {/* Canvas Top Indicators */}
-        <div className="relative z-10 flex items-center justify-between text-xs">
+        <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 text-xs">
           {/* Compass & North Direction Badge */}
-          <div className="bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-2xl p-3 flex items-center space-x-3 shadow-lg">
-            <div className="relative w-8 h-8 rounded-full border border-slate-700 flex items-center justify-center">
-              <span className="absolute top-0 text-[8px] font-black text-rose-400">N</span>
-              <span className="absolute right-0.5 text-[8px] font-black text-amber-400">E</span>
-              <span className="absolute bottom-0 text-[8px] font-black text-slate-500">S</span>
-              <span className="absolute left-0.5 text-[8px] font-black text-slate-500">W</span>
-              <div className="w-1 h-4 bg-gradient-to-t from-slate-600 to-rose-500 rounded-full transform rotate-0" />
+          <div className="bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-2xl p-2.5 px-3.5 flex items-center space-x-3 shadow-lg">
+            <div className="relative w-7 h-7 rounded-full border border-slate-700 flex items-center justify-center">
+              <span className="absolute top-0 text-[7px] font-black text-rose-400">N</span>
+              <span className="absolute right-0.5 text-[7px] font-black text-amber-400">E</span>
+              <span className="absolute bottom-0 text-[7px] font-black text-slate-500">S</span>
+              <span className="absolute left-0.5 text-[7px] font-black text-slate-500">W</span>
+              <div className="w-1 h-3.5 bg-gradient-to-t from-slate-600 to-rose-500 rounded-full" />
             </div>
             <div>
-              <span className="text-[11px] font-bold text-white block">True North (0° Grid)</span>
-              <span className="text-[10px] text-emerald-400 font-medium">100% Vastu Harmonized</span>
+              <span className="text-[11px] font-bold text-white block">True North Grid</span>
+              <span className="text-[9px] text-emerald-400 font-medium">100% Vastu Oriented</span>
             </div>
           </div>
 
           {/* Legend */}
           <div className="bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-2xl px-4 py-2 flex items-center space-x-4 shadow-lg text-[11px]">
             <span className="flex items-center space-x-1.5">
-              <span className="w-3 h-3 rounded bg-emerald-500/30 border border-emerald-400"></span>
+              <span className="w-2.5 h-2.5 rounded bg-emerald-500"></span>
               <span className="text-slate-300">Available</span>
             </span>
             <span className="flex items-center space-x-1.5">
-              <span className="w-3 h-3 rounded bg-amber-500/30 border border-amber-400"></span>
+              <span className="w-2.5 h-2.5 rounded bg-amber-500"></span>
               <span className="text-slate-300">Reserved</span>
             </span>
             <span className="flex items-center space-x-1.5">
-              <span className="w-3 h-3 rounded bg-rose-500/30 border border-rose-400"></span>
-              <span className="text-slate-300">Booked / Sold</span>
+              <span className="w-2.5 h-2.5 rounded bg-rose-500"></span>
+              <span className="text-slate-300">Sold</span>
             </span>
           </div>
         </div>
@@ -260,14 +256,14 @@ export default function SunPathSimulator({
             <div>
               <h4 className="text-base font-bold text-white">No Plots Registered in this Layout</h4>
               <p className="text-xs text-slate-400 mt-1">
-                Demo plots have been cleared. To simulate sun-path and shadow dynamics on this 3D canvas, add real plots through the Developer SaaS Inventory console.
+                Add plots through the Admin Master Control or Developer portal to simulate sun-path and shadows.
               </p>
             </div>
           </div>
         ) : (
           <div 
-            className={`relative z-10 my-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5 transition-transform duration-500 ${
-              viewMode === 'isometric' ? 'transform md:perspective-[1000px] md:rotate-x-[18deg]' : ''
+            className={`relative z-10 my-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 transition-transform duration-500 ${
+              viewMode === 'isometric' ? 'transform md:perspective-[1000px] md:rotate-x-[16deg]' : ''
             }`}
           >
             {displayPlots.map((plot) => {
@@ -275,9 +271,13 @@ export default function SunPathSimulator({
               const isAvailable = plot.status === 'Available';
               const isReserved = plot.status === 'Reserved';
 
+              const plotNum = plot.plotNumber || plot.number || `Plot ${plot.id}`;
+              const plotDim = plot.dimensions || plot.dimension || `${plot.sqft || 1200} sq.ft`;
+              const plotArea = plot.sqft || plot.sizeSqFt || 1200;
+
               // Dynamic shadow styling based on sun angle
               const shadowStyle = {
-                boxShadow: `${sunData.shadowOffsetX}px ${sunData.shadowOffsetY + 6}px ${sunData.shadowLength * 0.8}px rgba(0, 0, 0, 0.65)`
+                boxShadow: `${sunData.shadowOffsetX}px ${sunData.shadowOffsetY + 5}px ${sunData.shadowLength * 0.75}px rgba(0, 0, 0, 0.65)`
               };
 
               return (
@@ -298,8 +298,8 @@ export default function SunPathSimulator({
                   {/* Plot Top Header */}
                   <div className="flex items-start justify-between">
                     <div>
-                      <span className="text-base font-black text-white tracking-tight">{plot.number}</span>
-                      <span className="text-[10px] text-slate-400 block">{plot.dimension || plot.size}</span>
+                      <span className="text-base font-black text-white tracking-tight">{plotNum}</span>
+                      <span className="text-[10px] text-slate-400 block">{plotDim}</span>
                     </div>
                     <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
                       isAvailable
@@ -315,18 +315,18 @@ export default function SunPathSimulator({
                   {/* Plot Middle Details */}
                   <div className="my-2 space-y-1">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-400 font-medium">{plot.sizeSqFt || plot.size} sq.ft</span>
+                      <span className="text-slate-400 font-medium">{plotArea} sq.ft</span>
                       <span className="font-bold text-amber-400">{plot.price}</span>
                     </div>
                     <div className="flex items-center space-x-1 text-[11px] text-emerald-400 font-semibold">
                       <Compass className="w-3 h-3" />
-                      <span>Facing: {plot.facing} ({plot.vastuScore || 95}% Vastu)</span>
+                      <span>{plot.facing} ({plot.vastuScore || '9.6'}/10 Vastu)</span>
                     </div>
                   </div>
 
                   {/* Plot Elevation Tag */}
                   <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400">
-                    <span className="truncate max-w-[120px]">{plot.elevation || 'Internal Road'}</span>
+                    <span className="truncate max-w-[120px]">{plot.elevation || 'Internal Boulevard'}</span>
                     {isSelected && (
                       <span className="text-emerald-400 font-bold flex items-center">
                         Selected <ArrowRight className="w-3 h-3 ml-0.5" />
@@ -350,17 +350,17 @@ export default function SunPathSimulator({
         <div className="relative z-10 bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-300">
           <div className="flex items-center space-x-2">
             <Sparkles className="w-4 h-4 text-emerald-400" />
-            <span>Masterplan Features: <strong>40ft & 60ft Boulevard Roads</strong> • 100% Underground Cabling • EV Stations</span>
+            <span>Masterplan Infrastructure: <strong>40ft & 60ft Boulevard Boulevards</strong> • 100% Underground Cabling • EV Charging</span>
           </div>
           <div className="flex items-center space-x-2">
-            <span className="text-slate-500">Selected Plot:</span>
+            <span className="text-slate-500">Selected:</span>
             {selectedPlot ? (
               <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
-                {selectedPlot.number} ({selectedPlot.price})
+                {selectedPlot.plotNumber || selectedPlot.number} ({selectedPlot.price})
               </span>
             ) : (
               <span className="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-400 text-[11px]">
-                None Selected
+                Click Any Plot Above
               </span>
             )}
           </div>

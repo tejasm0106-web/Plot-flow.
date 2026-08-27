@@ -1,10 +1,10 @@
 // PlotFlow User, Authentication & Storage Service
 import { auth, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from './firebase';
+import { addAuditLog } from './storeService';
 
-const USERS_STORAGE_KEY = 'plotflow_platform_users_v2';
-const ADMIN_CREDS_KEY = 'plotflow_admin_credentials_v2';
-const TOWNSHIPS_STORAGE_KEY = 'plotflow_townships_v2';
-const EMAIL_LOGS_KEY = 'plotflow_email_dispatch_logs_v2';
+const USERS_STORAGE_KEY = 'plotflow_platform_users_v3';
+const ADMIN_CREDS_KEY = 'plotflow_admin_credentials_v3';
+const EMAIL_LOGS_KEY = 'plotflow_email_dispatch_logs_v3';
 
 // Default Verified Accounts
 export const DEFAULT_PLATFORM_USERS = [
@@ -19,7 +19,7 @@ export const DEFAULT_PLATFORM_USERS = [
     authProvider: 'firebase.auth',
     status: 'Active',
     verified: true,
-    lastSignIn: new Date().toLocaleString(),
+    lastSignIn: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
     createdAt: '2025-01-10',
     assignedProjectsCount: 3,
     passwordHash: 'Admin@2026'
@@ -32,7 +32,6 @@ export const DEFAULT_PLATFORM_USERS = [
     role: 'LEGAL_AUDITOR',
     roleTitle: 'Senior Legal & Title Due Diligence Auditor',
     company: 'PlotFlow Legal Compliance Wing',
-    barCouncilId: 'KAR/1482/2012',
     specialization: '30-Yr Land Title Search & RERA Compliance',
     authProvider: 'email.password',
     status: 'Active',
@@ -77,7 +76,6 @@ export const DEFAULT_PLATFORM_USERS = [
   }
 ];
 
-// Default Admin Credentials
 export const DEFAULT_ADMIN_CREDS = {
   email: 'tejastej094@gmail.com',
   name: 'Tejas',
@@ -87,7 +85,7 @@ export const DEFAULT_ADMIN_CREDS = {
   lastDispatchedEmail: null
 };
 
-// Initialize or Retrieve Users from localStorage
+// Retrieve Users from localStorage
 export function getStoredUsers() {
   try {
     const raw = localStorage.getItem(USERS_STORAGE_KEY);
@@ -100,7 +98,6 @@ export function getStoredUsers() {
   } catch (e) {
     console.warn('Error reading stored users:', e);
   }
-  // Store default users
   localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(DEFAULT_PLATFORM_USERS));
   return DEFAULT_PLATFORM_USERS;
 }
@@ -109,6 +106,7 @@ export function getStoredUsers() {
 export function saveStoredUsers(users) {
   try {
     localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+    window.dispatchEvent(new CustomEvent('plotflow_users_updated', { detail: users }));
   } catch (e) {
     console.warn('Error saving users:', e);
   }
@@ -128,7 +126,7 @@ export function getAdminCredentials() {
   return DEFAULT_ADMIN_CREDS;
 }
 
-// Save / Update Admin Credentials & Drop Confirmation Email
+// Save / Update Admin Credentials
 export function updateAdminCredentials(newPassword, securityPin = '2026') {
   const current = getAdminCredentials();
   const updated = {
@@ -151,6 +149,15 @@ export function updateAdminCredentials(newPassword, securityPin = '2026') {
 
   // Trigger simulated transactional email dispatch to tejastej094@gmail.com
   const emailDispatchResult = dispatchAdminCredentialEmail(updated.email, updated.password, updated.securityPin);
+  
+  addAuditLog(
+    'ADMIN_CREDENTIALS_UPDATED',
+    'tejastej094@gmail.com',
+    'Super Admin Account',
+    'Admin master password and security PIN updated successfully.',
+    'WARNING'
+  );
+  
   return { updated, emailDispatchResult };
 }
 
@@ -159,7 +166,7 @@ export function dispatchAdminCredentialEmail(recipientEmail = 'tejastej094@gmail
   const emailPacket = {
     id: `mail_${Date.now()}`,
     recipient: recipientEmail,
-    subject: '🔐 PlotFlow 3D Master Platform Admin Credentials & Access Key',
+    subject: 'PlotFlow Master Platform Admin Credentials & Access Key',
     timestamp: new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }),
     isoTimestamp: new Date().toISOString(),
     status: 'DELIVERED_TO_INBOX',
@@ -172,19 +179,9 @@ export function dispatchAdminCredentialEmail(recipientEmail = 'tejastej094@gmail
       role: 'SUPER_ADMIN (Level 1 Master Privileges)',
       directAccessUrl: window.location.origin
     },
-    message: `Hello Tejas,
-
-Your PlotFlow 3D Super Administrator master credentials have been generated and secured with 256-bit AES encryption.
-
-• Login Email: ${recipientEmail}
-• Master Password: ${password}
-• Security PIN: ${securityPin}
-• Platform Role: SUPER_ADMIN (Full inventory, user management, and escrow control)
-
-You can use these credentials to log in on the web portal at any time.`
+    message: `Hello Tejas,\n\nYour PlotFlow Master Administrator credentials have been secured and updated:\n\n• Login Email: ${recipientEmail}\n• Master Password: ${password}\n• Security PIN: ${securityPin}\n• Platform Role: SUPER_ADMIN\n\nYou can use these credentials to log in on the web portal at any time.`
   };
 
-  // Save to email logs
   try {
     const existingLogs = JSON.parse(localStorage.getItem(EMAIL_LOGS_KEY) || '[]');
     existingLogs.unshift(emailPacket);
@@ -213,40 +210,49 @@ export async function registerNewUser({
   email,
   password,
   phone,
-  role, // 'BUYER' | 'DEVELOPER'
+  role = 'BUYER',
   company,
   reraId,
   city
 }) {
   const users = getStoredUsers();
+  const cleanEmail = email.toLowerCase().trim();
   
-  // Check if email already exists
-  const existing = users.find(u => u.email.toLowerCase() === email.toLowerCase().trim());
+  const existing = users.find(u => u.email.toLowerCase() === cleanEmail);
   if (existing) {
     throw new Error(`An account with email "${email}" is already registered. Please sign in instead.`);
   }
 
-  // Attempt Firebase auth registration if online
   let firebaseUid = `usr_${Date.now()}`;
   try {
     if (auth) {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
       if (userCredential?.user) {
         firebaseUid = userCredential.user.uid;
         await updateProfile(userCredential.user, { displayName: name });
       }
     }
   } catch (fbErr) {
-    console.info('Firebase auth note (persisting to local secure vault):', fbErr.message);
+    console.info('Firebase auth note (persisting to local storage):', fbErr.message);
   }
+
+  const roleTitles = {
+    SUPER_ADMIN: 'Master Platform Owner & Super Admin',
+    ADMIN: 'Platform Administrator',
+    DEVELOPER: `Builder (${company || 'Real Estate Developer'})`,
+    LEGAL_AUDITOR: 'Legal Due Diligence Auditor',
+    VERIFICATION_MANAGER: 'Verification & Title Manager',
+    SALES_MANAGER: 'Sales & Inventory Manager',
+    BUYER: 'Verified Plot Buyer'
+  };
 
   const newUser = {
     uid: firebaseUid,
     name: name.trim(),
-    email: email.toLowerCase().trim(),
+    email: cleanEmail,
     phone: phone || '+91 98000 00000',
     role: role || 'BUYER',
-    roleTitle: role === 'DEVELOPER' ? `Builder (${company || 'Real Estate Developer'})` : 'Verified Plot Buyer',
+    roleTitle: roleTitles[role] || 'Verified Platform User',
     company: company || (role === 'DEVELOPER' ? 'Plotted Development Firm' : 'Individual Buyer'),
     reraId: reraId || '',
     city: city || 'Bengaluru',
@@ -261,6 +267,15 @@ export async function registerNewUser({
 
   const updatedUsers = [newUser, ...users];
   saveStoredUsers(updatedUsers);
+  
+  addAuditLog(
+    'USER_REGISTERED',
+    newUser.email,
+    `New User: ${newUser.name} (${newUser.role})`,
+    `Registered new ${newUser.role} account successfully.`,
+    'INFO'
+  );
+
   return newUser;
 }
 
@@ -270,7 +285,7 @@ export async function loginWithEmailAndPassword(email, password) {
   const users = getStoredUsers();
   const adminCreds = getAdminCredentials();
 
-  // Check if Super Admin login
+  // Super Admin check
   if (cleanEmail === 'tejastej094@gmail.com') {
     if (password === adminCreds.password || password === 'Admin@2026' || password === '2026') {
       const adminUser = {
@@ -288,40 +303,22 @@ export async function loginWithEmailAndPassword(email, password) {
       };
       return adminUser;
     } else {
-      throw new Error('Invalid Super Admin password. Please check your credentials or click "Drop Credentials to Email".');
+      throw new Error('Invalid Super Admin password. Please check your credentials or reset from the Admin tab.');
     }
   }
 
-  // Attempt Firebase Sign In first
-  try {
-    if (auth) {
-      const fbCred = await signInWithEmailAndPassword(auth, cleanEmail, password);
-      if (fbCred?.user) {
-        const found = users.find(u => u.email.toLowerCase() === cleanEmail);
-        if (found) {
-          found.lastSignIn = new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
-          saveStoredUsers(users);
-          return found;
-        }
-      }
-    }
-  } catch (fbErr) {
-    console.info('Firebase auth fallback to local store:', fbErr.message);
-  }
-
-  // Check user in stored database
+  // Check stored database
   const user = users.find(u => u.email.toLowerCase() === cleanEmail);
   if (!user) {
     throw new Error('No account found with this email address. Please check your credentials or register.');
   }
 
-  // Account Status Check (Admin Deactivation Check)
   if (user.status === 'Suspended' || user.status === 'Deactivated' || user.status === 'Inactive') {
-    throw new Error(`This account (${user.email}) has been deactivated by the Super Administrator. Please contact Platform Admin (tejastej094@gmail.com) for clearance.`);
+    throw new Error(`This account (${user.email}) is currently deactivated. Please contact the administrator.`);
   }
 
   if (user.passwordHash && user.passwordHash !== password) {
-    throw new Error('Incorrect password. Please verify your password credentials.');
+    throw new Error('Incorrect password. Please verify your credentials.');
   }
 
   user.lastSignIn = new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
@@ -329,13 +326,12 @@ export async function loginWithEmailAndPassword(email, password) {
   return user;
 }
 
-// Create a New Legal Team User (Admin Authority)
+// Create a New Legal Team User (Admin Authority - Bar Council ID is NOT mandatory)
 export function createLegalTeamUser({
   name,
   email,
   password = 'Legal@2026',
   phone = '+91 98000 77889',
-  barCouncilId = 'BAR/KA/2026/01',
   specialization = 'Land Title Due Diligence & RERA Compliance'
 }) {
   const users = getStoredUsers();
@@ -354,12 +350,11 @@ export function createLegalTeamUser({
     role: 'LEGAL_AUDITOR',
     roleTitle: `Legal Compliance Auditor (${specialization})`,
     company: 'PlotFlow Legal & Regulatory Wing',
-    barCouncilId: barCouncilId.trim(),
     specialization: specialization.trim(),
     authProvider: 'email.password',
     status: 'Active',
     verified: true,
-    lastSignIn: 'Newly Registered by Super Admin',
+    lastSignIn: 'Newly Created by Admin',
     createdAt: new Date().toISOString().split('T')[0],
     assignedProjectsCount: 3,
     passwordHash: password
@@ -367,16 +362,25 @@ export function createLegalTeamUser({
 
   const updated = [newLegalUser, ...users];
   saveStoredUsers(updated);
+  
+  addAuditLog(
+    'LEGAL_USER_CREATED',
+    'Super Admin',
+    newLegalUser.email,
+    `Created Legal Auditor account for ${newLegalUser.name}.`,
+    'SUCCESS'
+  );
+  
   return newLegalUser;
 }
 
 // Check if user is staff/internal team account
 export function isStaffUser(userOrRole) {
   const role = typeof userOrRole === 'string' ? userOrRole : userOrRole?.role;
-  return ['LEGAL_AUDITOR', 'DEVELOPER', 'CAB_COORDINATOR', 'STAFF', 'SUPER_ADMIN'].includes(role);
+  return ['LEGAL_AUDITOR', 'DEVELOPER', 'VERIFICATION_MANAGER', 'SALES_MANAGER', 'STAFF', 'ADMIN', 'SUPER_ADMIN'].includes(role);
 }
 
-// Generate Secure Temporary Password for Staff & Platform Accounts
+// Generate Secure Temporary Password
 export function generateStaffTempPassword(role = 'STAFF') {
   const rolePrefix = role === 'LEGAL_AUDITOR' ? 'LEGAL' : role === 'DEVELOPER' ? 'DEV' : 'STAFF';
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -405,6 +409,17 @@ export function updateUserPasswordByAdmin(userId, newPassword, isTemporary = fal
     return u;
   });
   saveStoredUsers(updated);
+  
+  if (targetUser) {
+    addAuditLog(
+      'PASSWORD_RESET',
+      'Super Admin',
+      targetUser.email,
+      `Password reset performed for ${targetUser.name} (${targetUser.role}).`,
+      'INFO'
+    );
+  }
+  
   return { success: true, user: targetUser, users: updated };
 }
 
@@ -419,11 +434,10 @@ export function resetStaffTemporaryPassword(userId) {
   const tempPassword = generateStaffTempPassword(user.role);
   const result = updateUserPasswordByAdmin(user.uid, tempPassword, true);
 
-  // Dispatch credential log record
   const logRecord = {
     id: `log_temp_pwd_${Date.now()}`,
     recipient: user.email,
-    subject: `🔑 Temporary Password Generated for ${user.name} (${user.role})`,
+    subject: `Temporary Password Generated for ${user.name} (${user.role})`,
     timestamp: new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }),
     isoTimestamp: new Date().toISOString(),
     status: 'TEMPORARY_PASSWORD_ACTIVE',
@@ -456,22 +470,46 @@ export function resetStaffTemporaryPassword(userId) {
 export function toggleUserStatusByAdmin(userId) {
   const users = getStoredUsers();
   let updatedStatus = 'Active';
+  let targetUser = null;
   const updated = users.map(u => {
     if (u.uid === userId || u.email.toLowerCase() === userId.toLowerCase()) {
       updatedStatus = (u.status === 'Active' ? 'Deactivated' : 'Active');
-      return { ...u, status: updatedStatus };
+      targetUser = { ...u, status: updatedStatus };
+      return targetUser;
     }
     return u;
   });
   saveStoredUsers(updated);
+  
+  if (targetUser) {
+    addAuditLog(
+      'USER_STATUS_TOGGLED',
+      'Super Admin',
+      targetUser.email,
+      `User ${targetUser.name} status updated to ${updatedStatus}.`,
+      updatedStatus === 'Active' ? 'SUCCESS' : 'WARNING'
+    );
+  }
+  
   return { success: true, status: updatedStatus, users: updated };
 }
 
-// Remove Developer or User Account
+// Remove User Account Permanently
 export function removeUserAccountByAdmin(userId) {
   const users = getStoredUsers();
+  const targetUser = users.find(u => u.uid === userId || u.email.toLowerCase() === userId.toLowerCase());
   const updated = users.filter(u => u.uid !== userId && u.email.toLowerCase() !== userId.toLowerCase());
   saveStoredUsers(updated);
+  
+  if (targetUser) {
+    addAuditLog(
+      'USER_REMOVED',
+      'Super Admin',
+      targetUser.email,
+      `User account ${targetUser.name} (${targetUser.email}) permanently removed.`,
+      'DANGER'
+    );
+  }
+  
   return { success: true, users: updated };
 }
-

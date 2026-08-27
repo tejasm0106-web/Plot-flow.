@@ -15,62 +15,74 @@ import {
   Building2, 
   CheckCircle2, 
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Filter,
+  RotateCcw
 } from 'lucide-react';
 
 export default function MarketplaceView({ 
-  townships, 
+  townships = [], 
   onSelectTownship, 
   onLaunch3D, 
   onViewDetails,
+  onVerifyDocs,
   shortlistedTownships = [],
   onToggleShortlist 
 }) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedAuthority, setSelectedAuthority] = useState('ALL'); // 'ALL' | 'BDA' | 'BMRDA' | 'BIAPPA'
-  const [maxPrice, setMaxPrice] = useState(6000); // max price per sqft slider
-  const [selectedFacing, setSelectedFacing] = useState('ALL'); // 'ALL' | 'East' | 'North'
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'list'
-  const [sortBy, setSortBy] = useState('rating'); // 'rating' | 'priceAsc' | 'priceDesc' | 'plots'
+  const [selectedAuthority, setSelectedAuthority] = useState('ALL');
+  const [maxPrice, setMaxPrice] = useState(6500);
+  const [selectedFacing, setSelectedFacing] = useState('ALL');
+  const [viewMode, setViewMode] = useState('grid');
+  const [sortBy, setSortBy] = useState('rating');
 
   // Filtered and Sorted Townships
   const filteredTownships = useMemo(() => {
     return townships
       .filter((ts) => {
         const matchesQuery = 
-          ts.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          ts.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          ts.developer.toLowerCase().includes(searchQuery.toLowerCase());
+          ts.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          ts.location?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          ts.developer?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          ts.city?.toLowerCase().includes(searchQuery.toLowerCase());
 
         const matchesAuthority = 
           selectedAuthority === 'ALL' || 
-          ts.approvalAuthority.toLowerCase().includes(selectedAuthority.toLowerCase());
+          ts.approvalAuthority?.toLowerCase().includes(selectedAuthority.toLowerCase());
 
-        const matchesPrice = ts.pricePerSqFt <= maxPrice;
+        const matchesPrice = (ts.pricePerSqFt || 0) <= maxPrice;
 
         return matchesQuery && matchesAuthority && matchesPrice;
       })
       .sort((a, b) => {
-        if (sortBy === 'rating') return b.rating - a.rating;
-        if (sortBy === 'priceAsc') return a.pricePerSqFt - b.pricePerSqFt;
-        if (sortBy === 'priceDesc') return b.pricePerSqFt - a.pricePerSqFt;
-        if (sortBy === 'plots') return b.availablePlots - a.availablePlots;
+        if (sortBy === 'rating') return (b.rating || 0) - (a.rating || 0);
+        if (sortBy === 'priceAsc') return (a.pricePerSqFt || 0) - (b.pricePerSqFt || 0);
+        if (sortBy === 'priceDesc') return (b.pricePerSqFt || 0) - (a.pricePerSqFt || 0);
+        if (sortBy === 'plots') return (b.availablePlots || 0) - (a.availablePlots || 0);
         return 0;
       });
   }, [townships, searchQuery, selectedAuthority, maxPrice, sortBy]);
 
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setSelectedAuthority('ALL');
+    setMaxPrice(6500);
+    setSelectedFacing('ALL');
+    setSortBy('rating');
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-16">
       {/* Marketplace Header & Filter Bar */}
-      <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-5">
+      <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center space-x-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
-              <h2 className="text-xl font-black text-white">Verified Plotted Townships</h2>
+              <h1 className="text-xl sm:text-2xl font-black text-white">Verified Plotted Townships</h1>
             </div>
             <p className="text-xs text-slate-400 mt-1">
-              Explore RERA-sanctioned plotted communities with 100% legal title clearance and interactive 3D digital twins.
+              Explore RERA-sanctioned plotted communities with 30-year sub-registrar title clearance and interactive 3D digital twins.
             </p>
           </div>
 
@@ -88,30 +100,30 @@ export default function MarketplaceView({
         </div>
 
         {/* Filters Row */}
-        <div className="flex flex-wrap items-center justify-between gap-4 pt-3 border-t border-slate-800/80 text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-800/80 text-xs">
           {/* Authority Filter Chips */}
           <div className="flex items-center space-x-2 overflow-x-auto pb-1 sm:pb-0">
             <span className="text-slate-500 font-semibold flex items-center space-x-1">
-              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <Filter className="w-3.5 h-3.5" />
               <span>Authority:</span>
             </span>
-            {['ALL', 'BDA', 'BMRDA', 'BIAPPA'].map((auth) => (
+            {['ALL', 'BDA', 'BMRDA', 'BIAAPA', 'DTCP'].map((auth) => (
               <button
                 key={auth}
                 onClick={() => setSelectedAuthority(auth)}
-                className={`px-3 py-1.5 rounded-xl font-bold transition ${
+                className={`px-3 py-1.5 rounded-xl font-bold transition flex-shrink-0 ${
                   selectedAuthority === auth
                     ? 'bg-emerald-600 text-white shadow'
                     : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
                 }`}
               >
-                {auth === 'ALL' ? 'All Approvals' : auth}
+                {auth === 'ALL' ? 'All Authorities' : auth}
               </button>
             ))}
           </div>
 
           {/* Max Price Per Sqft Slider & Sort Dropdown */}
-          <div className="flex items-center space-x-4">
+          <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center space-x-2 text-xs">
               <span className="text-slate-400">Max: <strong className="text-amber-400">₹{maxPrice}/sq.ft</strong></span>
               <input
@@ -144,12 +156,14 @@ export default function MarketplaceView({
               <button
                 onClick={() => setViewMode('grid')}
                 className={`p-1.5 rounded-lg transition ${viewMode === 'grid' ? 'bg-slate-800 text-white' : 'text-slate-400'}`}
+                title="Grid View"
               >
                 <Grid className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => setViewMode('list')}
                 className={`p-1.5 rounded-lg transition ${viewMode === 'list' ? 'bg-slate-800 text-white' : 'text-slate-400'}`}
+                title="List View"
               >
                 <List className="w-3.5 h-3.5" />
               </button>
@@ -158,110 +172,174 @@ export default function MarketplaceView({
         </div>
       </div>
 
-      {/* Townships List/Grid */}
+      {/* Townships Count & Reset */}
+      <div className="flex items-center justify-between text-xs text-slate-400 px-2">
+        <span>Showing <strong>{filteredTownships.length}</strong> verified plotted developments</span>
+        {(searchQuery || selectedAuthority !== 'ALL' || maxPrice < 6500) && (
+          <button
+            onClick={handleResetFilters}
+            className="text-emerald-400 hover:text-emerald-300 flex items-center space-x-1 font-semibold"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Reset Filters</span>
+          </button>
+        )}
+      </div>
+
+      {/* Townships Content */}
       {filteredTownships.length === 0 ? (
-        <div className="bg-slate-950 border border-slate-800 rounded-3xl p-12 text-center space-y-3">
+        <div className="bg-slate-950 border border-slate-800 rounded-3xl p-12 text-center space-y-4">
           <Building2 className="w-12 h-12 text-slate-600 mx-auto" />
-          <h3 className="text-base font-bold text-white">No Townships Found</h3>
-          <p className="text-xs text-slate-400">Try loosening your search query or authority filters.</p>
+          <h3 className="text-base font-bold text-white">No Townships Match Your Filters</h3>
+          <p className="text-xs text-slate-400 max-w-md mx-auto">
+            Try adjusting your search terms or increasing the maximum price per sq.ft slider.
+          </p>
+          <button
+            onClick={handleResetFilters}
+            className="px-5 py-2.5 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-500 transition"
+          >
+            Reset All Filters
+          </button>
         </div>
-      ) : (
-        <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-4'}>
+      ) : viewMode === 'grid' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredTownships.map((ts) => {
             const isShortlisted = shortlistedTownships.includes(ts.id);
 
             return (
               <div
                 key={ts.id}
-                className="bg-slate-950 border border-slate-800 rounded-3xl overflow-hidden hover:border-slate-700 transition shadow-xl flex flex-col group"
+                className="bg-slate-950 border border-slate-800 rounded-3xl overflow-hidden hover:border-slate-700 transition-all duration-300 flex flex-col shadow-xl group"
               >
-                {/* Image Banner */}
-                <div className="relative h-52 overflow-hidden">
+                <div className="relative h-48 overflow-hidden">
                   <img
                     src={ts.image}
                     alt={ts.name}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent" />
+                  
+                  {/* Approval Badge */}
+                  <span className="absolute top-3 left-3 bg-emerald-600/90 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center space-x-1 shadow">
+                    <ShieldCheck className="w-3 h-3" />
+                    <span>{ts.approvalAuthority || 'RERA Sanctioned'}</span>
+                  </span>
 
-                  {/* Badges */}
-                  <div className="absolute top-3 left-3 flex items-center space-x-1.5">
-                    <span className="bg-emerald-600/90 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center space-x-1">
-                      <ShieldCheck className="w-3 h-3" />
-                      <span>{ts.approvalAuthority}</span>
-                    </span>
-                  </div>
-
-                  {/* Bookmark / Shortlist button */}
+                  {/* Bookmark Button */}
                   <button
                     onClick={() => onToggleShortlist(ts.id)}
-                    className="absolute top-3 right-3 w-8 h-8 rounded-full bg-slate-900/80 backdrop-blur-md border border-slate-700/60 flex items-center justify-center text-slate-300 hover:text-white transition"
+                    className={`absolute top-3 right-3 p-2 rounded-xl backdrop-blur-md border transition ${
+                      isShortlisted
+                        ? 'bg-emerald-600 text-white border-emerald-500 shadow'
+                        : 'bg-slate-900/80 text-slate-300 hover:text-white border-slate-700'
+                    }`}
+                    title={isShortlisted ? 'Saved' : 'Save for comparison'}
                   >
-                    {isShortlisted ? (
-                      <BookmarkCheck className="w-4 h-4 text-emerald-400" />
-                    ) : (
-                      <Bookmark className="w-4 h-4" />
-                    )}
+                    {isShortlisted ? <BookmarkCheck className="w-4 h-4" /> : <Bookmark className="w-4 h-4" />}
                   </button>
 
-                  <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-xs">
-                    <span className="text-white font-bold bg-slate-900/80 backdrop-blur-md px-2.5 py-1 rounded-xl border border-slate-800">
-                      {ts.totalAcres}
-                    </span>
-                    <span className="text-amber-400 font-bold bg-slate-900/80 backdrop-blur-md px-2.5 py-1 rounded-xl border border-slate-800">
-                      ₹{ts.pricePerSqFt}/sq.ft
-                    </span>
-                  </div>
+                  <span className="absolute bottom-3 right-3 bg-slate-900/90 backdrop-blur-md text-amber-400 text-xs font-bold px-2.5 py-1 rounded-xl border border-slate-800">
+                    ₹{ts.pricePerSqFt}/sq.ft
+                  </span>
                 </div>
 
-                {/* Content */}
-                <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
+                <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
                   <div>
-                    <span className="text-xs font-semibold text-slate-400">{ts.developer}</span>
-                    <h3 
-                      onClick={() => onViewDetails(ts)}
-                      className="text-lg font-bold text-white mt-0.5 hover:text-emerald-400 cursor-pointer transition"
-                    >
-                      {ts.name}
-                    </h3>
+                    <span className="text-[11px] text-slate-400 font-semibold">{ts.developer}</span>
+                    <h3 className="text-lg font-bold text-white mt-0.5 group-hover:text-emerald-400 transition">{ts.name}</h3>
                     <p className="text-xs text-slate-400 mt-1 flex items-center space-x-1">
                       <MapPin className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
-                      <span className="truncate">{ts.location}</span>
+                      <span>{ts.location}</span>
                     </p>
                   </div>
 
-                  {/* Stats Grid */}
                   <div className="grid grid-cols-2 gap-2 text-xs pt-3 border-t border-slate-800/80">
-                    <div className="bg-slate-900/80 p-2.5 rounded-xl">
-                      <span className="text-[10px] text-slate-500 block">Available Plots</span>
-                      <span className="font-bold text-emerald-400">{ts.availablePlots} Units Left</span>
+                    <div className="bg-slate-900/80 p-2 rounded-xl">
+                      <span className="text-[10px] text-slate-500 block">Total Area</span>
+                      <span className="font-bold text-white">{ts.totalAcres}</span>
                     </div>
-                    <div className="bg-slate-900/80 p-2.5 rounded-xl">
-                      <span className="text-[10px] text-slate-500 block">Starting From</span>
-                      <span className="font-bold text-amber-400">{ts.priceRange.split('-')[0]}</span>
+                    <div className="bg-slate-900/80 p-2 rounded-xl">
+                      <span className="text-[10px] text-slate-500 block">Available Plots</span>
+                      <span className="font-bold text-emerald-400">{ts.availablePlots} / {ts.totalPlots}</span>
                     </div>
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="flex items-center space-x-2 pt-2">
-                    <button
-                      onClick={() => {
-                        onSelectTownship(ts);
-                        onLaunch3D(ts);
-                      }}
-                      className="flex-1 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-xs font-bold rounded-xl flex items-center justify-center space-x-1.5 transition"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>3D Digital Twin</span>
-                    </button>
+                  <div className="grid grid-cols-2 gap-2 pt-1">
                     <button
                       onClick={() => onViewDetails(ts)}
-                      className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1"
+                      className="py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl transition"
                     >
-                      <span>Explore</span>
-                      <ArrowRight className="w-3 h-3 ml-0.5" />
+                      View Details
+                    </button>
+                    <button
+                      onClick={() => onLaunch3D(ts)}
+                      className="py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition flex items-center justify-center space-x-1.5 shadow"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>3D Twin</span>
                     </button>
                   </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* List View */
+        <div className="space-y-4">
+          {filteredTownships.map((ts) => {
+            const isShortlisted = shortlistedTownships.includes(ts.id);
+
+            return (
+              <div
+                key={ts.id}
+                className="bg-slate-950 border border-slate-800 rounded-3xl p-5 hover:border-slate-700 transition shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-5 group"
+              >
+                <div className="flex items-center space-x-4 w-full md:w-auto">
+                  <div className="w-24 h-24 rounded-2xl overflow-hidden flex-shrink-0 relative">
+                    <img src={ts.image} alt={ts.name} className="w-full h-full object-cover" />
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">{ts.developer}</span>
+                      <span className="text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold">
+                        {ts.approvalAuthority || 'RERA'}
+                      </span>
+                    </div>
+                    <h3 className="text-base font-bold text-white group-hover:text-emerald-400 transition">{ts.name}</h3>
+                    <p className="text-xs text-slate-400">{ts.location}</p>
+                    <div className="flex items-center space-x-3 text-xs text-slate-300 mt-2">
+                      <span>Total: <strong>{ts.totalAcres}</strong></span>
+                      <span>•</span>
+                      <span>Plots: <strong className="text-emerald-400">{ts.availablePlots} Available</strong></span>
+                      <span>•</span>
+                      <span>Rate: <strong className="text-amber-400">₹{ts.pricePerSqFt}/sq.ft</strong></span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2 w-full md:w-auto justify-end">
+                  <button
+                    onClick={() => onToggleShortlist(ts.id)}
+                    className={`p-2.5 rounded-xl border transition ${
+                      isShortlisted ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-900 text-slate-300 border-slate-700'
+                    }`}
+                  >
+                    <Bookmark className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => onViewDetails(ts)}
+                    className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl transition"
+                  >
+                    View Details
+                  </button>
+                  <button
+                    onClick={() => onLaunch3D(ts)}
+                    className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>3D Twin</span>
+                  </button>
                 </div>
               </div>
             );
