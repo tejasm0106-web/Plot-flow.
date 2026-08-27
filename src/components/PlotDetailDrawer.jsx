@@ -28,12 +28,22 @@ export default function PlotDetailDrawer({
 
   if (!plot) return null;
 
+  const plotNumber = plot.number || plot.plotNumber || 'Plot';
+  const plotDimension = plot.dimension || plot.dimensions || '30 x 40 ft';
+  const plotSqFt = plot.sizeSqFt || plot.sqft || 1200;
+  const plotPriceStr = plot.price || (plot.priceNumber ? `₹${(plot.priceNumber / 100000).toFixed(1)} Lakh` : 'Price On Request');
+  const plotFacing = plot.facing || 'East Facing';
+  const plotVastu = plot.vastuScore || 95;
+  const plotRoadWidth = plot.roadWidth || '40ft Internal Asphalt Road';
+  const plotElevation = plot.elevation || 'Park Facing';
+  const plotDistance = plot.amenitiesDistance || '50m to Clubhouse & Boulevard';
+
   // EMI & Cost Breakdown calculations
-  const priceNum = plot.priceNumber || 6000000;
+  const priceNum = plot.priceNumber || (typeof plotSqFt === 'number' && township?.pricePerSqFt ? plotSqFt * township.pricePerSqFt : 6000000);
   const downPayment = Math.round(priceNum * 0.20);
   const loanAmount = priceNum - downPayment;
   const stampDutyAndReg = Math.round(priceNum * 0.066); // ~6.6% in KA
-  const maintenanceCorpus = Math.round(plot.sizeSqFt * 150);
+  const maintenanceCorpus = Math.round(plotSqFt * 150);
   const totalCost = priceNum + stampDutyAndReg + maintenanceCorpus;
 
   // Monthly EMI for 20 years at 8.5%
@@ -55,7 +65,7 @@ export default function PlotDetailDrawer({
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h3 className="text-xl font-black text-white">Plot {plot.number}</h3>
+                <h3 className="text-xl font-black text-white">{plotNumber}</h3>
                 <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold border ${
                   plot.status === 'Available'
                     ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
@@ -114,22 +124,22 @@ export default function PlotDetailDrawer({
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800">
                   <span className="text-[11px] text-slate-400 block">Total Area</span>
-                  <span className="text-base font-bold text-white mt-0.5 block">{plot.sizeSqFt} sq.ft</span>
-                  <span className="text-[10px] text-slate-500">({plot.dimension})</span>
+                  <span className="text-base font-bold text-white mt-0.5 block">{plotSqFt} sq.ft</span>
+                  <span className="text-[10px] text-slate-500">({plotDimension})</span>
                 </div>
                 <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800">
                   <span className="text-[11px] text-slate-400 block">Orientation</span>
-                  <span className="text-base font-bold text-emerald-400 mt-0.5 block">{plot.facing}</span>
-                  <span className="text-[10px] text-emerald-500/80">{plot.vastuScore}% Vastu Match</span>
+                  <span className="text-base font-bold text-emerald-400 mt-0.5 block">{plotFacing}</span>
+                  <span className="text-[10px] text-emerald-500/80">{plotVastu}% Vastu Match</span>
                 </div>
                 <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800">
                   <span className="text-[11px] text-slate-400 block">Plot Price</span>
-                  <span className="text-base font-bold text-amber-400 mt-0.5 block">{plot.price}</span>
+                  <span className="text-base font-bold text-amber-400 mt-0.5 block">{plotPriceStr}</span>
                   <span className="text-[10px] text-slate-500">@ ₹{township?.pricePerSqFt}/sq.ft</span>
                 </div>
                 <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800">
                   <span className="text-[11px] text-slate-400 block">Road Access</span>
-                  <span className="text-base font-bold text-white mt-0.5 block">{plot.roadWidth}</span>
+                  <span className="text-base font-bold text-white mt-0.5 block">{plotRoadWidth}</span>
                   <span className="text-[10px] text-slate-500">{plot.cornerPlot ? 'Corner Plot' : 'Avenue Road'}</span>
                 </div>
               </div>
@@ -138,7 +148,7 @@ export default function PlotDetailDrawer({
               <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800 space-y-2">
                 <span className="text-xs font-bold text-slate-300 block">Elevation & Vicinity Context</span>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  {plot.elevation}. Positioned {plot.amenitiesDistance}. Unobstructed sunlight throughout the morning and afternoon hours.
+                  {plotElevation}. Positioned {plotDistance}. Unobstructed sunlight throughout the morning and afternoon hours.
                 </p>
               </div>
 
@@ -211,18 +221,18 @@ export default function PlotDetailDrawer({
                     <span className="text-xs font-bold text-white">Vastu Shastra Compliance Report</span>
                   </div>
                   <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                    {plot.vastuScore}% Harmony Score
+                    {plotVastu}% Harmony Score
                   </span>
                 </div>
                 <div className="space-y-2 text-xs text-slate-300">
                   <p>
-                    • <strong>Facing Orientation:</strong> {plot.facing} entrance aligns directly with early morning solar radiance (Surya Urja).
+                    • <strong>Facing Orientation:</strong> {plotFacing} entrance aligns directly with early morning solar radiance (Surya Urja).
                   </p>
                   <p>
-                    • <strong>Brahmasthan & Ishanya Corner:</strong> Ideal geometric rectangular proportion ({plot.dimension}) with zero negative slope.
+                    • <strong>Brahmasthan & Ishanya Corner:</strong> Ideal geometric rectangular proportion ({plotDimension}) with zero negative slope.
                   </p>
                   <p>
-                    • <strong>Road Approach:</strong> Direct road approach on {plot.roadWidth} without any T-junction obstruction (Veethi Shoola free).
+                    • <strong>Road Approach:</strong> Direct road approach on {plotRoadWidth} without any T-junction obstruction (Veethi Shoola free).
                   </p>
                 </div>
               </div>
@@ -234,7 +244,7 @@ export default function PlotDetailDrawer({
         <div className="p-6 bg-slate-900/80 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div>
             <span className="text-xs text-slate-400 block">Total Plot Price</span>
-            <span className="text-xl font-black text-amber-400">{plot.price}</span>
+            <span className="text-xl font-black text-amber-400">{plotPriceStr}</span>
           </div>
 
           <div className="flex items-center space-x-3 w-full sm:w-auto">

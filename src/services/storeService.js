@@ -62,9 +62,9 @@ export function saveHomepageSections(sections) {
 export function getStoredTownships() {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.TOWNSHIPS);
-    if (raw) {
+    if (raw !== null) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch (e) {
     console.warn('Error loading townships:', e);
@@ -86,9 +86,9 @@ export function saveStoredTownships(townships) {
 export function getStoredDocuments() {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.DOCUMENTS);
-    if (raw) {
+    if (raw !== null) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch (e) {
     console.warn('Error loading documents:', e);
@@ -148,6 +148,23 @@ export function addLead(newLead) {
     'INFO'
   );
   return leadEntry;
+}
+
+export function deleteLead(leadId) {
+  const leads = getStoredLeads();
+  const targetLead = leads.find(l => l.id === leadId);
+  const updated = leads.filter(l => l.id !== leadId);
+  saveStoredLeads(updated);
+  if (targetLead) {
+    addAuditLog(
+      'LEAD_DELETED',
+      'Super Admin',
+      targetLead.buyerName,
+      `Deleted CRM lead inquiry for ${targetLead.buyerName} (${targetLead.phone}).`,
+      'WARNING'
+    );
+  }
+  return updated;
 }
 
 // Audit Logs

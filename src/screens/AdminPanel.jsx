@@ -54,6 +54,7 @@ import {
   addAuditLog,
   getStoredLeads,
   saveStoredLeads,
+  deleteLead,
   resetPlatformToDefaults
 } from '../services/storeService';
 
@@ -152,17 +153,20 @@ export default function AdminPanel({
     const handleSettingsUpdate = (e) => setSiteSettingsState(e.detail || getSiteSettings());
     const handleSectionsUpdate = (e) => setHomepageSectionsState(e.detail || getHomepageSections());
     const handleLeadsUpdate = (e) => setLeadsList(e.detail || getStoredLeads());
+    const handleAuditUpdate = () => setAuditLogs(getStoredAuditLogs());
 
     window.addEventListener('plotflow_users_updated', handleUsersUpdate);
     window.addEventListener('plotflow_settings_updated', handleSettingsUpdate);
     window.addEventListener('plotflow_sections_updated', handleSectionsUpdate);
     window.addEventListener('plotflow_leads_updated', handleLeadsUpdate);
+    window.addEventListener('plotflow_townships_updated', handleAuditUpdate);
 
     return () => {
       window.removeEventListener('plotflow_users_updated', handleUsersUpdate);
       window.removeEventListener('plotflow_settings_updated', handleSettingsUpdate);
       window.removeEventListener('plotflow_sections_updated', handleSectionsUpdate);
       window.removeEventListener('plotflow_leads_updated', handleLeadsUpdate);
+      window.removeEventListener('plotflow_townships_updated', handleAuditUpdate);
     };
   }, []);
 
@@ -394,6 +398,14 @@ export default function AdminPanel({
       const res = removeUserAccountByAdmin(user.uid);
       setUsersList(res.users);
       showToast(`User ${user.name} removed from platform.`);
+    }
+  };
+
+  const handleDeleteLead = (lead) => {
+    if (window.confirm(`Permanently delete lead inquiry for "${lead.buyerName}"?`)) {
+      const updated = deleteLead(lead.id);
+      setLeadsList(updated);
+      showToast(`Lead for "${lead.buyerName}" deleted.`);
     }
   };
 
@@ -880,6 +892,7 @@ export default function AdminPanel({
                   <th className="pb-3">Plot Preference</th>
                   <th className="pb-3">Status</th>
                   <th className="pb-3">Source</th>
+                  <th className="pb-3 text-right">Delete</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
@@ -898,6 +911,15 @@ export default function AdminPanel({
                       </span>
                     </td>
                     <td className="py-3 text-slate-400 text-[11px]">{lead.source}</td>
+                    <td className="py-3 text-right">
+                      <button
+                        onClick={() => handleDeleteLead(lead)}
+                        title="Delete Lead"
+                        className="p-1.5 rounded-lg bg-rose-950/40 text-rose-400 hover:bg-rose-900 transition"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
