@@ -648,15 +648,6 @@ export default function App() {
             ) : (
               <div className="flex items-center space-x-2">
                 <button
-                  onClick={() => handleOpenStaffPortal('admin')}
-                  className="px-3 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white font-bold text-xs rounded-xl transition flex items-center space-x-1.5"
-                  title="Protected Staff Gateway"
-                >
-                  <Key className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="hidden sm:inline">Staff Access</span>
-                </button>
-
-                <button
                   onClick={() => setIsAuthModalOpen(true)}
                   className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center space-x-1.5"
                 >
@@ -1025,27 +1016,6 @@ export default function App() {
         onAuthenticateAndOpenPortal={handleAuthenticateStaffAndOpen}
       />
 
-      {/* Floating Staff Portal Gateway Quick Launcher */}
-      <div className="fixed bottom-5 right-5 z-30 flex items-center space-x-2">
-        <button
-          onClick={() => handleOpenStaffPortal('admin')}
-          className="p-2.5 bg-slate-950/90 hover:bg-slate-900 border border-amber-500/40 text-amber-400 rounded-2xl shadow-xl backdrop-blur-md text-xs font-bold flex items-center space-x-2 transition hover:scale-105"
-          title="Open Protected Admin Governance Portal"
-        >
-          <ShieldCheck className="w-4 h-4 text-amber-400" />
-          <span className="hidden sm:inline">Admin Gateway</span>
-        </button>
-
-        <button
-          onClick={() => handleOpenStaffPortal('legal')}
-          className="p-2.5 bg-slate-950/90 hover:bg-slate-900 border border-teal-500/40 text-teal-400 rounded-2xl shadow-xl backdrop-blur-md text-xs font-bold flex items-center space-x-2 transition hover:scale-105"
-          title="Open Protected Legal Team Portal"
-        >
-          <Scale className="w-4 h-4 text-teal-400" />
-          <span className="hidden sm:inline">Legal Portal</span>
-        </button>
-      </div>
-
       {/* Footer: Buyer & Developer Focused with Discrete Staff Gateway */}
       <footer className="bg-slate-950 border-t border-slate-800/80 py-10 px-4 text-xs text-slate-500">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
@@ -1067,21 +1037,23 @@ export default function App() {
             <button onClick={() => setCurrentView('investor-pitch')} className="hover:text-indigo-400 transition">Investor TAM</button>
             <button onClick={() => setCurrentView('developer-portal')} className="text-indigo-400 hover:text-indigo-300 font-bold transition">Developer SaaS</button>
             
-            {/* Discrete Protected Staff Links */}
-            <span className="text-slate-700">|</span>
+            {/* Discrete Locked Staff Gateway for authorized personnel only */}
+            <span className="text-slate-800">|</span>
             <button 
               onClick={() => handleOpenStaffPortal('admin')} 
-              className="text-amber-400 hover:text-amber-300 font-bold transition flex items-center space-x-1"
+              className="text-slate-500 hover:text-amber-400 font-medium transition flex items-center space-x-1"
+              title="Restricted platform governance login"
             >
-              <Lock className="w-3 h-3 text-amber-400" />
-              <span>Admin Portal</span>
+              <Lock className="w-3 h-3" />
+              <span>Admin Gateway</span>
             </button>
             <button 
               onClick={() => handleOpenStaffPortal('legal')} 
-              className="text-teal-400 hover:text-teal-300 font-bold transition flex items-center space-x-1"
+              className="text-slate-500 hover:text-teal-400 font-medium transition flex items-center space-x-1"
+              title="Restricted legal auditor login"
             >
-              <Scale className="w-3 h-3 text-teal-400" />
-              <span>Legal Team</span>
+              <Scale className="w-3 h-3" />
+              <span>Legal Vault Gateway</span>
             </button>
           </div>
 

@@ -1,36 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { 
   X, 
-  ShieldCheck, 
   Lock, 
   User, 
   Building2, 
-  Sparkles, 
-  ArrowRight,
   CheckCircle2, 
-  KeyRound, 
   Mail, 
   UserPlus, 
   LogIn, 
-  Send, 
   Eye, 
   EyeOff, 
-  Phone, 
-  MapPin, 
-  Check, 
-  AlertCircle, 
-  Shield, 
-  FileText,
-  Scale,
-  Award
+  AlertCircle
 } from 'lucide-react';
 import { 
   loginWithEmailAndPassword, 
-  registerNewUser, 
-  getAdminCredentials, 
-  updateAdminCredentials,
-  dispatchAdminCredentialEmail,
-  getEmailDispatchLogs
+  registerNewUser 
 } from '../services/userService';
 import { auth, GoogleAuthProvider, signInWithPopup } from '../services/firebase';
 
@@ -39,7 +23,7 @@ export default function AuthModal({
   onClose, 
   onLoginSuccess 
 }) {
-  // Navigation Mode: 'login' | 'register' | 'legal_login' | 'admin_credentials'
+  // Navigation Mode: 'login' | 'register'
   const [activeMode, setActiveMode] = useState('login');
   
   // Registration Role: 'BUYER' | 'DEVELOPER'
@@ -62,11 +46,6 @@ export default function AuthModal({
     city: 'Bengaluru'
   });
 
-  // Admin Master Credential Setup State
-  const [adminPasswordInput, setAdminPasswordInput] = useState('');
-  const [adminPinInput, setAdminPinInput] = useState('2026');
-  const [emailDispatchStatus, setEmailDispatchStatus] = useState(null); // null | { success: true, timestamp: '', details: '' }
-
   // Status & Error States
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -76,9 +55,6 @@ export default function AuthModal({
     if (isOpen) {
       setError('');
       setSuccessMsg('');
-      const creds = getAdminCredentials();
-      setAdminPasswordInput(creds.password || 'Admin@2026');
-      setAdminPinInput(creds.securityPin || '2026');
     }
   }, [isOpen]);
 
@@ -193,10 +169,9 @@ export default function AuthModal({
         }
       }
       
-      // Fallback for environment: auto-sign in as super admin if email matches
-      if (loginEmail === 'tejastej094@gmail.com') {
-        const adminCreds = getAdminCredentials();
-        const user = await loginWithEmailAndPassword('tejastej094@gmail.com', adminCreds.password);
+      // Fallback for environment
+      if (loginEmail.trim()) {
+        const user = await loginWithEmailAndPassword(loginEmail, loginPassword);
         if (onLoginSuccess) onLoginSuccess(user);
         onClose();
       } else {
@@ -209,23 +184,6 @@ export default function AuthModal({
     }
   };
 
-  // Handle Admin Credentials Update & Email Dispatch to tejastej094@gmail.com
-  const handleAdminCredsUpdateAndEmail = () => {
-    if (!adminPasswordInput || adminPasswordInput.length < 6) {
-      setError('Admin password must be at least 6 characters.');
-      return;
-    }
-    const { updated, emailDispatchResult } = updateAdminCredentials(adminPasswordInput, adminPinInput);
-    setEmailDispatchStatus({
-      success: true,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      recipient: 'tejastej094@gmail.com',
-      password: updated.password,
-      pin: updated.securityPin
-    });
-    setSuccessMsg('Admin credentials updated and dispatched to tejastej094@gmail.com!');
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto animate-fadeIn">
       <div className="bg-slate-950 border border-slate-800 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl relative flex flex-col my-auto max-h-[92vh]">
@@ -234,19 +192,11 @@ export default function AuthModal({
         <div className="p-5 sm:p-6 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className={`w-11 h-11 rounded-2xl flex items-center justify-center border shadow-inner ${
-              activeMode === 'admin_credentials' 
-                ? 'bg-amber-500/20 border-amber-500/30 text-amber-400' 
-                : activeMode === 'legal_login'
-                ? 'bg-teal-500/20 border-teal-500/30 text-teal-400'
-                : activeMode === 'register'
+              activeMode === 'register'
                 ? 'bg-indigo-500/20 border-indigo-500/30 text-indigo-400'
                 : 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
             }`}>
-              {activeMode === 'admin_credentials' ? (
-                <ShieldCheck className="w-6 h-6" />
-              ) : activeMode === 'legal_login' ? (
-                <Scale className="w-6 h-6" />
-              ) : activeMode === 'register' ? (
+              {activeMode === 'register' ? (
                 <UserPlus className="w-6 h-6" />
               ) : (
                 <Lock className="w-6 h-6" />
@@ -254,22 +204,12 @@ export default function AuthModal({
             </div>
             <div>
               <h3 className="text-lg font-black text-white tracking-tight">
-                {activeMode === 'admin_credentials' 
-                  ? 'Master Admin Credentials & Mailer' 
-                  : activeMode === 'legal_login'
-                  ? 'Legal Compliance Team Portal'
-                  : activeMode === 'register' 
-                  ? 'Create Platform Account' 
-                  : 'Account Authentication'}
+                {activeMode === 'register' ? 'Create Platform Account' : 'Account Authentication'}
               </h3>
               <p className="text-xs text-slate-400">
-                {activeMode === 'admin_credentials'
-                  ? 'Manage password & dispatch credentials to tejastej094@gmail.com'
-                  : activeMode === 'legal_login'
-                  ? 'Audit Title Deeds, Encumbrances & Approve/Reject Developer Plots'
-                  : activeMode === 'register'
-                  ? 'Register as real Buyer or Developer to buy & sell plotted land'
-                  : 'Sign in to access 3D plots, tokens, legal audit, or Developer SaaS'}
+                {activeMode === 'register'
+                  ? 'Register as Buyer or Developer to explore 3D twins and manage inventory'
+                  : 'Sign in to access 3D plots, tokens, or Developer Builder SaaS'}
               </p>
             </div>
           </div>
@@ -282,60 +222,30 @@ export default function AuthModal({
           </button>
         </div>
 
-        {/* Primary Action Tabs: Sign In | Legal Team | Create Account | Admin Mailer */}
-        <div className="grid grid-cols-4 border-b border-slate-800 bg-slate-900/40 text-[11px] font-bold text-center">
+        {/* Primary Action Tabs: Sign In | Create Account */}
+        <div className="grid grid-cols-2 border-b border-slate-800 bg-slate-900/40 text-xs font-bold text-center">
           <button
             onClick={() => { setActiveMode('login'); setError(''); setSuccessMsg(''); }}
-            className={`py-3 transition border-b-2 flex items-center justify-center space-x-1 ${
+            className={`py-3.5 transition border-b-2 flex items-center justify-center space-x-1.5 ${
               activeMode === 'login' 
                 ? 'border-emerald-400 text-emerald-400 bg-emerald-500/10' 
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <LogIn className="w-3.5 h-3.5" />
+            <LogIn className="w-4 h-4" />
             <span>Sign In</span>
           </button>
 
           <button
-            onClick={() => { 
-              setActiveMode('legal_login'); 
-              setLoginEmail('legal.auditor@plotflow.in'); 
-              setLoginPassword('Legal@2026');
-              setError(''); 
-              setSuccessMsg(''); 
-            }}
-            className={`py-3 transition border-b-2 flex items-center justify-center space-x-1 ${
-              activeMode === 'legal_login' 
-                ? 'border-teal-400 text-teal-300 bg-teal-500/10 font-black' 
-                : 'border-transparent text-teal-400/80 hover:text-teal-300'
-            }`}
-          >
-            <Scale className="w-3.5 h-3.5" />
-            <span>Legal Team</span>
-          </button>
-
-          <button
             onClick={() => { setActiveMode('register'); setError(''); setSuccessMsg(''); }}
-            className={`py-3 transition border-b-2 flex items-center justify-center space-x-1 ${
+            className={`py-3.5 transition border-b-2 flex items-center justify-center space-x-1.5 ${
               activeMode === 'register' 
                 ? 'border-indigo-400 text-indigo-400 bg-indigo-500/10' 
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <UserPlus className="w-3.5 h-3.5" />
-            <span>Register</span>
-          </button>
-
-          <button
-            onClick={() => { setActiveMode('admin_credentials'); setError(''); setSuccessMsg(''); }}
-            className={`py-3 transition border-b-2 flex items-center justify-center space-x-1 ${
-              activeMode === 'admin_credentials' 
-                ? 'border-amber-400 text-amber-400 bg-amber-500/10' 
-                : 'border-transparent text-amber-500/70 hover:text-amber-400'
-            }`}
-          >
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Admin</span>
+            <UserPlus className="w-4 h-4" />
+            <span>Register Account</span>
           </button>
         </div>
 
@@ -357,92 +267,21 @@ export default function AuthModal({
             </div>
           )}
 
-          {/* ================= MODE 1 & 2: SIGN IN / LEGAL TEAM LOGIN ================= */}
-          {(activeMode === 'login' || activeMode === 'legal_login') && (
+          {/* ================= MODE 1: SIGN IN ================= */}
+          {activeMode === 'login' && (
             <div className="space-y-4">
-              {/* Quick Role Fill Switcher */}
-              <div className="p-3 bg-slate-900 border border-slate-800 rounded-2xl space-y-2">
-                <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold block">
-                  1-Click Role Login Credentials
-                </span>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px] font-bold">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLoginEmail('legal.auditor@plotflow.in');
-                      setLoginPassword('Legal@2026');
-                      setActiveMode('legal_login');
-                    }}
-                    className="p-1.5 rounded-lg bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 border border-teal-500/40 transition flex items-center justify-center space-x-1"
-                  >
-                    <Scale className="w-3 h-3" />
-                    <span>Legal Team</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLoginEmail('tejastej094@gmail.com');
-                      const creds = getAdminCredentials();
-                      setLoginPassword(creds.password || 'Admin@2026');
-                      setActiveMode('login');
-                    }}
-                    className="p-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 transition flex items-center justify-center space-x-1"
-                  >
-                    <Shield className="w-3 h-3" />
-                    <span>Super Admin</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLoginEmail('rohit@prestigeplotted.com');
-                      setLoginPassword('Prestige@123');
-                      setActiveMode('login');
-                    }}
-                    className="p-1.5 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 transition flex items-center justify-center space-x-1"
-                  >
-                    <Building2 className="w-3 h-3" />
-                    <span>Developer</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLoginEmail('vikram.sharma@techcorp.com');
-                      setLoginPassword('Buyer@123');
-                      setActiveMode('login');
-                    }}
-                    className="p-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition flex items-center justify-center space-x-1"
-                  >
-                    <User className="w-3 h-3" />
-                    <span>Plot Buyer</span>
-                  </button>
-                </div>
-              </div>
-
-              {activeMode === 'legal_login' && (
-                <div className="p-3 bg-teal-950/40 border border-teal-500/30 rounded-2xl flex items-center space-x-3 text-xs">
-                  <Award className="w-5 h-5 text-teal-400 flex-shrink-0" />
-                  <div>
-                    <span className="font-bold text-white block">Legal Compliance & Title Due Diligence Wing</span>
-                    <span className="text-[11px] text-teal-300/80">Authorized to inspect Title Deeds, ECs, and Approve/Reject plots.</span>
-                  </div>
-                </div>
-              )}
-
               {/* Standard Email & Password Form */}
               <form onSubmit={handleSignIn} className="space-y-3 text-xs">
                 <div>
                   <label className="text-slate-300 font-semibold block mb-1">
-                    {activeMode === 'legal_login' ? 'Legal Auditor Email / User ID *' : 'Registered Email / User ID *'}
+                    Registered Email / User ID *
                   </label>
                   <div className="relative">
                     <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
                     <input
                       type="email"
                       required
-                      placeholder={activeMode === 'legal_login' ? 'legal.auditor@plotflow.in' : 'yourname@domain.com or builder@company.com'}
+                      placeholder="yourname@domain.com or builder@company.com"
                       value={loginEmail}
                       onChange={(e) => setLoginEmail(e.target.value)}
                       className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 text-xs"
@@ -453,13 +292,6 @@ export default function AuthModal({
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-slate-300 font-semibold">Password *</label>
-                    <button
-                      type="button"
-                      onClick={() => setActiveMode('admin_credentials')}
-                      className="text-[11px] text-amber-400 hover:underline"
-                    >
-                      Admin Password Reset?
-                    </button>
                   </div>
                   <div className="relative">
                     <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
@@ -484,20 +316,14 @@ export default function AuthModal({
                 <button
                   type="submit"
                   disabled={loading}
-                  className={`w-full py-3 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center space-x-2 mt-2 ${
-                    activeMode === 'legal_login'
-                      ? 'bg-teal-600 hover:bg-teal-500 shadow-teal-950/50'
-                      : 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-950/50'
-                  }`}
+                  className="w-full py-3 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center space-x-2 mt-2 bg-emerald-600 hover:bg-emerald-500 shadow-emerald-950/50"
                 >
                   {loading ? (
                     <span>Signing In...</span>
                   ) : (
                     <>
                       <LogIn className="w-4 h-4" />
-                      <span>
-                        {activeMode === 'legal_login' ? 'Sign In to Legal Compliance Console' : 'Sign In to Account'}
-                      </span>
+                      <span>Sign In to Account</span>
                     </>
                   )}
                 </button>
@@ -727,106 +553,6 @@ export default function AuthModal({
                   Sign In with your ID & Password →
                 </button>
               </div>
-            </div>
-          )}
-
-          {/* ================= MODE 3: SUPER ADMIN CREDENTIALS & EMAIL MAILER ================= */}
-          {activeMode === 'admin_credentials' && (
-            <div className="space-y-4">
-              <div className="bg-slate-900/90 border border-amber-500/30 rounded-2xl p-4 space-y-3 text-xs">
-                <div className="flex items-center space-x-2 text-amber-400 font-bold">
-                  <Mail className="w-4 h-4" />
-                  <span>Master Administrator Credential Dispatch</span>
-                </div>
-                <p className="text-slate-300 text-[11px] leading-relaxed">
-                  Set or change the master password for <strong className="text-white">tejastej094@gmail.com</strong>.
-                  Clicking the button below will immediately dispatch an authenticated security packet with your password, master PIN, and direct login token directly to <span className="text-amber-300 font-mono">tejastej094@gmail.com</span>.
-                </p>
-
-                <div className="space-y-2 pt-1">
-                  <div>
-                    <label className="text-slate-400 text-[11px] font-semibold block mb-1">Super Admin Account Email</label>
-                    <input
-                      type="text"
-                      disabled
-                      value="tejastej094@gmail.com"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-amber-300 font-mono text-xs cursor-not-allowed opacity-90"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-slate-300 font-semibold block mb-1">Master Password</label>
-                      <input
-                        type="text"
-                        value={adminPasswordInput}
-                        onChange={(e) => setAdminPasswordInput(e.target.value)}
-                        placeholder="Admin@2026"
-                        className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3.5 py-2 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-slate-300 font-semibold block mb-1">Master PIN</label>
-                      <input
-                        type="text"
-                        value={adminPinInput}
-                        onChange={(e) => setAdminPinInput(e.target.value)}
-                        placeholder="2026"
-                        className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3.5 py-2 text-white font-mono text-xs focus:outline-none focus:border-amber-400"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleAdminCredsUpdateAndEmail}
-                  className="w-full py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-amber-950/50 flex items-center justify-center space-x-2 transition mt-2"
-                >
-                  <Send className="w-4 h-4" />
-                  <span>Update & Drop Mail to tejastej094@gmail.com</span>
-                </button>
-              </div>
-
-              {/* Email Dispatch Result Card */}
-              {emailDispatchStatus && (
-                <div className="p-4 bg-emerald-950/30 border border-emerald-500/40 rounded-2xl space-y-2 text-xs animate-fadeIn">
-                  <div className="flex items-center space-x-2 text-emerald-400 font-bold">
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Credential Packet Dispatched to tejastej094@gmail.com</span>
-                  </div>
-                  <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 text-[11px] font-mono space-y-1 text-slate-300">
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Recipient:</span>
-                      <span className="text-white">tejastej094@gmail.com</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Master Password:</span>
-                      <span className="text-amber-300 font-bold">{emailDispatchStatus.password}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Security PIN:</span>
-                      <span className="text-emerald-300">{emailDispatchStatus.pin}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Delivery Status:</span>
-                      <span className="text-emerald-400 font-bold">Delivered to Inbox (256-bit AES)</span>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const user = await loginWithEmailAndPassword('tejastej094@gmail.com', emailDispatchStatus.password);
-                      if (onLoginSuccess) onLoginSuccess(user);
-                      onClose();
-                    }}
-                    className="w-full py-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-white font-bold text-xs rounded-xl flex items-center justify-center space-x-1.5 transition"
-                  >
-                    <span>Instant Sign In with These Admin Credentials →</span>
-                  </button>
-                </div>
-              )}
             </div>
           )}
 
