@@ -46,7 +46,9 @@ import {
   evaluateAccess, 
   subscribeToUserRbac, 
   syncUserRoleToFirestore, 
-  getUserRole 
+  getUserRole,
+  isSuperAdmin,
+  SUPER_ADMIN_EMAIL
 } from './services/rbacService';
 
 import LandingView from './screens/LandingView';
@@ -90,17 +92,42 @@ export default function App() {
   });
   const [selectedPlot, setSelectedPlot] = useState(null);
   
-  // User Authentication State
-  const [currentUser, setCurrentUser] = useState(DEMO_USERS.superAdmin); // Initialized with Tejas Super Admin
+  // User Authentication State: Default to null (public visitor) unless active session is saved
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('plotflow_active_user');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.role === 'SUPER_ADMIN' || parsed.role === 'ADMIN') {
+          if (String(parsed.email || '').toLowerCase() !== SUPER_ADMIN_EMAIL) {
+            return null;
+          }
+        }
+        return parsed;
+      }
+    } catch (e) {
+      // ignore
+    }
+    return null;
+  });
+
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isStaffGatewayOpen, setIsStaffGatewayOpen] = useState(false);
   const [staffGatewayTarget, setStaffGatewayTarget] = useState('admin'); // 'admin' | 'legal'
-  const [rbacSelectorOpen, setRbacSelectorOpen] = useState(false);
 
   const [isPlotDrawerOpen, setIsPlotDrawerOpen] = useState(false);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [isSiteVisitModalOpen, setIsSiteVisitModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Save session on user change
+  useEffect(() => {
+    if (currentUser) {
+      sessionStorage.setItem('plotflow_active_user', JSON.stringify(currentUser));
+    } else {
+      sessionStorage.removeItem('plotflow_active_user');
+    }
+  }, [currentUser]);
 
   // Firestore Real-Time RBAC Listener
   useEffect(() => {
@@ -239,18 +266,6 @@ export default function App() {
     } else if (target === 'legal') {
       setPortalMode('legal');
     }
-  };
-
-  const handleQuickSwitchRole = (roleKey) => {
-    let targetUser = DEMO_USERS.superAdmin;
-    if (roleKey === 'admin') targetUser = DEMO_USERS.superAdmin;
-    else if (roleKey === 'legal') targetUser = DEMO_USERS.legalAuditor;
-    else if (roleKey === 'developer') targetUser = DEMO_USERS.developer;
-    else if (roleKey === 'buyer') targetUser = DEMO_USERS.buyer;
-
-    setCurrentUser(targetUser);
-    syncUserRoleToFirestore(targetUser);
-    setRbacSelectorOpen(false);
   };
 
   // =========================================================================
@@ -572,81 +587,41 @@ export default function App() {
 
           {/* User Auth Profile & Fast Actions */}
           <div className="flex items-center space-x-2 sm:space-x-3">
-            {/* Live Role Badge & Quick Switcher for RBAC Gating Testing */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setRbacSelectorOpen(!rbacSelectorOpen)}
-                className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-bold flex items-center space-x-1.5 transition ${
-                  getUserRole(currentUser) === ROLES.ADMIN
-                    ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 hover:bg-amber-500/25'
-                    : getUserRole(currentUser) === ROLES.LEGAL
-                    ? 'bg-teal-500/15 border-teal-500/40 text-teal-300 hover:bg-teal-500/25'
-                    : getUserRole(currentUser) === ROLES.DEVELOPER
-                    ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/25'
-                    : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/25'
-                }`}
-                title="Firebase RBAC Role Selector & Gatekeeping Tester"
-              >
-                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="hidden md:inline text-slate-400">RBAC:</span>
-                <span className="uppercase">{getUserRole(currentUser)}</span>
-              </button>
-
-              {/* RBAC Role Selector Popup */}
-              {rbacSelectorOpen && (
-                <div className="absolute right-0 mt-2 w-64 bg-slate-950 border border-slate-800 rounded-2xl p-3 shadow-2xl z-50 space-y-2 text-xs">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                    <span className="font-bold text-white flex items-center space-x-1">
-                      <Database className="w-3 h-3 text-indigo-400" />
-                      <span>Firestore RBAC Roles</span>
-                    </span>
-                    <span className="text-[9px] text-emerald-400 font-mono">Live Firestore</span>
-                  </div>
-                  <p className="text-[10px] text-slate-400">
-                    Switch roles instantly to test RBAC navigation gatekeeping:
-                  </p>
-                  <div className="space-y-1">
-                    {[
-                      { id: 'admin', label: 'Admin (Super)', sub: 'Full Governance & Portals', icon: ShieldCheck, color: 'text-amber-400' },
-                      { id: 'legal', label: 'Legal Auditor', sub: 'Access to Legal Vault', icon: Scale, color: 'text-teal-400' },
-                      { id: 'developer', label: 'Developer', sub: 'Access to Builder SaaS', icon: Building2, color: 'text-indigo-400' },
-                      { id: 'buyer', label: 'Retail Buyer', sub: 'Public Marketplace Only', icon: UserCheck, color: 'text-emerald-400' }
-                    ].map(r => {
-                      const Icon = r.icon;
-                      const isCurr = getUserRole(currentUser) === r.id;
-                      return (
-                        <button
-                          key={r.id}
-                          onClick={() => handleQuickSwitchRole(r.id)}
-                          className={`w-full p-2 rounded-xl text-left flex items-center space-x-2 transition ${
-                            isCurr 
-                              ? 'bg-indigo-600/20 border border-indigo-500/50 text-white font-bold' 
-                              : 'hover:bg-slate-900 text-slate-300'
-                          }`}
-                        >
-                          <Icon className={`w-4 h-4 ${r.color}`} />
-                          <div className="flex-1 truncate">
-                            <span className="block text-xs font-bold">{r.label}</span>
-                            <span className="block text-[9px] text-slate-400">{r.sub}</span>
-                          </div>
-                          {isCurr && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-
             {currentUser ? (
               <div className="flex items-center space-x-2">
+                {/* Master Admin Portal Direct Launch Button for Tejas */}
+                {isSuperAdmin(currentUser) && (
+                  <button
+                    onClick={() => {
+                      setPortalMode('admin');
+                      setIsAdminPreviewMode(false);
+                    }}
+                    className="px-3 py-1.5 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-sm"
+                    title="Open Master Governance Center"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="hidden sm:inline">Admin Console</span>
+                  </button>
+                )}
+
+                {/* Legal Portal Direct Launch for Legal Auditors */}
+                {currentUser?.role === 'LEGAL_AUDITOR' && (
+                  <button
+                    onClick={() => setPortalMode('legal')}
+                    className="px-3 py-1.5 bg-teal-500/15 hover:bg-teal-500/25 border border-teal-500/40 text-teal-300 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-sm"
+                    title="Open Legal Audit Vault"
+                  >
+                    <Scale className="w-3.5 h-3.5 text-teal-400" />
+                    <span className="hidden sm:inline">Legal Vault</span>
+                  </button>
+                )}
+
                 <div 
                   onClick={() => setCurrentView('profile')}
                   className="bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-2xl px-3 py-1.5 flex items-center space-x-2.5 cursor-pointer transition shadow"
                 >
                   <div className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-bold ${
-                    currentUser.role === 'SUPER_ADMIN'
+                    isSuperAdmin(currentUser)
                       ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                       : currentUser.role === 'DEVELOPER'
                       ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
@@ -654,11 +629,11 @@ export default function App() {
                       ? 'bg-teal-500/20 text-teal-400 border border-teal-500/30'
                       : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                   }`}>
-                    {currentUser.role === 'SUPER_ADMIN' ? 'A' : currentUser.role === 'DEVELOPER' ? 'D' : currentUser.role === 'LEGAL_AUDITOR' ? 'L' : 'B'}
+                    {isSuperAdmin(currentUser) ? 'A' : currentUser.role === 'DEVELOPER' ? 'D' : currentUser.role === 'LEGAL_AUDITOR' ? 'L' : 'B'}
                   </div>
                   <div className="hidden sm:block text-left">
                     <span className="text-xs font-bold text-white block">{currentUser.name}</span>
-                    <span className="text-[10px] text-slate-400">{currentUser.roleTitle || currentUser.role}</span>
+                    <span className="text-[10px] text-slate-400">{isSuperAdmin(currentUser) ? 'Master Admin' : currentUser.roleTitle || currentUser.role}</span>
                   </div>
                 </div>
 
@@ -671,13 +646,24 @@ export default function App() {
                 </button>
               </div>
             ) : (
-              <button
-                onClick={() => setIsAuthModalOpen(true)}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center space-x-1.5"
-              >
-                <Lock className="w-3.5 h-3.5" />
-                <span>Sign In</span>
-              </button>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => handleOpenStaffPortal('admin')}
+                  className="px-3 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white font-bold text-xs rounded-xl transition flex items-center space-x-1.5"
+                  title="Protected Staff Gateway"
+                >
+                  <Key className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="hidden sm:inline">Staff Access</span>
+                </button>
+
+                <button
+                  onClick={() => setIsAuthModalOpen(true)}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center space-x-1.5"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Sign In</span>
+                </button>
+              </div>
             )}
 
             {/* Mobile Menu Trigger */}
@@ -953,13 +939,6 @@ export default function App() {
             onLogout={() => {
               setCurrentUser(null);
               setCurrentView('landing');
-            }}
-            onSwitchUser={(user) => {
-              setCurrentUser(user);
-              syncUserRoleToFirestore(user);
-              if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') setPortalMode('admin');
-              else if (user.role === 'LEGAL_AUDITOR') setPortalMode('legal');
-              else if (user.role === 'DEVELOPER') setCurrentView('developer-portal');
             }}
             onOpenAdminPortal={() => handleOpenStaffPortal('admin')}
             onOpenLegalPortal={() => handleOpenStaffPortal('legal')}

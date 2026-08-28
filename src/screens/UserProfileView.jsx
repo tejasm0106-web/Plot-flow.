@@ -16,13 +16,16 @@ import {
   Building2, 
   Trash2,
   Eye,
-  LogOut
+  LogOut,
+  Mail,
+  Phone,
+  ShieldAlert
 } from 'lucide-react';
+import { SUPER_ADMIN_EMAIL, isSuperAdmin } from '../services/rbacService';
 
 export default function UserProfileView({ 
   currentUser, 
   onLogout,
-  onSwitchUser,
   townships = [],
   shortlistedTownships = [],
   onToggleShortlist,
@@ -31,42 +34,13 @@ export default function UserProfileView({
   onOpenAdminPortal,
   onOpenLegalPortal
 }) {
-  const [activeTab, setActiveTab] = useState('saved'); // 'saved' | 'inquiries' | 'account' | 'roles'
+  const [activeTab, setActiveTab] = useState('saved'); // 'saved' | 'inquiries' | 'account'
 
   // Filter shortlisted townships
   const savedList = townships.filter(t => shortlistedTownships.includes(t.id));
 
-  // Available test accounts for rapid switching
-  const testAccounts = [
-    {
-      name: 'Tejas',
-      email: 'tejastej094@gmail.com',
-      role: 'SUPER_ADMIN',
-      roleTitle: 'Master Platform Owner & Super Admin',
-      badgeColor: 'text-amber-400 bg-amber-500/10 border-amber-500/30'
-    },
-    {
-      name: 'Advocate Rajeshwari Iyer',
-      email: 'legal.auditor@plotflow.in',
-      role: 'LEGAL_AUDITOR',
-      roleTitle: 'Senior Legal & Title Due Diligence Auditor',
-      badgeColor: 'text-teal-400 bg-teal-500/10 border-teal-500/30'
-    },
-    {
-      name: 'Rohit Kulkarni',
-      email: 'rohit@prestigeplotted.com',
-      role: 'DEVELOPER',
-      roleTitle: 'VP of Plotted Land Sales (Builder SaaS)',
-      badgeColor: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/30'
-    },
-    {
-      name: 'Vikramaditya Sharma',
-      email: 'vikram.sharma@techcorp.com',
-      role: 'BUYER',
-      roleTitle: 'Verified Retail Plot Buyer',
-      badgeColor: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30'
-    }
-  ];
+  const isUserSuperAdmin = isSuperAdmin(currentUser);
+  const isUserLegalAuditor = currentUser?.role === 'LEGAL_AUDITOR' || isUserSuperAdmin;
 
   return (
     <div className="space-y-8 pb-16">
@@ -81,7 +55,7 @@ export default function UserProfileView({
               <div className="flex items-center space-x-2">
                 <h1 className="text-xl font-bold text-white">{currentUser?.name || 'User Profile'}</h1>
                 <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
-                  currentUser?.role === 'SUPER_ADMIN' 
+                  isUserSuperAdmin 
                     ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' 
                     : currentUser?.role === 'LEGAL_AUDITOR'
                     ? 'bg-teal-500/20 text-teal-300 border-teal-500/40'
@@ -89,7 +63,7 @@ export default function UserProfileView({
                     ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
                     : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
                 }`}>
-                  {currentUser?.roleTitle || currentUser?.role || 'Verified User'}
+                  {isUserSuperAdmin ? 'Master Super Admin' : currentUser?.roleTitle || currentUser?.role || 'Verified User'}
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">{currentUser?.email}</p>
@@ -97,7 +71,7 @@ export default function UserProfileView({
           </div>
 
           <div className="flex items-center space-x-2 self-start sm:self-auto">
-            {currentUser?.role === 'SUPER_ADMIN' && onOpenAdminPortal && (
+            {isUserSuperAdmin && onOpenAdminPortal && (
               <button
                 onClick={onOpenAdminPortal}
                 className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-slate-950 text-xs font-black rounded-xl shadow-lg transition flex items-center space-x-1.5"
@@ -151,13 +125,13 @@ export default function UserProfileView({
         </button>
 
         <button
-          onClick={() => setActiveTab('roles')}
+          onClick={() => setActiveTab('account')}
           className={`pb-3 transition border-b-2 flex items-center space-x-1.5 ${
-            activeTab === 'roles' ? 'border-indigo-400 text-indigo-400' : 'border-transparent text-slate-400 hover:text-slate-200'
+            activeTab === 'account' ? 'border-indigo-400 text-indigo-400' : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
-          <Key className="w-4 h-4" />
-          <span>Role Switcher (Investor Demo)</span>
+          <User className="w-4 h-4" />
+          <span>Account & Security</span>
         </button>
       </div>
 
@@ -266,46 +240,52 @@ export default function UserProfileView({
         </div>
       )}
 
-      {activeTab === 'roles' && (
+      {activeTab === 'account' && (
         <div className="space-y-4">
-          <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl space-y-4">
+          <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl space-y-6">
             <div>
-              <h3 className="text-lg font-bold text-white">Switch Test Role for Platform Demonstration</h3>
+              <h3 className="text-lg font-bold text-white">Account Security & RBAC Profile</h3>
               <p className="text-xs text-slate-400 mt-1">
-                Select any user persona below to experience PlotFlow from their perspective (Super Admin CMS, Builder SaaS, Legal Title Auditor, or Retail Buyer).
+                Your role credentials and access clearances are stored securely and synchronized with Firestore.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-              {testAccounts.map((acc, idx) => (
-                <div
-                  key={idx}
-                  onClick={() => onSwitchUser(acc)}
-                  className={`p-5 rounded-2xl border transition cursor-pointer flex flex-col justify-between space-y-3 ${
-                    currentUser?.email === acc.email
-                      ? 'bg-slate-900 border-emerald-500 shadow-lg shadow-emerald-950/40'
-                      : 'bg-slate-900/50 border-slate-800 hover:border-slate-700 hover:bg-slate-900'
-                  }`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h4 className="text-sm font-bold text-white">{acc.name}</h4>
-                      <p className="text-xs text-slate-400 font-mono">{acc.email}</p>
-                    </div>
-                    <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${acc.badgeColor}`}>
-                      {acc.role}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-xs">
-                    <span className="text-[11px] text-slate-400">{acc.roleTitle}</span>
-                    <span className="text-emerald-400 font-bold flex items-center space-x-1">
-                      <span>{currentUser?.email === acc.email ? 'Active' : 'Switch'}</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </span>
-                  </div>
-                </div>
-              ))}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-1">
+                <span className="text-[10px] text-slate-500 uppercase font-bold">Full Name</span>
+                <p className="font-bold text-white">{currentUser?.name || 'Platform User'}</p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-1">
+                <span className="text-[10px] text-slate-500 uppercase font-bold">Registered Email</span>
+                <p className="font-mono text-slate-300">{currentUser?.email}</p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-1">
+                <span className="text-[10px] text-slate-500 uppercase font-bold">Platform Role</span>
+                <p className="font-bold text-emerald-400">{currentUser?.roleTitle || currentUser?.role}</p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-1">
+                <span className="text-[10px] text-slate-500 uppercase font-bold">Account Clearance</span>
+                <p className="font-bold text-white flex items-center space-x-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>{isUserSuperAdmin ? 'Full Master Privileges' : isUserLegalAuditor ? 'Legal Audit Level' : 'Standard Marketplace'}</span>
+                </p>
+              </div>
             </div>
+
+            {isUserSuperAdmin && (
+              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-xs space-y-2">
+                <div className="flex items-center space-x-2 text-amber-300 font-bold">
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Platform Super Administrator</span>
+                </div>
+                <p className="text-slate-300">
+                  This account has exclusive, authoritative Super Admin access to the Master Governance Center, Builder SaaS, and Legal Audit Vault.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}

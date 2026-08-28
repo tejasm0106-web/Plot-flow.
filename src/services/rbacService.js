@@ -67,11 +67,12 @@ export function isAccountActive(user) {
 /**
  * Checks if a user is the primary super admin
  */
+export const SUPER_ADMIN_EMAIL = 'tejastej094@gmail.com';
+
 export function isSuperAdmin(user) {
   if (!user) return false;
-  if (user.email === 'tejastej094@gmail.com') return true;
-  const upper = String(user.role || '').toUpperCase();
-  return upper === 'SUPER_ADMIN';
+  if (!isAccountActive(user)) return false;
+  return String(user.email || '').trim().toLowerCase() === SUPER_ADMIN_EMAIL;
 }
 
 /**
@@ -83,8 +84,13 @@ export function hasRole(user, requiredRole) {
   const userNorm = getUserRole(user);
   const reqNorm = normalizeRole(requiredRole);
 
+  // Super Admin check
+  if (reqNorm === ROLES.ADMIN) {
+    return isSuperAdmin(user);
+  }
+
   // Master Admin can access everything
-  if (userNorm === ROLES.ADMIN) return true;
+  if (isSuperAdmin(user)) return true;
   return userNorm === reqNorm;
 }
 
@@ -94,18 +100,25 @@ export function hasRole(user, requiredRole) {
 export function hasAnyRole(user, allowedRoles = []) {
   if (!user) return false;
   if (!isAccountActive(user)) return false;
-  const userNorm = getUserRole(user);
-  if (userNorm === ROLES.ADMIN) return true; // Admin bypass
+  
+  if (isSuperAdmin(user)) return true; // Super Admin bypass for lower roles
 
+  const userNorm = getUserRole(user);
   const normalizedAllowed = allowedRoles.map(r => normalizeRole(r));
+  
+  // If only admin is allowed, only super admin can pass
+  if (normalizedAllowed.length === 1 && normalizedAllowed[0] === ROLES.ADMIN) {
+    return isSuperAdmin(user);
+  }
+
   return normalizedAllowed.includes(userNorm);
 }
 
 /**
  * Portal Access Policy Gatekeeper:
- * - Admin Portal: Requires 'admin'
- * - Legal Portal: Requires 'legal' (or 'admin')
- * - Developer Portal: Requires 'developer' (or 'admin')
+ * - Admin Portal: Strictly requires tejastej094@gmail.com (Super Admin)
+ * - Legal Portal: Requires 'legal' auditor role OR Super Admin
+ * - Developer Portal: Requires 'developer' role OR Super Admin
  * - Main / Buyer Marketplace: Accessible to all active users
  */
 export function canAccessPortal(user, targetPortal) {
@@ -117,16 +130,16 @@ export function canAccessPortal(user, targetPortal) {
 
   switch (portalKey) {
     case PORTALS.ADMIN:
-      // Only Admin / Super Admin
-      return userNorm === ROLES.ADMIN;
+      // STRICT: Only tejastej094@gmail.com can EVER access Admin Portal
+      return isSuperAdmin(user);
 
     case PORTALS.LEGAL:
-      // Legal team or Admin
-      return userNorm === ROLES.LEGAL || userNorm === ROLES.ADMIN;
+      // Legal team or Super Admin
+      return userNorm === ROLES.LEGAL || isSuperAdmin(user);
 
     case PORTALS.DEVELOPER:
-      // Developer or Admin
-      return userNorm === ROLES.DEVELOPER || userNorm === ROLES.ADMIN;
+      // Developer or Super Admin
+      return userNorm === ROLES.DEVELOPER || isSuperAdmin(user);
 
     case PORTALS.MAIN:
     default:
@@ -146,13 +159,13 @@ export function canAccessView(user, viewName) {
   const userNorm = getUserRole(user);
 
   if (viewName === 'admin' || viewName === 'admin-panel') {
-    return userNorm === ROLES.ADMIN;
+    return isSuperAdmin(user);
   }
   if (viewName === 'legal' || viewName === 'legal-audit') {
-    return userNorm === ROLES.LEGAL || userNorm === ROLES.ADMIN;
+    return userNorm === ROLES.LEGAL || isSuperAdmin(user);
   }
-  if (viewName === 'developer-portal') {
-    return userNorm === ROLES.DEVELOPER || userNorm === ROLES.ADMIN;
+  if (viewName === 'developer-portal' || viewName === 'lead-crm') {
+    return userNorm === ROLES.DEVELOPER || isSuperAdmin(user);
   }
 
   return true;
@@ -163,11 +176,14 @@ export function canAccessView(user, viewName) {
  */
 export function evaluateAccess(user, targetPortalOrView) {
   if (!user) {
+    const isTargetAdmin = targetPortalOrView === 'admin' || targetPortalOrView === 'admin-panel';
     return {
       allowed: false,
       reason: 'UNAUTHENTICATED',
-      message: 'Please sign in with authorized credentials to access this portal.',
-      requiredRoles: [targetPortalOrView === 'admin' ? ROLES.ADMIN : ROLES.LEGAL]
+      message: isTargetAdmin 
+        ? `Super Admin portal is strictly protected. Only the platform owner (${SUPER_ADMIN_EMAIL}) can authenticate as Administrator.`
+        : 'Please sign in with authorized credentials to access this protected portal.',
+      requiredRoles: [isTargetAdmin ? ROLES.ADMIN : ROLES.LEGAL]
     };
   }
 
@@ -188,11 +204,21 @@ export function evaluateAccess(user, targetPortalOrView) {
     requiredRoles = [ROLES.ADMIN];
   } else if (targetPortalOrView === 'legal' || targetPortalOrView === 'legal-audit') {
     requiredRoles = [ROLES.LEGAL, ROLES.ADMIN];
-  } else if (targetPortalOrView === 'developer' || targetPortalOrView === 'developer-portal') {
+  } else if (targetPortalOrView === 'developer' || targetPortalOrView === 'developer-portal' || targetPortalOrView === 'lead-crm') {
     requiredRoles = [ROLES.DEVELOPER, ROLES.ADMIN];
   }
 
   if (!allowed) {
+    if (targetPortalOrView === 'admin' || targetPortalOrView === 'admin-panel') {
+      return {
+        allowed: false,
+        reason: 'FORBIDDEN_NOT_SUPER_ADMIN',
+        message: `Access Denied: Only the verified platform owner (${SUPER_ADMIN_EMAIL}) has Super Admin privileges. Logged in as "${user.email}".`,
+        userRole: userNorm,
+        requiredRoles: [ROLES.ADMIN]
+      };
+    }
+
     return {
       allowed: false,
       reason: 'FORBIDDEN_ROLE',
@@ -205,7 +231,7 @@ export function evaluateAccess(user, targetPortalOrView) {
   return {
     allowed: true,
     reason: 'AUTHORIZED',
-    message: `Authorized as ${ROLE_LABELS[userNorm] || userNorm}`,
+    message: isSuperAdmin(user) ? 'Authorized as Master Super Admin' : `Authorized as ${ROLE_LABELS[userNorm] || userNorm}`,
     userRole: userNorm
   };
 }

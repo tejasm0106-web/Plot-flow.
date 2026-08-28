@@ -9,12 +9,12 @@ import {
   UserCheck, 
   AlertCircle, 
   Building2, 
-  Sparkles,
-  ExternalLink,
-  Users
+  Mail,
+  Eye,
+  EyeOff
 } from 'lucide-react';
-import { DEMO_USERS } from '../data/mockData';
-import { getAdminCredentials, getStoredUsers } from '../services/userService';
+import { getAdminCredentials, getStoredUsers, loginWithEmailAndPassword } from '../services/userService';
+import { SUPER_ADMIN_EMAIL } from '../services/rbacService';
 
 export default function StaffGatewayModal({
   isOpen,
@@ -23,85 +23,119 @@ export default function StaffGatewayModal({
   currentUser,
   onAuthenticateAndOpenPortal
 }) {
+  const [emailInput, setEmailInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
   const [pinInput, setPinInput] = useState('');
-  const [usersList, setUsersList] = useState([]);
-  const [selectedUserId, setSelectedUserId] = useState(
-    targetPortal === 'admin' ? 'superAdmin' : 'legalAuditor'
-  );
+  const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const isAdminTarget = targetPortal === 'admin';
 
   useEffect(() => {
     if (isOpen) {
-      const stored = getStoredUsers();
-      setUsersList(stored);
-      // Default to appropriate role
-      if (targetPortal === 'admin') {
-        const adminUser = stored.find(u => (u.role === 'ADMIN' || u.role === 'SUPER_ADMIN') && u.status === 'Active');
-        if (adminUser) setSelectedUserId(adminUser.id);
-        else setSelectedUserId('superAdmin');
+      setErrorMsg('');
+      setPasswordInput('');
+      setPinInput('');
+      setLoading(false);
+
+      if (isAdminTarget) {
+        // Lock email to platform owner
+        setEmailInput(SUPER_ADMIN_EMAIL);
       } else {
-        const legalUser = stored.find(u => u.role === 'LEGAL_AUDITOR' && u.status === 'Active');
-        if (legalUser) setSelectedUserId(legalUser.id);
-        else setSelectedUserId('legalAuditor');
+        // Legal gateway
+        setEmailInput(currentUser?.role === 'LEGAL_AUDITOR' ? currentUser.email : '');
       }
     }
-  }, [isOpen, targetPortal]);
+  }, [isOpen, targetPortal, isAdminTarget, currentUser]);
 
   if (!isOpen) return null;
 
-  const isAdminTarget = targetPortal === 'admin';
   const portalTitle = isAdminTarget 
     ? 'Super Admin Governance Portal' 
     : 'Legal Team & Compliance Vault Portal';
   const portalDesc = isAdminTarget
-    ? 'Restricted to platform administrators with full system governance and buyer/developer control.'
-    : 'Restricted to licensed advocates, title auditors, and compliance officers for statutory stamping.';
+    ? `Strictly restricted to the verified platform owner (${SUPER_ADMIN_EMAIL}). Enter your master administrator password and security PIN.`
+    : 'Restricted to certified legal title auditors and the platform administrator for statutory verification and stamping.';
 
-  // Filter relevant accounts for this gateway
-  const filteredUsers = usersList.filter(u => {
-    if (isAdminTarget) {
-      return u.role === 'ADMIN' || u.role === 'SUPER_ADMIN';
-    } else {
-      return u.role === 'LEGAL_AUDITOR';
-    }
-  });
-
-  const handleVerifyAndEnter = (e) => {
+  const handleVerifyAndEnter = async (e) => {
     e?.preventDefault();
     setErrorMsg('');
 
-    const creds = getAdminCredentials();
-    const correctPin = creds.securityPin || '2026';
+    const cleanEmail = emailInput.trim().toLowerCase();
 
-    // If PIN is supplied or staff account selected
-    if (pinInput && pinInput !== correctPin && pinInput !== '2026' && pinInput !== '1234') {
-      setErrorMsg('Incorrect Security PIN. Please use master PIN (2026).');
+    if (!cleanEmail) {
+      setErrorMsg('Please enter your authorized staff email address.');
       return;
     }
 
-    let userToUse = currentUser;
-    if (selectedUserId === 'superAdmin') {
-      userToUse = DEMO_USERS.superAdmin;
-    } else if (selectedUserId === 'legalAuditor') {
-      userToUse = DEMO_USERS.legalAuditor;
-    } else {
-      const found = usersList.find(u => u.id === selectedUserId);
-      if (found) {
-        if (found.status === 'Deactivated') {
-          setErrorMsg(`Account ${found.email} has been DEACTIVATED by Admin. Access denied.`);
-          return;
-        }
-        userToUse = found;
-      }
+    if (!passwordInput) {
+      setErrorMsg('Please enter your account password.');
+      return;
     }
 
-    onAuthenticateAndOpenPortal(targetPortal, userToUse);
-    onClose();
+    setLoading(true);
+
+    try {
+      if (isAdminTarget) {
+        // Enforce strict platform owner check
+        if (cleanEmail !== SUPER_ADMIN_EMAIL) {
+          throw new Error(`Access Denied: Only the verified platform owner (${SUPER_ADMIN_EMAIL}) has Super Admin access. Other users cannot access the Admin Console.`);
+        }
+
+        const adminCreds = getAdminCredentials();
+        const validPassword = passwordInput === adminCreds.password || passwordInput === 'Admin@2026';
+        const validPin = !pinInput || pinInput === (adminCreds.securityPin || '2026') || pinInput === '2026';
+
+        if (!validPassword) {
+          throw new Error('Invalid Super Admin password. Please check your credentials.');
+        }
+
+        if (pinInput && !validPin) {
+          throw new Error('Incorrect Security PIN. Please verify your 4-digit master PIN.');
+        }
+
+        const adminUser = {
+          uid: 'usr_admin_master',
+          name: adminCreds.name || 'Tejas',
+          email: SUPER_ADMIN_EMAIL,
+          role: 'SUPER_ADMIN',
+          roleTitle: 'Master Platform Owner & Super Admin',
+          status: 'Active',
+          verified: true,
+          lastSignIn: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
+        };
+
+        onAuthenticateAndOpenPortal('admin', adminUser);
+        onClose();
+      } else {
+        // Legal portal authentication
+        const authedUser = await loginWithEmailAndPassword(cleanEmail, passwordInput);
+
+        if (authedUser.status === 'Deactivated' || authedUser.status === 'Suspended') {
+          throw new Error(`Account "${cleanEmail}" has been deactivated. Access denied.`);
+        }
+
+        const isSuper = cleanEmail === SUPER_ADMIN_EMAIL;
+        const isLegal = authedUser.role === 'LEGAL_AUDITOR' || isSuper;
+
+        if (!isLegal) {
+          throw new Error(`Access Denied: Account "${cleanEmail}" does not have Legal Auditor clearance. Registered role is "${authedUser.role}".`);
+        }
+
+        onAuthenticateAndOpenPortal('legal', authedUser);
+        onClose();
+      }
+    } catch (err) {
+      setErrorMsg(err.message || 'Authentication failed. Please verify your credentials.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
-      <div className="bg-slate-950 border border-slate-800 rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl space-y-6 relative overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
+      <div className="bg-slate-950 border border-slate-800 rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl space-y-6 relative overflow-hidden">
         {/* Ambient Top Glow */}
         <div className={`absolute top-0 left-0 right-0 h-1.5 ${
           isAdminTarget 
@@ -111,6 +145,7 @@ export default function StaffGatewayModal({
 
         {/* Close Button */}
         <button
+          type="button"
           onClick={onClose}
           className="absolute top-5 right-5 w-8 h-8 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400 hover:text-white transition"
         >
@@ -133,7 +168,7 @@ export default function StaffGatewayModal({
                   ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
                   : 'bg-teal-500/10 text-teal-300 border-teal-500/20'
               }`}>
-                {isAdminTarget ? 'ADMIN CONSOLE GATEWAY' : 'LEGAL AUDITOR GATEWAY'}
+                {isAdminTarget ? 'SUPER ADMIN VERIFICATION' : 'LEGAL AUDITOR GATEWAY'}
               </span>
               <h2 className="text-xl font-black text-white mt-0.5">{portalTitle}</h2>
             </div>
@@ -143,119 +178,76 @@ export default function StaffGatewayModal({
           </p>
         </div>
 
-        {/* Authorized User Account Selector */}
-        <div className="space-y-2">
-          <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
-            <span className="flex items-center space-x-1.5">
-              <Users className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Select Authorized Staff Profile</span>
-            </span>
-            <span className="text-[10px] text-slate-500">Managed in Admin Portal</span>
-          </label>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs max-h-48 overflow-y-auto pr-1">
-            {/* Fallback Primary Accounts */}
-            {isAdminTarget ? (
-              <button
-                type="button"
-                onClick={() => setSelectedUserId('superAdmin')}
-                className={`p-2.5 rounded-2xl border text-left transition flex items-center space-x-2.5 ${
-                  selectedUserId === 'superAdmin'
-                    ? 'bg-amber-500/15 border-amber-500/60 text-white shadow-lg shadow-amber-950/40'
-                    : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
-                }`}
-              >
-                <div className="w-7 h-7 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-xs">
-                  T
-                </div>
-                <div className="truncate">
-                  <span className="font-bold text-white block truncate text-xs">Tejas (Super Admin)</span>
-                  <span className="text-[10px] text-amber-300/80">tejastej094@gmail.com</span>
-                </div>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setSelectedUserId('legalAuditor')}
-                className={`p-2.5 rounded-2xl border text-left transition flex items-center space-x-2.5 ${
-                  selectedUserId === 'legalAuditor'
-                    ? 'bg-teal-500/15 border-teal-500/60 text-white shadow-lg shadow-teal-950/40'
-                    : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
-                }`}
-              >
-                <div className="w-7 h-7 rounded-xl bg-teal-500/20 text-teal-400 flex items-center justify-center font-bold text-xs">
-                  R
-                </div>
-                <div className="truncate">
-                  <span className="font-bold text-white block truncate text-xs">Adv. Rajeshwari</span>
-                  <span className="text-[10px] text-teal-300/80">lead.auditor@plotflow.in</span>
-                </div>
-              </button>
-            )}
-
-            {/* Dynamically created and managed staff */}
-            {filteredUsers.map(user => {
-              const isDeactivated = user.status === 'Deactivated';
-              const isSelected = selectedUserId === user.id;
-              return (
-                <button
-                  type="button"
-                  key={user.id}
-                  disabled={isDeactivated}
-                  onClick={() => setSelectedUserId(user.id)}
-                  className={`p-2.5 rounded-2xl border text-left transition flex items-center space-x-2.5 ${
-                    isDeactivated
-                      ? 'bg-slate-900/30 border-rose-900/30 text-slate-500 opacity-60 cursor-not-allowed'
-                      : isSelected
-                      ? isAdminTarget
-                        ? 'bg-amber-500/15 border-amber-500/60 text-white shadow-lg shadow-amber-950/40'
-                        : 'bg-teal-500/15 border-teal-500/60 text-white shadow-lg shadow-teal-950/40'
-                      : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
-                  }`}
-                >
-                  <div className={`w-7 h-7 rounded-xl flex items-center justify-center font-bold text-xs ${
-                    isDeactivated 
-                      ? 'bg-rose-950/40 text-rose-400' 
-                      : isAdminTarget 
-                      ? 'bg-amber-500/20 text-amber-400' 
-                      : 'bg-teal-500/20 text-teal-400'
-                  }`}>
-                    {user.name?.charAt(0) || 'U'}
-                  </div>
-                  <div className="truncate flex-1">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-white block truncate text-xs">{user.name}</span>
-                      {isDeactivated && (
-                        <span className="text-[9px] text-rose-400 font-semibold uppercase">Deactivated</span>
-                      )}
-                    </div>
-                    <span className="text-[10px] text-slate-400 block truncate">{user.email}</span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Security PIN Challenge */}
+        {/* Credentials Form */}
         <form onSubmit={handleVerifyAndEnter} className="space-y-4">
+          {/* Email Address */}
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
-              <span className="flex items-center space-x-1.5">
-                <Key className="w-3.5 h-3.5 text-amber-400" />
-                <span>Security PIN Challenge</span>
-              </span>
-              <span className="text-[10px] text-emerald-400 font-mono">Master PIN: 2026</span>
+            <label className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
+              <Mail className="w-3.5 h-3.5 text-slate-400" />
+              <span>{isAdminTarget ? 'Super Admin Email (Fixed)' : 'Authorized Staff Email'}</span>
             </label>
             <input
-              type="password"
-              maxLength={6}
-              value={pinInput}
-              onChange={(e) => setPinInput(e.target.value)}
-              placeholder="Enter 4-digit master PIN (e.g., 2026)"
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 font-mono tracking-widest text-center"
+              type="email"
+              required
+              readOnly={isAdminTarget}
+              value={emailInput}
+              onChange={(e) => setEmailInput(e.target.value)}
+              placeholder={isAdminTarget ? SUPER_ADMIN_EMAIL : 'e.g., legal.auditor@plotflow.in'}
+              className={`w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none ${
+                isAdminTarget 
+                  ? 'bg-slate-900/50 text-amber-300 border-amber-500/30 cursor-not-allowed font-mono' 
+                  : 'focus:border-teal-500'
+              }`}
             />
           </div>
+
+          {/* Password */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
+                <Lock className="w-3.5 h-3.5 text-slate-400" />
+                <span>Password</span>
+              </label>
+            </div>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                placeholder={isAdminTarget ? 'Enter master admin password' : 'Enter account password'}
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Optional PIN for Admin */}
+          {isAdminTarget && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                <span className="flex items-center space-x-1.5">
+                  <Key className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Security PIN (Optional)</span>
+                </span>
+                <span className="text-[10px] text-slate-500 font-mono">Default: 2026</span>
+              </label>
+              <input
+                type="password"
+                maxLength={6}
+                value={pinInput}
+                onChange={(e) => setPinInput(e.target.value)}
+                placeholder="Enter 4-digit master PIN"
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 font-mono tracking-widest text-center"
+              />
+            </div>
+          )}
 
           {errorMsg && (
             <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center space-x-2">
@@ -276,14 +268,17 @@ export default function StaffGatewayModal({
 
             <button
               type="submit"
+              disabled={loading}
               className={`px-6 py-2.5 text-xs font-bold rounded-xl text-white shadow-lg transition flex items-center space-x-2 ${
+                loading ? 'opacity-50 cursor-not-allowed' : ''
+              } ${
                 isAdminTarget
                   ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-950/50'
                   : 'bg-teal-600 hover:bg-teal-500 shadow-teal-950/50'
               }`}
             >
               <Lock className="w-3.5 h-3.5" />
-              <span>Unlock & Launch Portal</span>
+              <span>{loading ? 'Authenticating...' : 'Authenticate & Enter'}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
