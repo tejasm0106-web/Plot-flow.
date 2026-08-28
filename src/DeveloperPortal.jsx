@@ -21,15 +21,22 @@ import {
   Download, 
   Eye, 
   ArrowUpRight, 
-  Sparkles,
-  BarChart3,
-  PieChart,
-  FileCheck,
-  RefreshCw,
-  X
+  Sparkles, 
+  BarChart3, 
+  PieChart, 
+  FileCheck, 
+  RefreshCw, 
+  X 
 } from 'lucide-react';
+import PropertyDocumentManager from './components/PropertyDocumentManager';
 
-export default function DeveloperPortal({ townships, onUpdateTownship, onAddTownship }) {
+export default function DeveloperPortal({ 
+  townships, 
+  onUpdateTownship, 
+  onAddTownship,
+  currentUser,
+  onNavigateToLegalPortal 
+}) {
   const [selectedTownshipId, setSelectedTownshipId] = useState(townships[0]?.id || 'ts_01');
   const [activeSubTab, setActiveSubTab] = useState('inventory'); // 'overview', 'inventory', 'documents', 'leads'
   const [plotFilter, setPlotFilter] = useState('All'); // 'All', 'Available', 'Reserved', 'Booked'
@@ -827,84 +834,13 @@ export default function DeveloperPortal({ townships, onUpdateTownship, onAddTown
 
       {/* ================= TAB 3: LEGAL DOCUMENT VAULT & UPLOAD ================= */}
       {activeSubTab === 'documents' && (
-        <div className="space-y-6">
-          <div className="bg-slate-950 border border-slate-800 p-6 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-bold text-white flex items-center space-x-2">
-                <ShieldCheck className="w-5 h-5 text-amber-400" />
-                <span>RERA Compliance & Title Deed Vault</span>
-              </h2>
-              <p className="text-xs text-slate-400 mt-1">
-                Upload layout sanctions, encumbrance certificates, conversion deeds, and NOCs for buyer title audits.
-              </p>
-            </div>
-
-            <button
-              onClick={() => setShowUploadDocModal(true)}
-              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl flex items-center justify-center space-x-2 shadow-lg shadow-indigo-900/30 transition"
-            >
-              <Upload className="w-4 h-4" />
-              <span>Upload New Legal Document</span>
-            </button>
-          </div>
-
-          {/* Documents Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {documents.map((doc) => (
-              <div key={doc.id} className="bg-slate-950 border border-slate-800 p-5 rounded-2xl flex flex-col justify-between space-y-4 hover:border-slate-700 transition">
-                <div>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
-                        <FileText className="w-5 h-5 text-amber-400" />
-                      </div>
-                      <div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 block">{doc.category}</span>
-                        <h4 className="text-sm font-bold text-white mt-0.5">{doc.title}</h4>
-                      </div>
-                    </div>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                      doc.status === 'Verified' 
-                        ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400' 
-                        : 'bg-amber-500/10 border-amber-500/40 text-amber-300'
-                    }`}>
-                      {doc.status}
-                    </span>
-                  </div>
-
-                  <div className="mt-4 space-y-1.5 text-xs text-slate-400">
-                    <div className="flex justify-between">
-                      <span>Issuing Authority:</span>
-                      <span className="text-slate-200 font-medium">{doc.authority}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Reference / Sanction ID:</span>
-                      <span className="text-slate-300 font-mono text-[11px]">{doc.refNumber}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Uploaded Date:</span>
-                      <span className="text-slate-300">{doc.uploadDate} • {doc.fileSize}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
-                  <span className="text-[11px] text-slate-500 flex items-center">
-                    <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-emerald-400" />
-                    {doc.verifiedBy}
-                  </span>
-                  <button 
-                    onClick={() => alert(`Downloading verified document: ${doc.title}`)}
-                    className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 rounded-lg flex items-center space-x-1.5 transition text-[11px]"
-                  >
-                    <Download className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Download PDF</span>
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <PropertyDocumentManager
+          townships={townships}
+          selectedTownshipId={selectedTownshipId}
+          onSelectTownship={setSelectedTownshipId}
+          currentUser={currentUser}
+          onNavigateToLegalPortal={onNavigateToLegalPortal}
+        />
       )}
 
       {/* ================= TAB 4: CRM BUYER LEADS ================= */}

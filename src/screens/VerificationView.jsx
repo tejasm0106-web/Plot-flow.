@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ShieldCheck, 
   FileText, 
@@ -12,21 +12,43 @@ import {
   ExternalLink,
   Award,
   Lock,
-  ArrowRight
+  ArrowRight,
+  Eye,
+  Key,
+  Scale
 } from 'lucide-react';
-import { INITIAL_LEGAL_DOCUMENTS } from '../data/mockData';
+import { 
+  subscribeToPropertyDocuments, 
+  canUserAccessDocument, 
+  DEFAULT_ACCESS_CONTROL 
+} from '../services/propertyDocumentService';
 
-export default function VerificationView({ townships, selectedTownship }) {
-  const [documents, setDocuments] = useState(INITIAL_LEGAL_DOCUMENTS);
+export default function VerificationView({ townships, selectedTownship, currentUser }) {
+  const [documents, setDocuments] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [isGeneratingDossier, setIsGeneratingDossier] = useState(false);
   const [dossierDownloaded, setDossierDownloaded] = useState(false);
+  const [activeTownshipId, setActiveTownshipId] = useState(selectedTownship?.id || townships?.[0]?.id || 'ts_01');
 
-  const categories = ['ALL', 'RERA Sanction', 'Land Revenue & Title Deed', 'Zonal Sanction & Land Use', 'Legal Due Diligence', 'Environmental & Pollution NOC'];
+  useEffect(() => {
+    if (selectedTownship?.id) {
+      setActiveTownshipId(selectedTownship.id);
+    }
+  }, [selectedTownship]);
+
+  // Subscribe to live property documents in Firestore
+  useEffect(() => {
+    const unsubscribe = subscribeToPropertyDocuments(activeTownshipId, (docsList) => {
+      setDocuments(docsList);
+    });
+    return () => unsubscribe();
+  }, [activeTownshipId]);
+
+  const categories = ['ALL', 'RERA Sanction & Master Plan', 'Land Revenue & Title Deed', 'Encumbrance Certificate (EC Form 15)', 'Zonal Sanction & Land Conversion', 'Legal Due Diligence & Opinion', 'Environmental & Pollution NOC'];
 
   const filteredDocs = documents.filter(doc => {
     if (selectedCategory === 'ALL') return true;
-    return doc.category === selectedCategory;
+    return doc.category === selectedCategory || doc.category?.includes(selectedCategory);
   });
 
   const handleGenerateDossier = () => {
@@ -151,14 +173,47 @@ export default function VerificationView({ townships, selectedTownship }) {
                 </div>
               </div>
 
-              {/* Download Action */}
-              <button
-                onClick={() => alert(`Downloading verified legal document: ${doc.title} (${doc.fileSize})`)}
-                className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center justify-center space-x-2 transition flex-shrink-0"
-              >
-                <Download className="w-4 h-4 text-emerald-400" />
-                <span>{doc.fileSize}</span>
-              </button>
+              {/* Actions & Access Control Indicators */}
+              <div className="flex items-center space-x-2">
+                {doc.accessControl?.legalAuditorOnly ? (
+                  <span className="px-3 py-2 bg-teal-500/10 border border-teal-500/30 text-teal-300 text-xs font-bold rounded-xl flex items-center space-x-1.5">
+                    <Scale className="w-4 h-4" />
+                    <span>Legal Auditor Vault</span>
+                  </span>
+                ) : doc.accessControl?.tokenGated ? (
+                  <span className="px-3 py-2 bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-bold rounded-xl flex items-center space-x-1.5">
+                    <Lock className="w-4 h-4" />
+                    <span>Token Deposit Gated</span>
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => alert(`Downloading verified statutory document:\n${doc.title}\nRef: ${doc.refNumber}\nSHA-256 Hash: ${doc.hash || 'SHA256-VERIFIED'}`)}
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center justify-center space-x-2 transition flex-shrink-0"
+                  >
+                    <Download className="w-4 h-4 text-emerald-400" />
+                    <span>{doc.fileSize || 'PDF 4.2 MB'}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Access Control Tags */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              {doc.accessControl?.isPublic && (
+                <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 text-[10px] font-bold border border-emerald-500/20">
+                  🌐 Public Access
+                </span>
+              )}
+              {doc.accessControl?.watermarkEnabled && (
+                <span className="px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-300 text-[10px] font-bold border border-indigo-500/20">
+                  💧 Watermarked
+                </span>
+              )}
+              {doc.hash && (
+                <span className="px-2 py-0.5 rounded-md bg-slate-900 text-slate-400 text-[10px] font-mono border border-slate-800">
+                  SHA-256: {doc.hash.substring(0, 10)}...
+                </span>
+              )}
             </div>
 
             <p className="text-xs text-slate-300 bg-slate-900/60 p-3.5 rounded-2xl border border-slate-800/80 leading-relaxed">
@@ -170,7 +225,7 @@ export default function VerificationView({ townships, selectedTownship }) {
                 <ShieldCheck className="w-3.5 h-3.5" />
                 <span>Verified by: {doc.verifiedBy}</span>
               </span>
-              <span>Sanction Date: {doc.uploadDate}</span>
+              <span>Sanction Date: {doc.issueDate || doc.uploadDate}</span>
             </div>
           </div>
         ))}

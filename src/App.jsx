@@ -824,6 +824,7 @@ export default function App() {
           <VerificationView
             townships={townships}
             selectedTownship={selectedTownship}
+            currentUser={currentUser}
           />
         )}
 
@@ -874,6 +875,8 @@ export default function App() {
                 townships={townships}
                 onUpdateTownship={handleUpdateTownship}
                 onAddTownship={handleAddTownship}
+                currentUser={currentUser}
+                onNavigateToLegalPortal={() => setPortalMode('legal')}
               />
             </div>
           </RBACGuard>
