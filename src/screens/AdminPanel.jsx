@@ -30,7 +30,15 @@ import {
   ToggleRight,
   Database,
   ArrowRight,
-  UserPlus
+  UserPlus,
+  Scale,
+  UserX,
+  UserCheck,
+  Briefcase,
+  BadgeCheck,
+  UserCheck2,
+  KeyRound,
+  ShieldAlert
 } from 'lucide-react';
 import { 
   getStoredUsers, 
@@ -40,8 +48,13 @@ import {
   resetStaffTemporaryPassword,
   updateUserPasswordByAdmin,
   toggleUserStatusByAdmin,
+  deactivateUserByAdmin,
+  activateUserByAdmin,
   removeUserAccountByAdmin,
   createLegalTeamUser,
+  createBuyerByAdmin,
+  createDeveloperByAdmin,
+  createAdminStaffByAdmin,
   registerNewUser,
   getEmailDispatchLogs
 } from '../services/userService';
@@ -79,7 +92,8 @@ export default function AdminPanel({
 
   // Search & Filter States
   const [userSearch, setUserSearch] = useState('');
-  const [userRoleFilter, setUserRoleFilter] = useState('ALL');
+  const [userRoleFilter, setUserRoleFilter] = useState('ALL'); // 'ALL' | 'LEGAL_AUDITOR' | 'BUYER' | 'DEVELOPER' | 'ADMIN'
+  const [userStatusFilter, setUserStatusFilter] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'DEACTIVATED'
   const [townshipSearch, setTownshipSearch] = useState('');
   const [selectedTsForPlotMgmt, setSelectedTsForPlotMgmt] = useState(townships[0]?.id || 'ts_01');
 
@@ -136,15 +150,21 @@ export default function AdminPanel({
     legalStatus: 'Approved'
   });
 
-  // Form State: Add User
+  // Form State: Add User (Supports Legal, Buyer, Developer, Admin)
   const [newUserForm, setNewUserForm] = useState({
     name: '',
     email: '',
     password: 'User@2026',
     phone: '+91 98000 12345',
-    role: 'BUYER',
-    company: '',
-    specialization: '30-Yr Land Title Search'
+    role: 'LEGAL_AUDITOR', // 'LEGAL_AUDITOR' | 'BUYER' | 'DEVELOPER' | 'ADMIN'
+    company: 'Prestige Plotted Townships',
+    reraId: 'PRM/KA/RERA/1250/303/PR/210324/004055',
+    city: 'Bengaluru',
+    specialization: '30-Yr Land Title Search & RERA Compliance',
+    barCouncilNumber: 'KAR/1244/2012',
+    budgetRange: '₹50 Lakh - ₹1.5 Cr',
+    preferredCorridor: 'Devanahalli Airport Corridor',
+    roleTitle: 'Platform Operations Manager'
   });
 
   // Refresh data on custom events
@@ -340,21 +360,51 @@ export default function AdminPanel({
   const handleCreateUser = async (e) => {
     e.preventDefault();
     if (!newUserForm.name || !newUserForm.email) {
-      alert('Please fill in user name and email.');
+      alert('Please fill in full name and email address.');
       return;
     }
 
     try {
+      let createdUser = null;
       if (newUserForm.role === 'LEGAL_AUDITOR') {
-        createLegalTeamUser({
+        createdUser = createLegalTeamUser({
           name: newUserForm.name,
           email: newUserForm.email,
           password: newUserForm.password,
           phone: newUserForm.phone,
-          specialization: newUserForm.specialization
+          specialization: newUserForm.specialization,
+          barCouncilNumber: newUserForm.barCouncilNumber
+        });
+      } else if (newUserForm.role === 'BUYER') {
+        createdUser = createBuyerByAdmin({
+          name: newUserForm.name,
+          email: newUserForm.email,
+          password: newUserForm.password,
+          phone: newUserForm.phone,
+          city: newUserForm.city,
+          budgetRange: newUserForm.budgetRange,
+          preferredCorridor: newUserForm.preferredCorridor
+        });
+      } else if (newUserForm.role === 'DEVELOPER') {
+        createdUser = createDeveloperByAdmin({
+          name: newUserForm.name,
+          email: newUserForm.email,
+          password: newUserForm.password,
+          phone: newUserForm.phone,
+          company: newUserForm.company,
+          reraId: newUserForm.reraId,
+          city: newUserForm.city
+        });
+      } else if (newUserForm.role === 'ADMIN') {
+        createdUser = createAdminStaffByAdmin({
+          name: newUserForm.name,
+          email: newUserForm.email,
+          password: newUserForm.password,
+          phone: newUserForm.phone,
+          roleTitle: newUserForm.roleTitle
         });
       } else {
-        await registerNewUser({
+        createdUser = await registerNewUser({
           name: newUserForm.name,
           email: newUserForm.email,
           password: newUserForm.password,
@@ -363,9 +413,26 @@ export default function AdminPanel({
           company: newUserForm.company
         });
       }
+
       setUsersList(getStoredUsers());
       showToast(`User ${newUserForm.name} (${newUserForm.role}) created successfully.`);
       setShowAddUserModal(false);
+      // Reset form
+      setNewUserForm({
+        name: '',
+        email: '',
+        password: 'User@2026',
+        phone: '+91 98000 12345',
+        role: newUserForm.role,
+        company: 'Prestige Plotted Townships',
+        reraId: 'PRM/KA/RERA/1250/303/PR/210324/004055',
+        city: 'Bengaluru',
+        specialization: '30-Yr Land Title Search & RERA Compliance',
+        barCouncilNumber: 'KAR/1244/2012',
+        budgetRange: '₹50 Lakh - ₹1.5 Cr',
+        preferredCorridor: 'Devanahalli Airport Corridor',
+        roleTitle: 'Platform Operations Manager'
+      });
     } catch (err) {
       alert(`Error creating user: ${err.message}`);
     }
@@ -384,9 +451,39 @@ export default function AdminPanel({
   };
 
   const handleToggleUserStatus = (userId) => {
-    const res = toggleUserStatusByAdmin(userId);
-    setUsersList(res.users);
-    showToast(`User status updated to ${res.status}`);
+    try {
+      const res = toggleUserStatusByAdmin(userId);
+      setUsersList(res.users);
+      showToast(`User status updated to ${res.status}`);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleDeactivateUser = (user) => {
+    if (user.email === 'tejastej094@gmail.com') {
+      alert('Master Super Admin account cannot be deactivated.');
+      return;
+    }
+    if (window.confirm(`Deactivate access for "${user.name}" (${user.email})? They will immediately lose access to all PlotFlow portals.`)) {
+      try {
+        const res = deactivateUserByAdmin(user.uid || user.email);
+        setUsersList(res.users);
+        showToast(`Access deactivated for ${user.name}.`);
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+  };
+
+  const handleActivateUser = (user) => {
+    try {
+      const res = activateUserByAdmin(user.uid || user.email);
+      setUsersList(res.users);
+      showToast(`Access restored for ${user.name}.`);
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
   const handleDeleteUser = (user) => {
@@ -394,10 +491,24 @@ export default function AdminPanel({
       alert('Master Super Admin account cannot be deleted.');
       return;
     }
-    if (window.confirm(`Permanently delete user account "${user.name}" (${user.email})?`)) {
-      const res = removeUserAccountByAdmin(user.uid);
+    if (window.confirm(`Permanently delete user account "${user.name}" (${user.email})? All session tokens and privileges will be erased.`)) {
+      const res = removeUserAccountByAdmin(user.uid || user.email);
       setUsersList(res.users);
       showToast(`User ${user.name} removed from platform.`);
+    }
+  };
+
+  const handleInspectUserPortal = (user) => {
+    if (user.status === 'Deactivated') {
+      alert(`Cannot inspect deactivated user "${user.name}". Please activate their account first.`);
+      return;
+    }
+    if (user.role === 'DEVELOPER') {
+      window.dispatchEvent(new CustomEvent('plotflow_switch_portal', { detail: { portal: 'developer', user } }));
+    } else if (user.role === 'LEGAL_AUDITOR') {
+      window.dispatchEvent(new CustomEvent('plotflow_switch_portal', { detail: { portal: 'legal', user } }));
+    } else {
+      window.dispatchEvent(new CustomEvent('plotflow_switch_portal', { detail: { portal: 'buyer', user } }));
     }
   };
 
@@ -789,19 +900,139 @@ export default function AdminPanel({
       {/* ==================================================== */}
       {activeTab === 'users' && (
         <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          {/* Header & Main Actions */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
             <div>
-              <h3 className="text-lg font-bold text-white">Platform Users & Staff Governance</h3>
-              <p className="text-xs text-slate-400">View users, reset passwords, generate temporary staff keys, and manage roles.</p>
+              <div className="flex items-center space-x-2">
+                <Users className="w-5 h-5 text-indigo-400" />
+                <h3 className="text-lg font-bold text-white">Platform Users & Access Governance</h3>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Centralized authority to create, provision, monitor, and deactivate access for Legal Advocates, Retail Buyers, Builders, and Admin Staff.
+              </p>
             </div>
 
-            <button
-              onClick={() => setShowAddUserModal(true)}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5 self-start sm:self-auto"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>Create User</span>
-            </button>
+            <div className="flex items-center space-x-2.5">
+              <button
+                onClick={() => {
+                  setNewUserForm({
+                    name: '',
+                    email: '',
+                    password: 'User@2026',
+                    phone: '+91 98000 12345',
+                    role: 'BUYER',
+                    company: '',
+                    reraId: '',
+                    city: 'Bengaluru',
+                    specialization: '',
+                    barCouncilNumber: '',
+                    budgetRange: '₹50 Lakh - ₹1.5 Cr',
+                    preferredCorridor: 'Devanahalli Airport Corridor',
+                    roleTitle: 'Platform Operations Manager'
+                  });
+                  setShowAddUserModal(true);
+                }}
+                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition shadow flex items-center space-x-1.5"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>Create New User</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Metrics Bar */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
+            <div className="p-3.5 rounded-2xl bg-slate-900/70 border border-slate-800">
+              <span className="text-slate-500 text-[11px] block">Total Accounts</span>
+              <span className="text-lg font-black text-white block mt-0.5">{usersList.length}</span>
+              <span className="text-[10px] text-slate-400">All registered users</span>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-slate-900/70 border border-teal-900/30">
+              <span className="text-teal-400 text-[11px] block font-semibold flex items-center space-x-1">
+                <Scale className="w-3 h-3" />
+                <span>Legal Team</span>
+              </span>
+              <span className="text-lg font-black text-teal-300 block mt-0.5">
+                {usersList.filter(u => u.role === 'LEGAL_AUDITOR').length}
+              </span>
+              <span className="text-[10px] text-teal-400/80">Title auditors & advocates</span>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-slate-900/70 border border-emerald-900/30">
+              <span className="text-emerald-400 text-[11px] block font-semibold">Retail Buyers</span>
+              <span className="text-lg font-black text-emerald-300 block mt-0.5">
+                {usersList.filter(u => u.role === 'BUYER').length}
+              </span>
+              <span className="text-[10px] text-emerald-400/80">Verified investors & buyers</span>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-slate-900/70 border border-indigo-900/30">
+              <span className="text-indigo-400 text-[11px] block font-semibold">Builders / Devs</span>
+              <span className="text-lg font-black text-indigo-300 block mt-0.5">
+                {usersList.filter(u => u.role === 'DEVELOPER').length}
+              </span>
+              <span className="text-[10px] text-indigo-400/80">RERA partner accounts</span>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-slate-900/70 border border-rose-900/30">
+              <span className="text-rose-400 text-[11px] block font-semibold">Deactivated</span>
+              <span className="text-lg font-black text-rose-300 block mt-0.5">
+                {usersList.filter(u => u.status === 'Deactivated').length}
+              </span>
+              <span className="text-[10px] text-rose-400/80">Locked out from portals</span>
+            </div>
+          </div>
+
+          {/* Filters & Search Toolbar */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-900/50 p-3 rounded-2xl border border-slate-800/80">
+            {/* Role Filter Tabs */}
+            <div className="flex items-center space-x-1 overflow-x-auto pb-1 md:pb-0">
+              {[
+                { key: 'ALL', label: 'All Roles', count: usersList.length },
+                { key: 'LEGAL_AUDITOR', label: 'Legal Team', count: usersList.filter(u => u.role === 'LEGAL_AUDITOR').length },
+                { key: 'BUYER', label: 'Buyers', count: usersList.filter(u => u.role === 'BUYER').length },
+                { key: 'DEVELOPER', label: 'Builders', count: usersList.filter(u => u.role === 'DEVELOPER').length },
+                { key: 'SUPER_ADMIN', label: 'Admins', count: usersList.filter(u => u.role === 'SUPER_ADMIN' || u.role === 'ADMIN').length }
+              ].map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => setUserRoleFilter(tab.key)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center space-x-1.5 ${
+                    userRoleFilter === tab.key
+                      ? 'bg-indigo-600 text-white shadow'
+                      : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${
+                    userRoleFilter === tab.key ? 'bg-indigo-700/80 text-white' : 'bg-slate-800 text-slate-400'
+                  }`}>
+                    {tab.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Status Filter & Search */}
+            <div className="flex items-center space-x-2">
+              <select
+                value={userStatusFilter}
+                onChange={(e) => setUserStatusFilter(e.target.value)}
+                className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold cursor-pointer"
+              >
+                <option value="ALL">All Statuses</option>
+                <option value="ACTIVE">Active Only</option>
+                <option value="DEACTIVATED">Deactivated Only</option>
+              </select>
+
+              <div className="relative flex-1 sm:w-56">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search name, email, role..."
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+            </div>
           </div>
 
           {/* User Table */}
@@ -809,63 +1040,163 @@ export default function AdminPanel({
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b border-slate-800 text-slate-500 font-bold uppercase tracking-wider">
-                  <th className="pb-3">Name & Email</th>
-                  <th className="pb-3">Role</th>
-                  <th className="pb-3">Status</th>
-                  <th className="pb-3">Last Sign-in</th>
-                  <th className="pb-3 text-right">Actions</th>
+                  <th className="pb-3">User & Contact</th>
+                  <th className="pb-3">Portal Role & Assignment</th>
+                  <th className="pb-3">Access Status</th>
+                  <th className="pb-3">Created / Sign-in</th>
+                  <th className="pb-3 text-right">Administrative Controls</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {usersList.map((user) => (
-                  <tr key={user.uid || user.email} className="hover:bg-slate-900/40 transition">
-                    <td className="py-3.5">
-                      <div className="font-bold text-white">{user.name}</div>
-                      <div className="text-[11px] text-slate-400 font-mono">{user.email}</div>
-                    </td>
-                    <td className="py-3.5">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                        user.role === 'SUPER_ADMIN' ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' :
-                        user.role === 'LEGAL_AUDITOR' ? 'bg-teal-500/20 text-teal-300 border-teal-500/40' :
-                        user.role === 'DEVELOPER' ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40' :
-                        'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                      }`}>
-                        {user.role}
-                      </span>
-                    </td>
-                    <td className="py-3.5">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        user.status === 'Active' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
-                      }`}>
-                        {user.status || 'Active'}
-                      </span>
-                    </td>
-                    <td className="py-3.5 text-slate-400 text-[11px]">{user.lastSignIn || 'Recent'}</td>
-                    <td className="py-3.5 text-right space-x-2">
-                      <button
-                        onClick={() => handleResetStaffPassword(user)}
-                        className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-400 text-[11px] font-bold rounded-lg transition"
-                        title="Generate Temporary Password"
-                      >
-                        Reset Password
-                      </button>
-                      <button
-                        onClick={() => handleToggleUserStatus(user.uid)}
-                        className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 text-[11px] font-bold rounded-lg transition"
-                      >
-                        {user.status === 'Active' ? 'Deactivate' : 'Activate'}
-                      </button>
-                      {user.email !== 'tejastej094@gmail.com' && (
-                        <button
-                          onClick={() => handleDeleteUser(user)}
-                          className="p-1.5 bg-rose-950/40 text-rose-400 hover:bg-rose-900 rounded-lg transition"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {usersList
+                  .filter(u => {
+                    // Role Filter
+                    if (userRoleFilter !== 'ALL') {
+                      if (userRoleFilter === 'SUPER_ADMIN') {
+                        if (u.role !== 'SUPER_ADMIN' && u.role !== 'ADMIN') return false;
+                      } else if (u.role !== userRoleFilter) {
+                        return false;
+                      }
+                    }
+                    // Status Filter
+                    if (userStatusFilter === 'ACTIVE' && u.status === 'Deactivated') return false;
+                    if (userStatusFilter === 'DEACTIVATED' && u.status !== 'Deactivated') return false;
+                    // Search Query
+                    if (userSearch.trim()) {
+                      const q = userSearch.toLowerCase();
+                      const matchName = (u.name || '').toLowerCase().includes(q);
+                      const matchEmail = (u.email || '').toLowerCase().includes(q);
+                      const matchRole = (u.role || '').toLowerCase().includes(q);
+                      const matchCompany = (u.company || '').toLowerCase().includes(q);
+                      const matchSpec = (u.specialization || '').toLowerCase().includes(q);
+                      if (!matchName && !matchEmail && !matchRole && !matchCompany && !matchSpec) return false;
+                    }
+                    return true;
+                  })
+                  .map((user) => {
+                    const isSuperAdmin = user.email === 'tejastej094@gmail.com';
+                    const isDeactivated = user.status === 'Deactivated';
+
+                    return (
+                      <tr key={user.uid || user.email} className={`hover:bg-slate-900/40 transition ${isDeactivated ? 'opacity-60 bg-rose-950/10' : ''}`}>
+                        <td className="py-3.5">
+                          <div className="flex items-center space-x-3">
+                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs ${
+                              user.role === 'SUPER_ADMIN' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                              user.role === 'LEGAL_AUDITOR' ? 'bg-teal-500/20 text-teal-300 border border-teal-500/30' :
+                              user.role === 'DEVELOPER' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' :
+                              'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                            }`}>
+                              {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                            </div>
+                            <div>
+                              <div className="font-bold text-white flex items-center space-x-1.5">
+                                <span>{user.name}</span>
+                                {isSuperAdmin && (
+                                  <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 text-[9px] font-mono font-bold border border-amber-500/40">
+                                    ROOT
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[11px] text-slate-400 font-mono">{user.email}</div>
+                              {user.phone && <div className="text-[10px] text-slate-500">{user.phone}</div>}
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="py-3.5">
+                          <div>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border inline-flex items-center space-x-1 ${
+                              user.role === 'SUPER_ADMIN' ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' :
+                              user.role === 'LEGAL_AUDITOR' ? 'bg-teal-500/20 text-teal-300 border-teal-500/40' :
+                              user.role === 'DEVELOPER' ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40' :
+                              'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                            }`}>
+                              {user.role === 'LEGAL_AUDITOR' && <Scale className="w-2.5 h-2.5" />}
+                              {user.role === 'DEVELOPER' && <Building2 className="w-2.5 h-2.5" />}
+                              <span>{user.role === 'LEGAL_AUDITOR' ? 'Legal Auditor' : user.role === 'DEVELOPER' ? 'Builder / Developer' : user.role}</span>
+                            </span>
+                            {user.specialization && (
+                              <div className="text-[10px] text-slate-400 mt-1">{user.specialization}</div>
+                            )}
+                            {user.company && (
+                              <div className="text-[10px] text-indigo-300 mt-1 font-semibold">{user.company}</div>
+                            )}
+                            {user.barCouncilNumber && (
+                              <div className="text-[10px] text-teal-300/80 font-mono mt-0.5">Bar ID: {user.barCouncilNumber}</div>
+                            )}
+                          </div>
+                        </td>
+
+                        <td className="py-3.5">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border inline-flex items-center space-x-1 ${
+                            !isDeactivated
+                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                              : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                          }`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${!isDeactivated ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`} />
+                            <span>{!isDeactivated ? 'Active (Full Access)' : 'Deactivated (Locked Out)'}</span>
+                          </span>
+                        </td>
+
+                        <td className="py-3.5 text-slate-400 text-[11px]">
+                          <div>{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'Active'}</div>
+                          <div className="text-[10px] text-slate-500">{user.lastSignIn || 'Recent activity'}</div>
+                        </td>
+
+                        <td className="py-3.5 text-right space-x-1.5">
+                          {/* Portal Test Button */}
+                          <button
+                            onClick={() => handleInspectUserPortal(user)}
+                            className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-[11px] font-bold rounded-lg transition"
+                            title="Inspect portal from this user's view"
+                          >
+                            Inspect
+                          </button>
+
+                          {/* Temporary Password Reset */}
+                          <button
+                            onClick={() => handleResetStaffPassword(user)}
+                            className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-400 hover:bg-amber-950/30 text-[11px] font-bold rounded-lg transition"
+                            title="Generate Temporary Password"
+                          >
+                            Reset Key
+                          </button>
+
+                          {/* Deactivate / Activate Button */}
+                          {!isSuperAdmin && (
+                            <button
+                              onClick={() => {
+                                if (isDeactivated) {
+                                  handleActivateUser(user);
+                                } else {
+                                  handleDeactivateUser(user);
+                                }
+                              }}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition border ${
+                                !isDeactivated
+                                  ? 'bg-rose-950/40 hover:bg-rose-900/60 border-rose-700/50 text-rose-300'
+                                  : 'bg-emerald-950/40 hover:bg-emerald-900/60 border-emerald-700/50 text-emerald-300'
+                              }`}
+                            >
+                              {!isDeactivated ? 'Deactivate' : 'Activate'}
+                            </button>
+                          )}
+
+                          {/* Delete Account Button */}
+                          {!isSuperAdmin && (
+                            <button
+                              onClick={() => handleDeleteUser(user)}
+                              className="p-1.5 bg-rose-950/30 hover:bg-rose-900 text-rose-400 rounded-lg transition"
+                              title="Delete User Permanently"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>
@@ -884,19 +1215,44 @@ export default function AdminPanel({
                 <h3 className="text-lg font-bold text-white">Developer SaaS & Builder Governance</h3>
               </div>
               <p className="text-xs text-slate-400">
-                Approve builder township submissions, manage developer commission rates, verify developer licenses, and inspect the developer portal.
+                Approve builder township submissions, manage developer user accounts, verify developer licenses, and inspect the developer portal.
               </p>
             </div>
 
             <div className="flex items-center space-x-2">
               <button
                 onClick={() => {
-                  window.dispatchEvent(new CustomEvent('plotflow_switch_portal', { detail: { portal: 'developer' } }));
+                  setNewUserForm({
+                    name: '',
+                    email: '',
+                    password: 'User@2026',
+                    phone: '+91 98000 12345',
+                    role: 'DEVELOPER',
+                    company: 'Prestige Plotted Townships',
+                    reraId: 'PRM/KA/RERA/1250/303/PR/210324/004055',
+                    city: 'Bengaluru',
+                    specialization: '',
+                    barCouncilNumber: '',
+                    budgetRange: '',
+                    preferredCorridor: '',
+                    roleTitle: ''
+                  });
+                  setShowAddUserModal(true);
                 }}
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow transition flex items-center space-x-1.5"
               >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>Onboard Developer User</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('plotflow_switch_portal', { detail: { portal: 'developer' } }));
+                }}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-700 shadow transition flex items-center space-x-1.5"
+              >
                 <Eye className="w-3.5 h-3.5" />
-                <span>Test Developer Portal View</span>
+                <span>Open Developer Portal</span>
               </button>
             </div>
           </div>
@@ -904,9 +1260,9 @@ export default function AdminPanel({
           {/* Builder Management Metrics */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
             <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-1">
-              <span className="text-slate-500 text-[11px] block">Verified Builder Partners</span>
+              <span className="text-slate-500 text-[11px] block">Verified Builder Accounts</span>
               <span className="text-xl font-black text-white block">
-                {usersList.filter(u => u.role === 'DEVELOPER').length || 1} Builders
+                {usersList.filter(u => u.role === 'DEVELOPER').length} Builders
               </span>
               <span className="text-[10px] text-emerald-400">100% RERA & BMRDA Sanctioned</span>
             </div>
@@ -922,8 +1278,67 @@ export default function AdminPanel({
             </div>
           </div>
 
-          {/* Townships Project Approvals Table */}
+          {/* Active Developer Users Table */}
           <div className="space-y-3">
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider text-slate-400">
+              Registered Developer / Builder Users & Access Control
+            </h4>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-500 font-bold uppercase tracking-wider">
+                    <th className="pb-3">Developer Brand & User</th>
+                    <th className="pb-3">Contact Email</th>
+                    <th className="pb-3">RERA ID</th>
+                    <th className="pb-3">Status</th>
+                    <th className="pb-3 text-right">Access Controls</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {usersList.filter(u => u.role === 'DEVELOPER').map(devUser => {
+                    const isDeactivated = devUser.status === 'Deactivated';
+                    return (
+                      <tr key={devUser.uid || devUser.email} className="hover:bg-slate-900/40 transition">
+                        <td className="py-3 font-bold text-white">
+                          <div>{devUser.company || devUser.name}</div>
+                          <div className="text-[11px] text-slate-400 font-normal">{devUser.name}</div>
+                        </td>
+                        <td className="py-3 text-slate-300 font-mono text-[11px]">{devUser.email}</td>
+                        <td className="py-3 text-slate-400 font-mono text-[10px]">{devUser.reraId || 'PRM/KA/RERA/1250/303'}</td>
+                        <td className="py-3">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                            !isDeactivated
+                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                              : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                          }`}>
+                            {!isDeactivated ? '● Active' : '○ Deactivated'}
+                          </span>
+                        </td>
+                        <td className="py-3 text-right space-x-2">
+                          <button
+                            onClick={() => {
+                              if (isDeactivated) handleActivateUser(devUser);
+                              else handleDeactivateUser(devUser);
+                            }}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition border ${
+                              !isDeactivated
+                                ? 'bg-rose-950/40 hover:bg-rose-900 border-rose-700/50 text-rose-300'
+                                : 'bg-emerald-950/40 hover:bg-emerald-900 border-emerald-700/50 text-emerald-300'
+                            }`}
+                          >
+                            {!isDeactivated ? 'Deactivate Access' : 'Restore Access'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Townships Project Approvals Table */}
+          <div className="space-y-3 pt-4 border-t border-slate-800/80">
             <h4 className="text-xs font-bold text-white uppercase tracking-wider text-slate-400">
               Developer Township Submissions & Publication Status
             </h4>
@@ -1031,19 +1446,105 @@ export default function AdminPanel({
                 <h3 className="text-lg font-bold text-white">5-Layer Legal Vault & Compliance Control</h3>
               </div>
               <p className="text-xs text-slate-400">
-                Master administrative review of statutory title documents, Kaveri 2.0 Encumbrance Certificates, DC Conversions, and RERA certifications.
+                Master administrative review of statutory title documents, legal auditor access management, Kaveri 2.0 Encumbrance Certificates, and RERA certifications.
               </p>
             </div>
 
-            <button
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent('plotflow_switch_portal', { detail: { portal: 'legal' } }));
-              }}
-              className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-xl shadow transition flex items-center space-x-1.5"
-            >
-              <Scale className="w-3.5 h-3.5" />
-              <span>Launch Legal Team Portal Workspace</span>
-            </button>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => {
+                  setNewUserForm({
+                    name: '',
+                    email: '',
+                    password: 'User@2026',
+                    phone: '+91 98000 12345',
+                    role: 'LEGAL_AUDITOR',
+                    company: '',
+                    reraId: '',
+                    city: 'Bengaluru',
+                    specialization: '30-Yr Land Title Search & RERA Compliance',
+                    barCouncilNumber: 'KAR/1244/2012',
+                    budgetRange: '',
+                    preferredCorridor: '',
+                    roleTitle: ''
+                  });
+                  setShowAddUserModal(true);
+                }}
+                className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-xl shadow transition flex items-center space-x-1.5"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>Add Legal Auditor</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('plotflow_switch_portal', { detail: { portal: 'legal' } }));
+                }}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-700 shadow transition flex items-center space-x-1.5"
+              >
+                <Scale className="w-3.5 h-3.5" />
+                <span>Launch Legal Portal</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Legal Team Members Management */}
+          <div className="space-y-3">
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider text-slate-400">
+              Assigned Legal Advocates & Title Auditors
+            </h4>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-500 font-bold uppercase tracking-wider">
+                    <th className="pb-3">Auditor Name & Contact</th>
+                    <th className="pb-3">Specialization</th>
+                    <th className="pb-3">Bar Council ID</th>
+                    <th className="pb-3">Status</th>
+                    <th className="pb-3 text-right">Access Controls</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {usersList.filter(u => u.role === 'LEGAL_AUDITOR').map(auditor => {
+                    const isDeactivated = auditor.status === 'Deactivated';
+                    return (
+                      <tr key={auditor.uid || auditor.email} className="hover:bg-slate-900/40 transition">
+                        <td className="py-3 font-bold text-white">
+                          <div>{auditor.name}</div>
+                          <div className="text-[11px] text-slate-400 font-mono font-normal">{auditor.email}</div>
+                        </td>
+                        <td className="py-3 text-slate-300">{auditor.specialization || '30-Yr Land Title Search'}</td>
+                        <td className="py-3 text-teal-300 font-mono text-[10px]">{auditor.barCouncilNumber || 'KAR/1244/2012'}</td>
+                        <td className="py-3">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                            !isDeactivated
+                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                              : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                          }`}>
+                            {!isDeactivated ? '● Active' : '○ Deactivated'}
+                          </span>
+                        </td>
+                        <td className="py-3 text-right space-x-2">
+                          <button
+                            onClick={() => {
+                              if (isDeactivated) handleActivateUser(auditor);
+                              else handleDeactivateUser(auditor);
+                            }}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition border ${
+                              !isDeactivated
+                                ? 'bg-rose-950/40 hover:bg-rose-900 border-rose-700/50 text-rose-300'
+                                : 'bg-emerald-950/40 hover:bg-emerald-900 border-emerald-700/50 text-emerald-300'
+                            }`}
+                          >
+                            {!isDeactivated ? 'Deactivate Access' : 'Restore Access'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Township Selector for Legal Audit */}
@@ -1092,6 +1593,11 @@ export default function AdminPanel({
           </div>
         </div>
       )}
+
+      {/* ==================================================== */}
+      {/* TAB: LEADS & CRM PIPELINE */}
+      {/* ==================================================== */}
+      {activeTab === 'leads' && (
         <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
           <div className="flex items-center justify-between">
             <div>
@@ -1551,74 +2057,261 @@ export default function AdminPanel({
       )}
 
       {/* ==================================================== */}
-      {/* MODAL: CREATE USER */}
+      {/* MODAL: CREATE USER (LEGAL, BUYER, DEVELOPER, ADMIN) */}
       {/* ==================================================== */}
       {showAddUserModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
-          <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
+          <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-base font-bold text-white">Create New Platform User</h3>
-              <button onClick={() => setShowAddUserModal(false)} className="text-slate-400 hover:text-white font-bold text-xs">
+              <div>
+                <h3 className="text-base font-bold text-white flex items-center space-x-2">
+                  <UserPlus className="w-5 h-5 text-indigo-400" />
+                  <span>Provision Platform User Account</span>
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Grant verified portal access for Legal Advocates, Buyers, Builders, or Admin Staff.
+                </p>
+              </div>
+              <button 
+                onClick={() => setShowAddUserModal(false)} 
+                className="text-slate-400 hover:text-white font-bold text-xs p-1"
+              >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleCreateUser} className="space-y-3">
-              <div>
-                <label className="text-xs font-semibold text-slate-400 block mb-1">Full Name *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Ramesh Kumar"
-                  value={newUserForm.name}
-                  onChange={(e) => setNewUserForm({ ...newUserForm, name: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                />
+            {/* Role Switcher Pills */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+                Target User Role & Portal Access
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { id: 'LEGAL_AUDITOR', label: 'Legal Auditor', icon: Scale, desc: 'Title due diligence & vault' },
+                  { id: 'BUYER', label: 'Retail Buyer', icon: UserCheck, desc: 'Plot booking & CRM' },
+                  { id: 'DEVELOPER', label: 'Builder / Dev', icon: Building2, desc: 'Township publishing' },
+                  { id: 'ADMIN', label: 'Platform Admin', icon: ShieldCheck, desc: 'Operations & staff' }
+                ].map(item => {
+                  const Icon = item.icon;
+                  const isSelected = newUserForm.role === item.id;
+                  return (
+                    <button
+                      type="button"
+                      key={item.id}
+                      onClick={() => setNewUserForm({ ...newUserForm, role: item.id })}
+                      className={`p-2.5 rounded-2xl border text-left transition flex items-start space-x-2.5 ${
+                        isSelected
+                          ? 'bg-indigo-600/20 border-indigo-500 text-white shadow'
+                          : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                      }`}
+                    >
+                      <div className={`p-1.5 rounded-xl ${isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
+                        <Icon className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <div className={`text-xs font-bold ${isSelected ? 'text-indigo-300' : 'text-white'}`}>
+                          {item.label}
+                        </div>
+                        <div className="text-[10px] text-slate-500">{item.desc}</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <form onSubmit={handleCreateUser} className="space-y-3.5">
+              {/* Common Fields */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 block mb-1">Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder={
+                      newUserForm.role === 'LEGAL_AUDITOR' ? 'Adv. Rajesh Narang' :
+                      newUserForm.role === 'DEVELOPER' ? 'Ramesh Kumar (VP Dev)' :
+                      'Ananya Deshmukh'
+                    }
+                    value={newUserForm.name}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, name: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 block mb-1">Email Address *</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder={
+                      newUserForm.role === 'LEGAL_AUDITOR' ? 'adv.rajesh@plotflow.in' :
+                      newUserForm.role === 'DEVELOPER' ? 'ramesh@prestigeplotted.com' :
+                      'ananya.investor@gmail.com'
+                    }
+                    value={newUserForm.email}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="text-xs font-semibold text-slate-400 block mb-1">Email Address *</label>
-                <input
-                  type="email"
-                  required
-                  placeholder="e.g. ramesh@example.com"
-                  value={newUserForm.email}
-                  onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                />
-              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 block mb-1">Phone Number</label>
+                  <input
+                    type="text"
+                    placeholder="+91 98000 12345"
+                    value={newUserForm.phone}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, phone: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
 
-              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-slate-400 block mb-1">Initial Password</label>
                   <input
                     type="text"
+                    required
                     value={newUserForm.password}
                     onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500"
                   />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-400 block mb-1">Role</label>
-                  <select
-                    value={newUserForm.role}
-                    onChange={(e) => setNewUserForm({ ...newUserForm, role: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 cursor-pointer"
-                  >
-                    <option value="BUYER">Retail Plot Buyer</option>
-                    <option value="DEVELOPER">Developer (Builder)</option>
-                    <option value="LEGAL_AUDITOR">Legal Due Diligence Auditor</option>
-                    <option value="ADMIN">Platform Admin</option>
-                  </select>
                 </div>
               </div>
 
-              <button
-                type="submit"
-                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl mt-3"
-              >
-                Create Account
-              </button>
+              {/* Dynamic Fields for Legal Auditor */}
+              {newUserForm.role === 'LEGAL_AUDITOR' && (
+                <div className="p-3.5 rounded-2xl bg-teal-950/20 border border-teal-800/40 space-y-3">
+                  <div className="flex items-center space-x-2 text-teal-400 text-xs font-bold">
+                    <Scale className="w-3.5 h-3.5" />
+                    <span>Legal Auditor Credentials & Jurisdiction</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-400 block mb-1">Specialization Focus</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 30-Yr Land Title Search & Kaveri EC"
+                        value={newUserForm.specialization}
+                        onChange={(e) => setNewUserForm({ ...newUserForm, specialization: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-teal-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-400 block mb-1">Bar Council Reg Number</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. KAR/1244/2012"
+                        value={newUserForm.barCouncilNumber}
+                        onChange={(e) => setNewUserForm({ ...newUserForm, barCouncilNumber: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-teal-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Dynamic Fields for Builder / Developer */}
+              {newUserForm.role === 'DEVELOPER' && (
+                <div className="p-3.5 rounded-2xl bg-indigo-950/20 border border-indigo-800/40 space-y-3">
+                  <div className="flex items-center space-x-2 text-indigo-400 text-xs font-bold">
+                    <Building2 className="w-3.5 h-3.5" />
+                    <span>Developer Brand & RERA Verification</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-400 block mb-1">Company / Brand Name</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Prestige Plotted Townships"
+                        value={newUserForm.company}
+                        onChange={(e) => setNewUserForm({ ...newUserForm, company: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-400 block mb-1">RERA Promoter ID</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. PRM/KA/RERA/1250/303/PR/210324"
+                        value={newUserForm.reraId}
+                        onChange={(e) => setNewUserForm({ ...newUserForm, reraId: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Dynamic Fields for Retail Buyer */}
+              {newUserForm.role === 'BUYER' && (
+                <div className="p-3.5 rounded-2xl bg-emerald-950/20 border border-emerald-800/40 space-y-3">
+                  <div className="flex items-center space-x-2 text-emerald-400 text-xs font-bold">
+                    <UserCheck className="w-3.5 h-3.5" />
+                    <span>Buyer Preferences & Acquisition Profile</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-400 block mb-1">Target Budget Range</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. ₹60 Lakh - ₹1.5 Cr"
+                        value={newUserForm.budgetRange}
+                        onChange={(e) => setNewUserForm({ ...newUserForm, budgetRange: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-400 block mb-1">Preferred Corridor</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Devanahalli Airport Corridor"
+                        value={newUserForm.preferredCorridor}
+                        onChange={(e) => setNewUserForm({ ...newUserForm, preferredCorridor: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Dynamic Fields for Admin Staff */}
+              {newUserForm.role === 'ADMIN' && (
+                <div className="p-3.5 rounded-2xl bg-amber-950/20 border border-amber-800/40 space-y-3">
+                  <div className="flex items-center space-x-2 text-amber-400 text-xs font-bold">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Staff Privileges & Department</span>
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-400 block mb-1">Role Title / Designation</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Platform Operations Manager"
+                      value={newUserForm.roleTitle}
+                      onChange={(e) => setNewUserForm({ ...newUserForm, roleTitle: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-2 flex items-center justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddUserModal(false)}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold rounded-xl transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow transition flex items-center space-x-1.5"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>Create & Issue Credentials</span>
+                </button>
+              </div>
             </form>
           </div>
         </div>

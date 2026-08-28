@@ -22,7 +22,11 @@ import {
   ArrowRight,
   ChevronRight,
   Shield,
-  Key
+  Key,
+  Database,
+  CheckCircle2,
+  AlertTriangle,
+  UserCheck
 } from 'lucide-react';
 
 import { INITIAL_PROJECTS, DEMO_USERS } from './data/mockData';
@@ -34,6 +38,16 @@ import {
   toggleShortlistInStore 
 } from './services/storeService';
 import { getStoredUsers } from './services/userService';
+import { 
+  ROLES, 
+  ROLE_LABELS, 
+  canAccessPortal, 
+  canAccessView, 
+  evaluateAccess, 
+  subscribeToUserRbac, 
+  syncUserRoleToFirestore, 
+  getUserRole 
+} from './services/rbacService';
 
 import LandingView from './screens/LandingView';
 import MarketplaceView from './screens/MarketplaceView';
@@ -55,6 +69,7 @@ import BookingModal from './components/BookingModal';
 import SiteVisitModal from './components/SiteVisitModal';
 import AuthModal from './components/AuthModal';
 import StaffGatewayModal from './components/StaffGatewayModal';
+import RBACGuard from './components/RBACGuard';
 
 export default function App() {
   // Master persistent state for townships
@@ -80,11 +95,43 @@ export default function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isStaffGatewayOpen, setIsStaffGatewayOpen] = useState(false);
   const [staffGatewayTarget, setStaffGatewayTarget] = useState('admin'); // 'admin' | 'legal'
+  const [rbacSelectorOpen, setRbacSelectorOpen] = useState(false);
 
   const [isPlotDrawerOpen, setIsPlotDrawerOpen] = useState(false);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [isSiteVisitModalOpen, setIsSiteVisitModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Firestore Real-Time RBAC Listener
+  useEffect(() => {
+    if (currentUser?.uid || currentUser?.id || currentUser?.email) {
+      const uid = currentUser.uid || currentUser.id || currentUser.email.replace(/[^a-zA-Z0-9]/g, '_');
+      // Sync user profile to Firestore
+      syncUserRoleToFirestore(currentUser);
+
+      // Real-time Firestore subscription to user's RBAC status
+      const unsubscribe = subscribeToUserRbac(uid, (firestoreData) => {
+        if (firestoreData && firestoreData.role) {
+          setCurrentUser(prev => {
+            if (!prev) return prev;
+            if (prev.role !== firestoreData.role || prev.status !== firestoreData.status) {
+              return {
+                ...prev,
+                role: firestoreData.role,
+                status: firestoreData.status || prev.status,
+                roleTitle: firestoreData.roleTitle || prev.roleTitle
+              };
+            }
+            return prev;
+          });
+        }
+      });
+
+      return () => {
+        if (typeof unsubscribe === 'function') unsubscribe();
+      };
+    }
+  }, [currentUser?.uid, currentUser?.id, currentUser?.email]);
 
   // Sync state on external updates & portal switches
   useEffect(() => {
@@ -166,7 +213,7 @@ export default function App() {
 
   const handleOpenStaffPortal = (target) => {
     if (target === 'admin') {
-      if (currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ADMIN') {
+      if (canAccessPortal(currentUser, 'admin')) {
         setPortalMode('admin');
         setIsAdminPreviewMode(false);
       } else {
@@ -174,7 +221,7 @@ export default function App() {
         setIsStaffGatewayOpen(true);
       }
     } else if (target === 'legal') {
-      if (currentUser?.role === 'LEGAL_AUDITOR' || currentUser?.role === 'SUPER_ADMIN') {
+      if (canAccessPortal(currentUser, 'legal')) {
         setPortalMode('legal');
       } else {
         setStaffGatewayTarget('legal');
@@ -185,6 +232,7 @@ export default function App() {
 
   const handleAuthenticateStaffAndOpen = (target, user) => {
     setCurrentUser(user);
+    syncUserRoleToFirestore(user);
     if (target === 'admin') {
       setPortalMode('admin');
       setIsAdminPreviewMode(false);
@@ -193,176 +241,216 @@ export default function App() {
     }
   };
 
+  const handleQuickSwitchRole = (roleKey) => {
+    let targetUser = DEMO_USERS.superAdmin;
+    if (roleKey === 'admin') targetUser = DEMO_USERS.superAdmin;
+    else if (roleKey === 'legal') targetUser = DEMO_USERS.legalAuditor;
+    else if (roleKey === 'developer') targetUser = DEMO_USERS.developer;
+    else if (roleKey === 'buyer') targetUser = DEMO_USERS.buyer;
+
+    setCurrentUser(targetUser);
+    syncUserRoleToFirestore(targetUser);
+    setRbacSelectorOpen(false);
+  };
+
   // =========================================================================
-  // 1. DEDICATED SEPARATE ADMIN PORTAL VIEW
+  // 1. DEDICATED SEPARATE ADMIN PORTAL VIEW (RBAC GUARDED)
   // =========================================================================
   if (portalMode === 'admin') {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-black">
-        {/* Standalone Admin Portal Header */}
-        <header className="sticky top-0 z-50 bg-slate-950/95 backdrop-blur-md border-b border-amber-500/30 px-4 sm:px-8 py-3">
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="flex items-center space-x-3">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-600 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-950/50">
-                <ShieldCheck className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-base font-black text-white tracking-tight">PlotFlow Governance Center</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40">
-                    MASTER ADMIN
+      <RBACGuard
+        user={currentUser}
+        targetPortal="admin"
+        onSwitchUser={(u) => {
+          setCurrentUser(u);
+          syncUserRoleToFirestore(u);
+        }}
+        onOpenStaffGateway={(target) => {
+          setStaffGatewayTarget(target);
+          setIsStaffGatewayOpen(true);
+        }}
+        onReturnHome={() => setPortalMode('main')}
+      >
+        <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-black">
+          {/* Standalone Admin Portal Header */}
+          <header className="sticky top-0 z-50 bg-slate-950/95 backdrop-blur-md border-b border-amber-500/30 px-4 sm:px-8 py-3">
+            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-600 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-950/50">
+                  <ShieldCheck className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-base font-black text-white tracking-tight">PlotFlow Governance Center</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40">
+                      MASTER ADMIN
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 block font-mono">
+                    Firestore-backed RBAC active • {currentUser?.email}
                   </span>
                 </div>
-                <span className="text-[10px] text-slate-400 block font-mono">
-                  Full control over Buyer & Developer platforms
-                </span>
+              </div>
+
+              {/* Quick Live Preview & Portal Switchers */}
+              <div className="flex items-center space-x-2 text-xs">
+                <button
+                  onClick={() => {
+                    setPortalMode('main');
+                    setCurrentView('marketplace');
+                    setIsAdminPreviewMode(true);
+                  }}
+                  className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold rounded-xl transition flex items-center space-x-1.5"
+                  title="Inspect how Buyer Marketplace looks and tests"
+                >
+                  <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Inspect Buyer View</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setPortalMode('main');
+                    setCurrentView('developer-portal');
+                    setIsAdminPreviewMode(true);
+                  }}
+                  className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-indigo-300 font-bold rounded-xl transition flex items-center space-x-1.5"
+                  title="Inspect how Builder SaaS looks and tests"
+                >
+                  <Building2 className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Inspect Developer SaaS</span>
+                </button>
+
+                <button
+                  onClick={() => setPortalMode('legal')}
+                  className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-teal-300 font-bold rounded-xl transition flex items-center space-x-1.5"
+                  title="Open Legal Audit Team Portal"
+                >
+                  <Scale className="w-3.5 h-3.5 text-teal-400" />
+                  <span>Legal Vault Portal</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setPortalMode('main');
+                    setIsAdminPreviewMode(false);
+                  }}
+                  className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-slate-950 font-black rounded-xl shadow-lg transition flex items-center space-x-1"
+                >
+                  <span>Exit Admin Portal</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
+          </header>
 
-            {/* Quick Live Preview & Portal Switchers */}
-            <div className="flex items-center space-x-2 text-xs">
-              <button
-                onClick={() => {
-                  setPortalMode('main');
-                  setCurrentView('marketplace');
-                  setIsAdminPreviewMode(true);
-                }}
-                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold rounded-xl transition flex items-center space-x-1.5"
-                title="Inspect how Buyer Marketplace looks and tests"
-              >
-                <Eye className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Inspect Buyer View</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setPortalMode('main');
-                  setCurrentView('developer-portal');
-                  setIsAdminPreviewMode(true);
-                }}
-                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-indigo-300 font-bold rounded-xl transition flex items-center space-x-1.5"
-                title="Inspect how Builder SaaS looks and tests"
-              >
-                <Building2 className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Inspect Developer SaaS</span>
-              </button>
-
-              <button
-                onClick={() => setPortalMode('legal')}
-                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-teal-300 font-bold rounded-xl transition flex items-center space-x-1.5"
-                title="Open Legal Audit Team Portal"
-              >
-                <Scale className="w-3.5 h-3.5 text-teal-400" />
-                <span>Legal Vault Portal</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setPortalMode('main');
-                  setIsAdminPreviewMode(false);
-                }}
-                className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-slate-950 font-black rounded-xl shadow-lg transition flex items-center space-x-1"
-              >
-                <span>Exit Admin Portal</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        </header>
-
-        {/* Master Admin Panel Screen */}
-        <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8">
-          <AdminPanel
-            currentUser={currentUser}
-            townships={townships}
-            onUpdateTownship={handleUpdateTownship}
-            onAddTownship={handleAddTownship}
-            onRemoveTownship={handleRemoveTownship}
-            onExploreMarketplace={() => {
-              setPortalMode('main');
-              setCurrentView('marketplace');
-              setIsAdminPreviewMode(true);
-            }}
-          />
-        </main>
-      </div>
+          {/* Master Admin Panel Screen */}
+          <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8">
+            <AdminPanel
+              currentUser={currentUser}
+              townships={townships}
+              onUpdateTownship={handleUpdateTownship}
+              onAddTownship={handleAddTownship}
+              onRemoveTownship={handleRemoveTownship}
+              onExploreMarketplace={() => {
+                setPortalMode('main');
+                setCurrentView('marketplace');
+                setIsAdminPreviewMode(true);
+              }}
+            />
+          </main>
+        </div>
+      </RBACGuard>
     );
   }
 
   // =========================================================================
-  // 2. DEDICATED SEPARATE LEGAL TEAM PORTAL VIEW
+  // 2. DEDICATED SEPARATE LEGAL TEAM PORTAL VIEW (RBAC GUARDED)
   // =========================================================================
   if (portalMode === 'legal') {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-teal-500 selection:text-black">
-        {/* Standalone Legal Portal Header */}
-        <header className="sticky top-0 z-50 bg-slate-950/95 backdrop-blur-md border-b border-teal-500/30 px-4 sm:px-8 py-3">
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="flex items-center space-x-3">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-teal-600 to-emerald-500 flex items-center justify-center shadow-lg shadow-teal-950/50">
-                <Scale className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-base font-black text-white tracking-tight">PlotFlow Legal & Compliance Portal</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-300 font-bold border border-teal-500/40">
-                    TITLE AUDIT
+      <RBACGuard
+        user={currentUser}
+        targetPortal="legal"
+        onSwitchUser={(u) => {
+          setCurrentUser(u);
+          syncUserRoleToFirestore(u);
+        }}
+        onOpenStaffGateway={(target) => {
+          setStaffGatewayTarget(target);
+          setIsStaffGatewayOpen(true);
+        }}
+        onReturnHome={() => setPortalMode('main')}
+      >
+        <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-teal-500 selection:text-black">
+          {/* Standalone Legal Portal Header */}
+          <header className="sticky top-0 z-50 bg-slate-950/95 backdrop-blur-md border-b border-teal-500/30 px-4 sm:px-8 py-3">
+            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-teal-600 to-emerald-500 flex items-center justify-center shadow-lg shadow-teal-950/50">
+                  <Scale className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-base font-black text-white tracking-tight">PlotFlow Legal & Compliance Portal</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-300 font-bold border border-teal-500/40">
+                      TITLE AUDIT
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 block font-mono">
+                    Statutory 5-Layer Verification & Digital Legal Stamping • {currentUser?.email}
                   </span>
                 </div>
-                <span className="text-[10px] text-slate-400 block font-mono">
-                  Statutory 5-Layer Verification & Digital Legal Stamping
-                </span>
+              </div>
+
+              {/* Quick Actions */}
+              <div className="flex items-center space-x-2 text-xs">
+                <button
+                  onClick={() => {
+                    setPortalMode('main');
+                    setCurrentView('verification');
+                  }}
+                  className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold rounded-xl transition flex items-center space-x-1.5"
+                >
+                  <Eye className="w-3.5 h-3.5 text-teal-400" />
+                  <span>Buyer Vault Preview</span>
+                </button>
+
+                {(currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ADMIN') && (
+                  <button
+                    onClick={() => setPortalMode('admin')}
+                    className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-300 font-bold rounded-xl transition flex items-center space-x-1.5"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Admin Console</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => setPortalMode('main')}
+                  className="px-3.5 py-1.5 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-xl shadow-lg transition flex items-center space-x-1"
+                >
+                  <span>Return to Public Web</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
+          </header>
 
-            {/* Quick Actions */}
-            <div className="flex items-center space-x-2 text-xs">
-              <button
-                onClick={() => {
-                  setPortalMode('main');
-                  setCurrentView('verification');
-                }}
-                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold rounded-xl transition flex items-center space-x-1.5"
-              >
-                <Eye className="w-3.5 h-3.5 text-teal-400" />
-                <span>Buyer Vault Preview</span>
-              </button>
-
-              {(currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ADMIN') && (
-                <button
-                  onClick={() => setPortalMode('admin')}
-                  className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-300 font-bold rounded-xl transition flex items-center space-x-1.5"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Admin Console</span>
-                </button>
-              )}
-
-              <button
-                onClick={() => setPortalMode('main')}
-                className="px-3.5 py-1.5 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-xl shadow-lg transition flex items-center space-x-1"
-              >
-                <span>Return to Public Web</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        </header>
-
-        {/* Legal Audit Portal Screen */}
-        <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8">
-          <LegalAuditPortal
-            currentUser={currentUser}
-            townships={townships}
-            onUpdateTownship={handleUpdateTownship}
-            onNavigateTo3D={(ts) => {
-              if (ts) setSelectedTownshipId(ts.id);
-              setPortalMode('main');
-              setCurrentView('3d-twin');
-            }}
-          />
-        </main>
-      </div>
+          {/* Legal Audit Portal Screen */}
+          <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8">
+            <LegalAuditPortal
+              currentUser={currentUser}
+              townships={townships}
+              onUpdateTownship={handleUpdateTownship}
+              onNavigateTo3D={(ts) => {
+                if (ts) setSelectedTownshipId(ts.id);
+                setPortalMode('main');
+                setCurrentView('3d-twin');
+              }}
+            />
+          </main>
+        </div>
+      </RBACGuard>
     );
   }
 
@@ -483,7 +571,74 @@ export default function App() {
           </nav>
 
           {/* User Auth Profile & Fast Actions */}
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2 sm:space-x-3">
+            {/* Live Role Badge & Quick Switcher for RBAC Gating Testing */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setRbacSelectorOpen(!rbacSelectorOpen)}
+                className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-bold flex items-center space-x-1.5 transition ${
+                  getUserRole(currentUser) === ROLES.ADMIN
+                    ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 hover:bg-amber-500/25'
+                    : getUserRole(currentUser) === ROLES.LEGAL
+                    ? 'bg-teal-500/15 border-teal-500/40 text-teal-300 hover:bg-teal-500/25'
+                    : getUserRole(currentUser) === ROLES.DEVELOPER
+                    ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/25'
+                    : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/25'
+                }`}
+                title="Firebase RBAC Role Selector & Gatekeeping Tester"
+              >
+                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="hidden md:inline text-slate-400">RBAC:</span>
+                <span className="uppercase">{getUserRole(currentUser)}</span>
+              </button>
+
+              {/* RBAC Role Selector Popup */}
+              {rbacSelectorOpen && (
+                <div className="absolute right-0 mt-2 w-64 bg-slate-950 border border-slate-800 rounded-2xl p-3 shadow-2xl z-50 space-y-2 text-xs">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                    <span className="font-bold text-white flex items-center space-x-1">
+                      <Database className="w-3 h-3 text-indigo-400" />
+                      <span>Firestore RBAC Roles</span>
+                    </span>
+                    <span className="text-[9px] text-emerald-400 font-mono">Live Firestore</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400">
+                    Switch roles instantly to test RBAC navigation gatekeeping:
+                  </p>
+                  <div className="space-y-1">
+                    {[
+                      { id: 'admin', label: 'Admin (Super)', sub: 'Full Governance & Portals', icon: ShieldCheck, color: 'text-amber-400' },
+                      { id: 'legal', label: 'Legal Auditor', sub: 'Access to Legal Vault', icon: Scale, color: 'text-teal-400' },
+                      { id: 'developer', label: 'Developer', sub: 'Access to Builder SaaS', icon: Building2, color: 'text-indigo-400' },
+                      { id: 'buyer', label: 'Retail Buyer', sub: 'Public Marketplace Only', icon: UserCheck, color: 'text-emerald-400' }
+                    ].map(r => {
+                      const Icon = r.icon;
+                      const isCurr = getUserRole(currentUser) === r.id;
+                      return (
+                        <button
+                          key={r.id}
+                          onClick={() => handleQuickSwitchRole(r.id)}
+                          className={`w-full p-2 rounded-xl text-left flex items-center space-x-2 transition ${
+                            isCurr 
+                              ? 'bg-indigo-600/20 border border-indigo-500/50 text-white font-bold' 
+                              : 'hover:bg-slate-900 text-slate-300'
+                          }`}
+                        >
+                          <Icon className={`w-4 h-4 ${r.color}`} />
+                          <div className="flex-1 truncate">
+                            <span className="block text-xs font-bold">{r.label}</span>
+                            <span className="block text-[9px] text-slate-400">{r.sub}</span>
+                          </div>
+                          {isCurr && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {currentUser ? (
               <div className="flex items-center space-x-2">
                 <div 
@@ -700,48 +855,76 @@ export default function App() {
         )}
 
         {currentView === 'developer-portal' && (
-          <div className="space-y-6">
-            {/* Developer Sub-Nav */}
-            <div className="flex items-center space-x-2 border-b border-slate-800 pb-3 text-xs font-bold">
-              <button
-                onClick={() => setCurrentView('developer-portal')}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-xl shadow"
-              >
-                Inventory & Masterplan
-              </button>
-              <button
-                onClick={() => setCurrentView('lead-crm')}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-xl"
-              >
-                Buyer Lead CRM
-              </button>
+          <RBACGuard
+            user={currentUser}
+            targetPortal="developer"
+            onSwitchUser={(u) => {
+              setCurrentUser(u);
+              syncUserRoleToFirestore(u);
+            }}
+            onOpenStaffGateway={(target) => {
+              setStaffGatewayTarget(target);
+              setIsStaffGatewayOpen(true);
+            }}
+            onReturnHome={() => setCurrentView('marketplace')}
+          >
+            <div className="space-y-6">
+              {/* Developer Sub-Nav */}
+              <div className="flex items-center space-x-2 border-b border-slate-800 pb-3 text-xs font-bold">
+                <button
+                  onClick={() => setCurrentView('developer-portal')}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-xl shadow"
+                >
+                  Inventory & Masterplan
+                </button>
+                <button
+                  onClick={() => setCurrentView('lead-crm')}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-xl"
+                >
+                  Buyer Lead CRM
+                </button>
+              </div>
+              <DeveloperPortal
+                townships={townships}
+                onUpdateTownship={handleUpdateTownship}
+                onAddTownship={handleAddTownship}
+              />
             </div>
-            <DeveloperPortal
-              townships={townships}
-              onUpdateTownship={handleUpdateTownship}
-              onAddTownship={handleAddTownship}
-            />
-          </div>
+          </RBACGuard>
         )}
 
         {currentView === 'lead-crm' && (
-          <div className="space-y-6">
-            <div className="flex items-center space-x-2 border-b border-slate-800 pb-3 text-xs font-bold">
-              <button
-                onClick={() => setCurrentView('developer-portal')}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-xl"
-              >
-                Inventory & Masterplan
-              </button>
-              <button
-                onClick={() => setCurrentView('lead-crm')}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-xl shadow"
-              >
-                Buyer Lead CRM
-              </button>
+          <RBACGuard
+            user={currentUser}
+            targetPortal="developer"
+            onSwitchUser={(u) => {
+              setCurrentUser(u);
+              syncUserRoleToFirestore(u);
+            }}
+            onOpenStaffGateway={(target) => {
+              setStaffGatewayTarget(target);
+              setIsStaffGatewayOpen(true);
+            }}
+            onReturnHome={() => setCurrentView('marketplace')}
+          >
+            <div className="space-y-6">
+              <div className="flex items-center space-x-2 border-b border-slate-800 pb-3 text-xs font-bold">
+                <button
+                  onClick={() => setCurrentView('developer-portal')}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-xl"
+                >
+                  Inventory & Masterplan
+                </button>
+                <button
+                  onClick={() => setCurrentView('lead-crm')}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-xl shadow"
+                >
+                  Buyer Lead CRM
+                </button>
+              </div>
+              <LeadCrmView />
             </div>
-            <LeadCrmView />
-          </div>
+          </RBACGuard>
         )}
 
         {currentView === 'investor-pitch' && (
@@ -773,10 +956,13 @@ export default function App() {
             }}
             onSwitchUser={(user) => {
               setCurrentUser(user);
-              if (user.role === 'SUPER_ADMIN') setPortalMode('admin');
+              syncUserRoleToFirestore(user);
+              if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') setPortalMode('admin');
               else if (user.role === 'LEGAL_AUDITOR') setPortalMode('legal');
               else if (user.role === 'DEVELOPER') setCurrentView('developer-portal');
             }}
+            onOpenAdminPortal={() => handleOpenStaffPortal('admin')}
+            onOpenLegalPortal={() => handleOpenStaffPortal('legal')}
             townships={townships}
             shortlistedTownships={shortlistedTownshipIds}
             onToggleShortlist={handleToggleShortlist}
@@ -788,8 +974,6 @@ export default function App() {
               setSelectedTownshipId(ts.id);
               setCurrentView('3d-twin');
             }}
-            onOpenAdminPortal={() => handleOpenStaffPortal('admin')}
-            onOpenLegalPortal={() => handleOpenStaffPortal('legal')}
           />
         )}
       </main>
@@ -837,7 +1021,8 @@ export default function App() {
         onClose={() => setIsAuthModalOpen(false)}
         onLoginSuccess={(user) => {
           setCurrentUser(user);
-          if (user.role === 'SUPER_ADMIN') {
+          syncUserRoleToFirestore(user);
+          if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') {
             setPortalMode('admin');
           } else if (user.role === 'LEGAL_AUDITOR') {
             setPortalMode('legal');

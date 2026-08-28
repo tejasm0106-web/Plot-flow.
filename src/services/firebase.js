@@ -10,6 +10,19 @@ import {
   sendPasswordResetEmail,
   updateProfile
 } from 'firebase/auth';
+import {
+  getFirestore,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  collection,
+  query,
+  where,
+  getDocs,
+  onSnapshot,
+  serverTimestamp
+} from 'firebase/firestore';
 
 // Standard Firebase web app configuration with environment variable fallbacks
 const firebaseConfig = {
@@ -24,10 +37,12 @@ const firebaseConfig = {
 // Initialize Firebase safely
 let app;
 let auth;
+let db;
 
 try {
   app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
   auth = getAuth(app);
+  db = getFirestore(app);
 } catch (error) {
   console.warn("Firebase initialization notice:", error?.message || error);
 }
@@ -35,6 +50,7 @@ try {
 export { 
   app, 
   auth, 
+  db,
   GoogleAuthProvider, 
   signInWithPopup, 
   signInWithEmailAndPassword, 
@@ -43,5 +59,16 @@ export {
   onAuthStateChanged,
   sendPasswordResetEmail,
   updateProfile,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  collection,
+  query,
+  where,
+  getDocs,
+  onSnapshot,
+  serverTimestamp,
   firebaseConfig
 };
+

@@ -1,6 +1,7 @@
 // PlotFlow User, Authentication & Storage Service
 import { auth, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from './firebase';
 import { addAuditLog } from './storeService';
+import { syncUserRoleToFirestore } from './rbacService';
 
 const USERS_STORAGE_KEY = 'plotflow_platform_users_v3';
 const ADMIN_CREDS_KEY = 'plotflow_admin_credentials_v3';
@@ -102,11 +103,21 @@ export function getStoredUsers() {
   return DEFAULT_PLATFORM_USERS;
 }
 
-// Save Users to localStorage
+// Save Users to localStorage & Sync with Firestore
 export function saveStoredUsers(users) {
   try {
     localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
     window.dispatchEvent(new CustomEvent('plotflow_users_updated', { detail: users }));
+    // Asynchronously sync active users to Firestore
+    if (Array.isArray(users)) {
+      users.forEach(u => {
+        try {
+          syncUserRoleToFirestore(u);
+        } catch (e) {
+          // graceful fallback
+        }
+      });
+    }
   } catch (e) {
     console.warn('Error saving users:', e);
   }
@@ -326,13 +337,14 @@ export async function loginWithEmailAndPassword(email, password) {
   return user;
 }
 
-// Create a New Legal Team User (Admin Authority - Bar Council ID is NOT mandatory)
+// Create a New Legal Team User (Admin Authority)
 export function createLegalTeamUser({
   name,
   email,
   password = 'Legal@2026',
   phone = '+91 98000 77889',
-  specialization = 'Land Title Due Diligence & RERA Compliance'
+  specialization = 'Land Title Due Diligence & RERA Compliance',
+  barCouncilNumber = ''
 }) {
   const users = getStoredUsers();
   const cleanEmail = email.toLowerCase().trim();
@@ -351,6 +363,7 @@ export function createLegalTeamUser({
     roleTitle: `Legal Compliance Auditor (${specialization})`,
     company: 'PlotFlow Legal & Regulatory Wing',
     specialization: specialization.trim(),
+    barCouncilNumber: barCouncilNumber.trim(),
     authProvider: 'email.password',
     status: 'Active',
     verified: true,
@@ -367,11 +380,161 @@ export function createLegalTeamUser({
     'LEGAL_USER_CREATED',
     'Super Admin',
     newLegalUser.email,
-    `Created Legal Auditor account for ${newLegalUser.name}.`,
+    `Created Legal Auditor account for ${newLegalUser.name} (${newLegalUser.specialization}).`,
     'SUCCESS'
   );
   
   return newLegalUser;
+}
+
+// Create a New Retail Buyer User by Admin
+export function createBuyerByAdmin({
+  name,
+  email,
+  password = 'Buyer@123',
+  phone = '+91 98000 11223',
+  city = 'Bengaluru',
+  budgetRange = '₹50 Lakh - ₹1.5 Cr',
+  preferredCorridor = 'Devanahalli Airport Corridor'
+}) {
+  const users = getStoredUsers();
+  const cleanEmail = email.toLowerCase().trim();
+
+  const existing = users.find(u => u.email.toLowerCase() === cleanEmail);
+  if (existing) {
+    throw new Error(`User with email "${cleanEmail}" already exists.`);
+  }
+
+  const newBuyer = {
+    uid: `usr_buyer_${Date.now()}`,
+    name: name.trim(),
+    email: cleanEmail,
+    phone: phone.trim(),
+    role: 'BUYER',
+    roleTitle: 'Verified Retail Plot Buyer',
+    company: 'Individual Buyer / Investor',
+    city: city.trim(),
+    budgetRange: budgetRange.trim(),
+    preferredCorridor: preferredCorridor.trim(),
+    authProvider: 'email.password',
+    status: 'Active',
+    verified: true,
+    lastSignIn: 'Newly Created by Admin',
+    createdAt: new Date().toISOString().split('T')[0],
+    assignedProjectsCount: 0,
+    passwordHash: password
+  };
+
+  const updated = [newBuyer, ...users];
+  saveStoredUsers(updated);
+
+  addAuditLog(
+    'BUYER_USER_CREATED',
+    'Super Admin',
+    newBuyer.email,
+    `Created Buyer account for ${newBuyer.name} (${newBuyer.city}).`,
+    'SUCCESS'
+  );
+
+  return newBuyer;
+}
+
+// Create a New Builder / Developer User by Admin
+export function createDeveloperByAdmin({
+  name,
+  email,
+  password = 'Dev@2026',
+  phone = '+91 98450 99881',
+  company = 'Prestige Plotted Townships',
+  reraId = 'PRM/KA/RERA/1250/303/PR/210324/004055',
+  city = 'Bengaluru'
+}) {
+  const users = getStoredUsers();
+  const cleanEmail = email.toLowerCase().trim();
+
+  const existing = users.find(u => u.email.toLowerCase() === cleanEmail);
+  if (existing) {
+    throw new Error(`User with email "${cleanEmail}" already exists.`);
+  }
+
+  const newDev = {
+    uid: `usr_dev_${Date.now()}`,
+    name: name.trim(),
+    email: cleanEmail,
+    phone: phone.trim(),
+    role: 'DEVELOPER',
+    roleTitle: `Builder (${company})`,
+    company: company.trim(),
+    reraId: reraId.trim(),
+    city: city.trim(),
+    authProvider: 'email.password',
+    status: 'Active',
+    verified: true,
+    lastSignIn: 'Newly Created by Admin',
+    createdAt: new Date().toISOString().split('T')[0],
+    assignedProjectsCount: 1,
+    passwordHash: password
+  };
+
+  const updated = [newDev, ...users];
+  saveStoredUsers(updated);
+
+  addAuditLog(
+    'DEVELOPER_USER_CREATED',
+    'Super Admin',
+    newDev.email,
+    `Created Builder/Developer account for ${newDev.name} (${newDev.company}).`,
+    'SUCCESS'
+  );
+
+  return newDev;
+}
+
+// Create a Platform Admin / Staff User by Admin
+export function createAdminStaffByAdmin({
+  name,
+  email,
+  password = 'Staff@2026',
+  phone = '+91 99000 88776',
+  roleTitle = 'Platform Operations Manager'
+}) {
+  const users = getStoredUsers();
+  const cleanEmail = email.toLowerCase().trim();
+
+  const existing = users.find(u => u.email.toLowerCase() === cleanEmail);
+  if (existing) {
+    throw new Error(`User with email "${cleanEmail}" already exists.`);
+  }
+
+  const newStaff = {
+    uid: `usr_admin_${Date.now()}`,
+    name: name.trim(),
+    email: cleanEmail,
+    phone: phone.trim(),
+    role: 'ADMIN',
+    roleTitle: roleTitle.trim() || 'Platform Administrator',
+    company: 'PlotFlow Technologies Pvt Ltd',
+    authProvider: 'email.password',
+    status: 'Active',
+    verified: true,
+    lastSignIn: 'Newly Created by Admin',
+    createdAt: new Date().toISOString().split('T')[0],
+    assignedProjectsCount: 3,
+    passwordHash: password
+  };
+
+  const updated = [newStaff, ...users];
+  saveStoredUsers(updated);
+
+  addAuditLog(
+    'ADMIN_STAFF_CREATED',
+    'Super Admin',
+    newStaff.email,
+    `Created Platform Administrator account for ${newStaff.name}.`,
+    'SUCCESS'
+  );
+
+  return newStaff;
 }
 
 // Check if user is staff/internal team account
@@ -466,15 +629,16 @@ export function resetStaffTemporaryPassword(userId) {
   };
 }
 
-// Toggle User Status (Active <-> Deactivated)
-export function toggleUserStatusByAdmin(userId) {
+// Explicitly Deactivate User Access
+export function deactivateUserByAdmin(userId) {
   const users = getStoredUsers();
-  let updatedStatus = 'Active';
   let targetUser = null;
   const updated = users.map(u => {
     if (u.uid === userId || u.email.toLowerCase() === userId.toLowerCase()) {
-      updatedStatus = (u.status === 'Active' ? 'Deactivated' : 'Active');
-      targetUser = { ...u, status: updatedStatus };
+      if (u.email.toLowerCase() === 'tejastej094@gmail.com') {
+        throw new Error('Master Super Admin account cannot be deactivated.');
+      }
+      targetUser = { ...u, status: 'Deactivated' };
       return targetUser;
     }
     return u;
@@ -483,15 +647,56 @@ export function toggleUserStatusByAdmin(userId) {
   
   if (targetUser) {
     addAuditLog(
-      'USER_STATUS_TOGGLED',
+      'USER_ACCESS_REVOKED',
       'Super Admin',
       targetUser.email,
-      `User ${targetUser.name} status updated to ${updatedStatus}.`,
-      updatedStatus === 'Active' ? 'SUCCESS' : 'WARNING'
+      `Deactivated portal access for ${targetUser.name} (${targetUser.role}).`,
+      'WARNING'
     );
   }
   
-  return { success: true, status: updatedStatus, users: updated };
+  return { success: true, status: 'Deactivated', users: updated, user: targetUser };
+}
+
+// Explicitly Activate / Restore User Access
+export function activateUserByAdmin(userId) {
+  const users = getStoredUsers();
+  let targetUser = null;
+  const updated = users.map(u => {
+    if (u.uid === userId || u.email.toLowerCase() === userId.toLowerCase()) {
+      targetUser = { ...u, status: 'Active' };
+      return targetUser;
+    }
+    return u;
+  });
+  saveStoredUsers(updated);
+  
+  if (targetUser) {
+    addAuditLog(
+      'USER_ACCESS_RESTORED',
+      'Super Admin',
+      targetUser.email,
+      `Restored active portal access for ${targetUser.name} (${targetUser.role}).`,
+      'SUCCESS'
+    );
+  }
+  
+  return { success: true, status: 'Active', users: updated, user: targetUser };
+}
+
+// Toggle User Status (Active <-> Deactivated)
+export function toggleUserStatusByAdmin(userId) {
+  const users = getStoredUsers();
+  const target = users.find(u => u.uid === userId || u.email.toLowerCase() === userId.toLowerCase());
+  if (target?.email?.toLowerCase() === 'tejastej094@gmail.com') {
+    throw new Error('Master Super Admin account cannot be deactivated.');
+  }
+
+  if (target?.status === 'Active') {
+    return deactivateUserByAdmin(userId);
+  } else {
+    return activateUserByAdmin(userId);
+  }
 }
 
 // Remove User Account Permanently

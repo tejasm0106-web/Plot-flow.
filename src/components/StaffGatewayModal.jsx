@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ShieldCheck, 
   Scale, 
@@ -10,10 +10,11 @@ import {
   AlertCircle, 
   Building2, 
   Sparkles,
-  ExternalLink
+  ExternalLink,
+  Users
 } from 'lucide-react';
 import { DEMO_USERS } from '../data/mockData';
-import { getAdminCredentials } from '../services/userService';
+import { getAdminCredentials, getStoredUsers } from '../services/userService';
 
 export default function StaffGatewayModal({
   isOpen,
@@ -23,10 +24,28 @@ export default function StaffGatewayModal({
   onAuthenticateAndOpenPortal
 }) {
   const [pinInput, setPinInput] = useState('');
-  const [selectedStaffAccount, setSelectedStaffAccount] = useState(
+  const [usersList, setUsersList] = useState([]);
+  const [selectedUserId, setSelectedUserId] = useState(
     targetPortal === 'admin' ? 'superAdmin' : 'legalAuditor'
   );
   const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      const stored = getStoredUsers();
+      setUsersList(stored);
+      // Default to appropriate role
+      if (targetPortal === 'admin') {
+        const adminUser = stored.find(u => (u.role === 'ADMIN' || u.role === 'SUPER_ADMIN') && u.status === 'Active');
+        if (adminUser) setSelectedUserId(adminUser.id);
+        else setSelectedUserId('superAdmin');
+      } else {
+        const legalUser = stored.find(u => u.role === 'LEGAL_AUDITOR' && u.status === 'Active');
+        if (legalUser) setSelectedUserId(legalUser.id);
+        else setSelectedUserId('legalAuditor');
+      }
+    }
+  }, [isOpen, targetPortal]);
 
   if (!isOpen) return null;
 
@@ -37,6 +56,15 @@ export default function StaffGatewayModal({
   const portalDesc = isAdminTarget
     ? 'Restricted to platform administrators with full system governance and buyer/developer control.'
     : 'Restricted to licensed advocates, title auditors, and compliance officers for statutory stamping.';
+
+  // Filter relevant accounts for this gateway
+  const filteredUsers = usersList.filter(u => {
+    if (isAdminTarget) {
+      return u.role === 'ADMIN' || u.role === 'SUPER_ADMIN';
+    } else {
+      return u.role === 'LEGAL_AUDITOR';
+    }
+  });
 
   const handleVerifyAndEnter = (e) => {
     e?.preventDefault();
@@ -52,12 +80,19 @@ export default function StaffGatewayModal({
     }
 
     let userToUse = currentUser;
-    if (selectedStaffAccount === 'superAdmin') {
+    if (selectedUserId === 'superAdmin') {
       userToUse = DEMO_USERS.superAdmin;
-    } else if (selectedStaffAccount === 'legalAuditor') {
+    } else if (selectedUserId === 'legalAuditor') {
       userToUse = DEMO_USERS.legalAuditor;
-    } else if (selectedStaffAccount === 'developer') {
-      userToUse = DEMO_USERS.developer;
+    } else {
+      const found = usersList.find(u => u.id === selectedUserId);
+      if (found) {
+        if (found.status === 'Deactivated') {
+          setErrorMsg(`Account ${found.email} has been DEACTIVATED by Admin. Access denied.`);
+          return;
+        }
+        userToUse = found;
+      }
     }
 
     onAuthenticateAndOpenPortal(targetPortal, userToUse);
@@ -108,49 +143,97 @@ export default function StaffGatewayModal({
           </p>
         </div>
 
-        {/* Quick Identity Selector (for testing & evaluation) */}
-        <div className="space-y-2.5">
+        {/* Authorized User Account Selector */}
+        <div className="space-y-2">
           <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
-            <span>Select Staff Credentials</span>
-            <span className="text-[10px] text-slate-500">Demo Authorized Accounts</span>
+            <span className="flex items-center space-x-1.5">
+              <Users className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Select Authorized Staff Profile</span>
+            </span>
+            <span className="text-[10px] text-slate-500">Managed in Admin Portal</span>
           </label>
 
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <button
-              type="button"
-              onClick={() => setSelectedStaffAccount('superAdmin')}
-              className={`p-3 rounded-2xl border text-left transition flex items-center space-x-2.5 ${
-                selectedStaffAccount === 'superAdmin'
-                  ? 'bg-amber-500/15 border-amber-500/60 text-white shadow-lg shadow-amber-950/40'
-                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
-              }`}
-            >
-              <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
-                A
-              </div>
-              <div className="truncate">
-                <span className="font-bold text-white block truncate">Tejas (Admin)</span>
-                <span className="text-[10px] text-amber-300/80">SUPER_ADMIN</span>
-              </div>
-            </button>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs max-h-48 overflow-y-auto pr-1">
+            {/* Fallback Primary Accounts */}
+            {isAdminTarget ? (
+              <button
+                type="button"
+                onClick={() => setSelectedUserId('superAdmin')}
+                className={`p-2.5 rounded-2xl border text-left transition flex items-center space-x-2.5 ${
+                  selectedUserId === 'superAdmin'
+                    ? 'bg-amber-500/15 border-amber-500/60 text-white shadow-lg shadow-amber-950/40'
+                    : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                }`}
+              >
+                <div className="w-7 h-7 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-xs">
+                  T
+                </div>
+                <div className="truncate">
+                  <span className="font-bold text-white block truncate text-xs">Tejas (Super Admin)</span>
+                  <span className="text-[10px] text-amber-300/80">tejastej094@gmail.com</span>
+                </div>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setSelectedUserId('legalAuditor')}
+                className={`p-2.5 rounded-2xl border text-left transition flex items-center space-x-2.5 ${
+                  selectedUserId === 'legalAuditor'
+                    ? 'bg-teal-500/15 border-teal-500/60 text-white shadow-lg shadow-teal-950/40'
+                    : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                }`}
+              >
+                <div className="w-7 h-7 rounded-xl bg-teal-500/20 text-teal-400 flex items-center justify-center font-bold text-xs">
+                  R
+                </div>
+                <div className="truncate">
+                  <span className="font-bold text-white block truncate text-xs">Adv. Rajeshwari</span>
+                  <span className="text-[10px] text-teal-300/80">lead.auditor@plotflow.in</span>
+                </div>
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={() => setSelectedStaffAccount('legalAuditor')}
-              className={`p-3 rounded-2xl border text-left transition flex items-center space-x-2.5 ${
-                selectedStaffAccount === 'legalAuditor'
-                  ? 'bg-teal-500/15 border-teal-500/60 text-white shadow-lg shadow-teal-950/40'
-                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
-              }`}
-            >
-              <div className="w-8 h-8 rounded-xl bg-teal-500/20 text-teal-400 flex items-center justify-center font-bold">
-                L
-              </div>
-              <div className="truncate">
-                <span className="font-bold text-white block truncate">Adv. Rajeshwari</span>
-                <span className="text-[10px] text-teal-300/80">LEGAL_AUDITOR</span>
-              </div>
-            </button>
+            {/* Dynamically created and managed staff */}
+            {filteredUsers.map(user => {
+              const isDeactivated = user.status === 'Deactivated';
+              const isSelected = selectedUserId === user.id;
+              return (
+                <button
+                  type="button"
+                  key={user.id}
+                  disabled={isDeactivated}
+                  onClick={() => setSelectedUserId(user.id)}
+                  className={`p-2.5 rounded-2xl border text-left transition flex items-center space-x-2.5 ${
+                    isDeactivated
+                      ? 'bg-slate-900/30 border-rose-900/30 text-slate-500 opacity-60 cursor-not-allowed'
+                      : isSelected
+                      ? isAdminTarget
+                        ? 'bg-amber-500/15 border-amber-500/60 text-white shadow-lg shadow-amber-950/40'
+                        : 'bg-teal-500/15 border-teal-500/60 text-white shadow-lg shadow-teal-950/40'
+                      : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                  }`}
+                >
+                  <div className={`w-7 h-7 rounded-xl flex items-center justify-center font-bold text-xs ${
+                    isDeactivated 
+                      ? 'bg-rose-950/40 text-rose-400' 
+                      : isAdminTarget 
+                      ? 'bg-amber-500/20 text-amber-400' 
+                      : 'bg-teal-500/20 text-teal-400'
+                  }`}>
+                    {user.name?.charAt(0) || 'U'}
+                  </div>
+                  <div className="truncate flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-white block truncate text-xs">{user.name}</span>
+                      {isDeactivated && (
+                        <span className="text-[9px] text-rose-400 font-semibold uppercase">Deactivated</span>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-slate-400 block truncate">{user.email}</span>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
 
