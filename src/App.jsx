@@ -26,7 +26,8 @@ import {
   Database,
   CheckCircle2,
   AlertTriangle,
-  UserCheck
+  UserCheck,
+  Map as MapIcon
 } from 'lucide-react';
 
 import { INITIAL_PROJECTS, DEMO_USERS } from './data/mockData';
@@ -65,6 +66,7 @@ import AboutView from './screens/AboutView';
 import ContactView from './screens/ContactView';
 import UserProfileView from './screens/UserProfileView';
 
+import GeographicPlotMapView from './components/GeographicPlotMapView';
 import SunPathSimulator from './components/SunPathSimulator';
 import PlotDetailDrawer from './components/PlotDetailDrawer';
 import BookingModal from './components/BookingModal';
@@ -544,6 +546,15 @@ export default function App() {
               Explore Townships
             </button>
             <button
+              onClick={() => setCurrentView('map')}
+              className={`px-3.5 py-2 rounded-xl transition flex items-center space-x-1.5 ${
+                currentView === 'map' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <MapIcon className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Spatial Map</span>
+            </button>
+            <button
               onClick={() => setCurrentView('3d-twin')}
               className={`px-3.5 py-2 rounded-xl transition flex items-center space-x-1.5 ${
                 currentView === '3d-twin' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
@@ -683,6 +694,13 @@ export default function App() {
               Explore Townships
             </button>
             <button
+              onClick={() => { setCurrentView('map'); setMobileMenuOpen(false); }}
+              className="w-full text-left p-2.5 rounded-xl hover:bg-slate-800 font-bold text-emerald-400 flex items-center space-x-2"
+            >
+              <MapIcon className="w-3.5 h-3.5" />
+              <span>Spatial Geographic Map</span>
+            </button>
+            <button
               onClick={() => { setCurrentView('3d-twin'); setMobileMenuOpen(false); }}
               className="w-full text-left p-2.5 rounded-xl hover:bg-slate-800 font-bold text-indigo-400"
             >
@@ -722,6 +740,7 @@ export default function App() {
           <LandingView
             townships={townships}
             onExplore={() => setCurrentView('marketplace')}
+            onOpenMap={() => setCurrentView('map')}
             onLaunch3D={(ts) => {
               if (ts) setSelectedTownshipId(ts.id);
               setCurrentView('3d-twin');
@@ -750,7 +769,72 @@ export default function App() {
               setSelectedTownshipId(ts.id);
               setCurrentView('3d-twin');
             }}
+            onSelectPlot={handleSelectPlotAndOpen}
+            onBookPlot={(plot) => {
+              setSelectedPlot(plot);
+              setIsBookingModalOpen(true);
+            }}
+            onScheduleVisit={(plot) => {
+              setSelectedPlot(plot);
+              setIsSiteVisitModalOpen(true);
+            }}
           />
+        )}
+
+        {currentView === 'map' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-950 border border-slate-800 rounded-3xl p-6 shadow-xl">
+              <div>
+                <div className="flex items-center space-x-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                  <h1 className="text-xl sm:text-2xl font-black text-white">Geographic Plot & Infrastructure Map</h1>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  Explore available residential plots pinned across North, East, and South-West Bengaluru growth corridors with live distance isochrones.
+                </p>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setCurrentView('marketplace')}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-xs font-bold rounded-xl transition"
+                >
+                  Card Directory
+                </button>
+                <button
+                  onClick={() => setCurrentView('3d-twin')}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5 shadow"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>3D Sun Path</span>
+                </button>
+              </div>
+            </div>
+
+            <GeographicPlotMapView
+              townships={townships}
+              selectedTownshipId={selectedTownshipId}
+              onSelectTownship={(tsId) => setSelectedTownshipId(tsId)}
+              onLaunch3D={(ts) => {
+                if (ts) setSelectedTownshipId(ts.id);
+                setCurrentView('3d-twin');
+              }}
+              onSelectPlot={handleSelectPlotAndOpen}
+              onBookPlot={(plot) => {
+                setSelectedPlot(plot);
+                setIsBookingModalOpen(true);
+              }}
+              onScheduleVisit={(plot) => {
+                setSelectedPlot(plot);
+                setIsSiteVisitModalOpen(true);
+              }}
+              onVerifyDocs={() => setCurrentView('verification')}
+              shortlistedTownshipIds={shortlistedTownshipIds}
+              onToggleShortlist={handleToggleShortlist}
+              height="750px"
+              standalone={true}
+            />
+          </div>
         )}
 
         {currentView === 'project-detail' && (

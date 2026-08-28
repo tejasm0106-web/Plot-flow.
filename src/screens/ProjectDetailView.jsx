@@ -19,9 +19,11 @@ import {
   Check,
   Sparkles,
   Award,
-  Phone
+  Phone,
+  Map as MapIcon
 } from 'lucide-react';
 import { addLead } from '../services/storeService';
+import GeographicPlotMapView from '../components/GeographicPlotMapView';
 
 export default function ProjectDetailView({ 
   township, 
@@ -29,6 +31,9 @@ export default function ProjectDetailView({
   onLaunch3D, 
   onVerifyDocs,
   onBookVisit,
+  onSelectPlot,
+  onBookToken,
+  onScheduleVisit,
   isShortlisted,
   onToggleShortlist
 }) {
@@ -36,6 +41,7 @@ export default function ProjectDetailView({
   const [plotFilter, setPlotFilter] = useState('All'); // 'All' | 'Available' | 'Reserved' | 'Sold'
   const [selectedPlotForInquiry, setSelectedPlotForInquiry] = useState(null);
   const [inquiryModalOpen, setInquiryModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'spatial_map' | 'inventory'
 
   // Inquiry Form State
   const [leadForm, setLeadForm] = useState({
@@ -196,83 +202,159 @@ export default function ProjectDetailView({
             <span className="text-base font-bold text-amber-400 mt-0.5 block">{township.priceRange}</span>
           </div>
         </div>
+
+        {/* Interactive View Section Selector Tabs */}
+        <div className="flex items-center space-x-2 pt-2 border-t border-slate-800/80">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 ${
+              activeTab === 'overview'
+                ? 'bg-slate-800 text-white border border-slate-700 shadow'
+                : 'bg-slate-900/60 text-slate-400 hover:text-white border border-slate-800'
+            }`}
+          >
+            <Building2 className="w-3.5 h-3.5" />
+            <span>Masterplan & Overview</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('spatial_map')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 ${
+              activeTab === 'spatial_map'
+                ? 'bg-emerald-600 text-white border border-emerald-500 shadow'
+                : 'bg-slate-900/60 text-emerald-400 hover:text-emerald-300 border border-slate-800'
+            }`}
+          >
+            <MapIcon className="w-3.5 h-3.5" />
+            <span>Geographic Plot Map (GIS)</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('inventory')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 ${
+              activeTab === 'inventory'
+                ? 'bg-slate-800 text-white border border-slate-700 shadow'
+                : 'bg-slate-900/60 text-slate-400 hover:text-white border border-slate-800'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Plot Directory ({township.plots?.length || 0})</span>
+          </button>
+        </div>
       </div>
 
-      {/* Description & Amenities Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
-          <div>
-            <h3 className="text-lg font-bold text-white">Masterplan Overview & Infrastructure</h3>
-            <p className="text-xs sm:text-sm text-slate-300 mt-2 leading-relaxed">
-              {township.description}
-            </p>
-          </div>
-
-          {/* Amenities Grid */}
-          <div className="space-y-3 pt-4 border-t border-slate-800">
-            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Sanctioned Amenities & Civic Works</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {township.amenities?.map((am, idx) => (
-                <div key={idx} className="flex items-center space-x-2.5 p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 text-xs text-slate-200">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                  <span>{am}</span>
-                </div>
-              ))}
+      {/* Conditional Spatial Geographic Map View */}
+      {activeTab === 'spatial_map' && (
+        <div className="space-y-4">
+          <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h3 className="text-lg font-bold text-white flex items-center space-x-2">
+                  <MapIcon className="w-5 h-5 text-emerald-400" />
+                  <span>Geographic Coordinates & Regional Corridors</span>
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Real-time micro-coordinates of each plot in {township.name} plotted on Bangalore spatial satellite cartography.
+                </p>
+              </div>
+              <button
+                onClick={() => onLaunch3D(township)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition flex items-center space-x-1.5 shadow"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Launch 3D Sun-Path</span>
+              </button>
             </div>
-          </div>
 
-          {/* Distance Benchmarks */}
-          {township.distanceBenchmarks && (
+            <GeographicPlotMapView
+              townships={[township]}
+              selectedTownshipId={township.id}
+              onLaunch3D={onLaunch3D}
+              onBookPlot={(plot) => handleOpenInquiry(plot)}
+              height="600px"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Tab 1: Overview & Amenities */}
+      {activeTab === 'overview' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
+            <div>
+              <h3 className="text-lg font-bold text-white">Masterplan Overview & Infrastructure</h3>
+              <p className="text-xs sm:text-sm text-slate-300 mt-2 leading-relaxed">
+                {township.description}
+              </p>
+            </div>
+
+            {/* Amenities Grid */}
             <div className="space-y-3 pt-4 border-t border-slate-800">
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Exact Connectivity Benchmarks</h4>
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Sanctioned Amenities & Civic Works</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {township.distanceBenchmarks.map((bm, idx) => (
-                  <div key={idx} className="p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 flex items-center justify-between text-xs">
-                    <span className="text-slate-300">{bm.place}</span>
-                    <span className="font-bold text-emerald-400">{bm.distance}</span>
+                {township.amenities?.map((am, idx) => (
+                  <div key={idx} className="flex items-center space-x-2.5 p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 text-xs text-slate-200">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                    <span>{am}</span>
                   </div>
                 ))}
               </div>
             </div>
-          )}
-        </div>
 
-        {/* Right Sidebar: Title Diligence & 5-Layer Vault CTA */}
-        <div className="space-y-6">
-          <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-            <div className="flex items-center space-x-2">
-              <ShieldCheck className="w-5 h-5 text-emerald-400" />
-              <h3 className="text-base font-bold text-white">5-Layer Title Diligence</h3>
-            </div>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Certified clear title with 30-year sub-registrar search (Kaveri-2 EC Form 15), DC residential conversion order, and sanctioned master layout plan.
-            </p>
-            <button
-              onClick={onVerifyDocs}
-              className="w-full py-3 bg-slate-900 hover:bg-slate-800 border border-emerald-500/40 text-emerald-300 font-bold text-xs rounded-xl transition flex items-center justify-center space-x-2"
-            >
-              <ShieldCheck className="w-4 h-4" />
-              <span>Inspect Legal Vault Dossiers</span>
-            </button>
+            {/* Distance Benchmarks */}
+            {township.distanceBenchmarks && (
+              <div className="space-y-3 pt-4 border-t border-slate-800">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Exact Connectivity Benchmarks</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {township.distanceBenchmarks.map((bm, idx) => (
+                    <div key={idx} className="p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 flex items-center justify-between text-xs">
+                      <span className="text-slate-300">{bm.place}</span>
+                      <span className="font-bold text-emerald-400">{bm.distance}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
-            <div className="flex items-center space-x-2">
-              <Phone className="w-5 h-5 text-indigo-400" />
-              <h3 className="text-base font-bold text-white">Direct Advisory</h3>
+          {/* Right Sidebar: Title Diligence & 5-Layer Vault CTA */}
+          <div className="space-y-6">
+            <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
+              <div className="flex items-center space-x-2">
+                <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                <h3 className="text-base font-bold text-white">5-Layer Title Diligence</h3>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Certified clear title with 30-year sub-registrar search (Kaveri-2 EC Form 15), DC residential conversion order, and sanctioned master layout plan.
+              </p>
+              <button
+                onClick={onVerifyDocs}
+                className="w-full py-3 bg-slate-900 hover:bg-slate-800 border border-emerald-500/40 text-emerald-300 font-bold text-xs rounded-xl transition flex items-center justify-center space-x-2"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>Inspect Legal Vault Dossiers</span>
+              </button>
             </div>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Have questions about bank loan approvals (SBI, HDFC, ICICI) or custom villa construction guidelines?
-            </p>
-            <div className="text-xs font-bold text-white pt-1">
-              Call: <span className="text-emerald-400">+91 80 4712 9900</span>
+
+            <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
+              <div className="flex items-center space-x-2">
+                <Phone className="w-5 h-5 text-indigo-400" />
+                <h3 className="text-base font-bold text-white">Direct Advisory</h3>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Have questions about bank loan approvals (SBI, HDFC, ICICI) or custom villa construction guidelines?
+              </p>
+              <div className="text-xs font-bold text-white pt-1">
+                Call: <span className="text-emerald-400">+91 80 4712 9900</span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Interactive Plot Directory Table */}
-      <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
+      {/* Tab 3 or Overview: Interactive Plot Directory Table */}
+      {(activeTab === 'overview' || activeTab === 'inventory') && (
+        <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h3 className="text-lg font-bold text-white">Interactive Plot Inventory</h3>
@@ -359,6 +441,7 @@ export default function ProjectDetailView({
           </table>
         </div>
       </div>
+      )}
 
       {/* Booking / Inquiry Modal */}
       {inquiryModalOpen && (

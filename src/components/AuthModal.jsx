@@ -14,7 +14,8 @@ import {
 } from 'lucide-react';
 import { 
   loginWithEmailAndPassword, 
-  registerNewUser 
+  registerNewUser,
+  getStoredUsers
 } from '../services/userService';
 import { auth, GoogleAuthProvider, signInWithPopup } from '../services/firebase';
 
@@ -152,12 +153,19 @@ export default function AuthModal({
         try {
           const result = await signInWithPopup(auth, provider);
           const fbUser = result.user;
+          const users = getStoredUsers();
+          const cleanEmail = (fbUser.email || '').toLowerCase().trim();
+          const existingUser = users.find(u => (u.email || '').toLowerCase() === cleanEmail);
+
+          const role = existingUser?.role || (cleanEmail.includes('admin') ? 'SUPER_ADMIN' : 'BUYER');
+          const roleTitle = existingUser?.roleTitle || (role === 'SUPER_ADMIN' ? 'Platform Administrator & Governance' : 'Verified Buyer');
+
           const userPayload = {
             uid: fbUser.uid,
-            name: fbUser.displayName || 'Verified User',
+            name: fbUser.displayName || existingUser?.name || 'Verified User',
             email: fbUser.email,
-            role: fbUser.email === 'tejastej094@gmail.com' ? 'SUPER_ADMIN' : 'BUYER',
-            roleTitle: fbUser.email === 'tejastej094@gmail.com' ? 'Master Platform Owner & Super Admin' : 'Verified Buyer',
+            role,
+            roleTitle,
             authProvider: 'firebase.google',
             verified: true
           };

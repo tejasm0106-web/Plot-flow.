@@ -17,8 +17,10 @@ import {
   Sparkles,
   ArrowRight,
   Filter,
-  RotateCcw
+  RotateCcw,
+  Map as MapIcon
 } from 'lucide-react';
+import GeographicPlotMapView from '../components/GeographicPlotMapView';
 
 export default function MarketplaceView({ 
   townships = [], 
@@ -26,14 +28,18 @@ export default function MarketplaceView({
   onLaunch3D, 
   onViewDetails,
   onVerifyDocs,
+  onSelectPlot,
+  onBookPlot,
+  onScheduleVisit,
   shortlistedTownships = [],
-  onToggleShortlist 
+  onToggleShortlist,
+  initialViewMode = 'grid'
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAuthority, setSelectedAuthority] = useState('ALL');
   const [maxPrice, setMaxPrice] = useState(6500);
   const [selectedFacing, setSelectedFacing] = useState('ALL');
-  const [viewMode, setViewMode] = useState('grid');
+  const [viewMode, setViewMode] = useState(initialViewMode); // 'grid' | 'list' | 'map'
   const [sortBy, setSortBy] = useState('rating');
 
   // Filtered and Sorted Townships
@@ -151,21 +157,37 @@ export default function MarketplaceView({
               </select>
             </div>
 
-            {/* View Mode Toggle */}
-            <div className="hidden sm:flex bg-slate-900 border border-slate-800 rounded-xl p-1">
+            {/* View Mode Toggle: Grid | List | Map */}
+            <div className="flex bg-slate-900 border border-slate-800 rounded-xl p-1 text-xs">
               <button
                 onClick={() => setViewMode('grid')}
-                className={`p-1.5 rounded-lg transition ${viewMode === 'grid' ? 'bg-slate-800 text-white' : 'text-slate-400'}`}
-                title="Grid View"
+                className={`px-2.5 py-1 rounded-lg transition flex items-center space-x-1 font-bold ${
+                  viewMode === 'grid' ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-white'
+                }`}
+                title="Grid Cards View"
               >
                 <Grid className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Grid</span>
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`p-1.5 rounded-lg transition ${viewMode === 'list' ? 'bg-slate-800 text-white' : 'text-slate-400'}`}
-                title="List View"
+                className={`px-2.5 py-1 rounded-lg transition flex items-center space-x-1 font-bold ${
+                  viewMode === 'list' ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-white'
+                }`}
+                title="Table List View"
               >
                 <List className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">List</span>
+              </button>
+              <button
+                onClick={() => setViewMode('map')}
+                className={`px-2.5 py-1 rounded-lg transition flex items-center space-x-1 font-bold ${
+                  viewMode === 'map' ? 'bg-emerald-600 text-white shadow' : 'text-emerald-400 hover:text-emerald-300'
+                }`}
+                title="Spatial Geographic Map View"
+              >
+                <MapIcon className="w-3.5 h-3.5" />
+                <span>GIS Map</span>
               </button>
             </div>
           </div>
@@ -187,7 +209,22 @@ export default function MarketplaceView({
       </div>
 
       {/* Townships Content */}
-      {filteredTownships.length === 0 ? (
+      {viewMode === 'map' ? (
+        <div className="space-y-4">
+          <GeographicPlotMapView
+            townships={filteredTownships}
+            onSelectTownship={onSelectTownship}
+            onLaunch3D={onLaunch3D}
+            onSelectPlot={onSelectPlot}
+            onBookPlot={onBookPlot}
+            onScheduleVisit={onScheduleVisit}
+            onVerifyDocs={onVerifyDocs}
+            shortlistedTownshipIds={shortlistedTownships}
+            onToggleShortlist={onToggleShortlist}
+            height="720px"
+          />
+        </div>
+      ) : filteredTownships.length === 0 ? (
         <div className="bg-slate-950 border border-slate-800 rounded-3xl p-12 text-center space-y-4">
           <Building2 className="w-12 h-12 text-slate-600 mx-auto" />
           <h3 className="text-base font-bold text-white">No Townships Match Your Filters</h3>

@@ -17,13 +17,15 @@ import {
   MapPin,
   ChevronDown,
   Sparkles,
-  HelpCircle
+  HelpCircle,
+  Map as MapIcon
 } from 'lucide-react';
 
 export default function LandingView({ 
   onExplore, 
   onLaunch3D, 
   onVerify, 
+  onOpenMap,
   onDeveloperPortal, 
   onAbout,
   onContact,
@@ -87,6 +89,14 @@ export default function LandingView({
               <Compass className="w-4 h-4" />
               <span>{ctaPrimary}</span>
               <ArrowRight className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={onOpenMap || onExplore}
+              className="px-6 py-3.5 bg-slate-900/90 hover:bg-slate-800 border border-emerald-500/50 text-emerald-300 font-bold text-xs rounded-xl shadow-lg transition flex items-center space-x-2"
+            >
+              <MapIcon className="w-4 h-4 text-emerald-400" />
+              <span>GIS Spatial Map</span>
             </button>
 
             <button

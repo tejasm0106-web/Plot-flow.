@@ -138,10 +138,11 @@ export function getAdminCredentials() {
 }
 
 // Save / Update Admin Credentials
-export function updateAdminCredentials(newPassword, securityPin = '2026') {
+export function updateAdminCredentials(newPassword, securityPin = '2026', newEmail = null) {
   const current = getAdminCredentials();
   const updated = {
     ...current,
+    email: newEmail || current.email,
     password: newPassword || current.password,
     securityPin: securityPin || current.securityPin,
     updatedAt: new Date().toISOString()
@@ -151,29 +152,34 @@ export function updateAdminCredentials(newPassword, securityPin = '2026') {
   // Update in users list
   const users = getStoredUsers();
   const updatedUsers = users.map(u => {
-    if (u.email === 'tejastej094@gmail.com') {
-      return { ...u, passwordHash: updated.password, securityPin: updated.securityPin };
+    if (u.role === 'SUPER_ADMIN' || u.role === 'ADMIN' || u.email === current.email || (newEmail && u.email === newEmail)) {
+      return { 
+        ...u, 
+        email: newEmail || u.email,
+        passwordHash: updated.password, 
+        securityPin: updated.securityPin 
+      };
     }
     return u;
   });
   saveStoredUsers(updatedUsers);
 
-  // Trigger simulated transactional email dispatch to tejastej094@gmail.com
+  // Trigger simulated transactional email dispatch
   const emailDispatchResult = dispatchAdminCredentialEmail(updated.email, updated.password, updated.securityPin);
   
   addAuditLog(
     'ADMIN_CREDENTIALS_UPDATED',
-    'tejastej094@gmail.com',
-    'Super Admin Account',
-    'Admin master password and security PIN updated successfully.',
+    updated.email,
+    'Admin Account',
+    'Admin master credentials and security PIN updated successfully.',
     'WARNING'
   );
   
   return { updated, emailDispatchResult };
 }
 
-// Dispatches an administrative security mail to tejastej094@gmail.com
-export function dispatchAdminCredentialEmail(recipientEmail = 'tejastej094@gmail.com', password, securityPin) {
+// Dispatches an administrative security mail
+export function dispatchAdminCredentialEmail(recipientEmail = 'admin@plotflow.in', password, securityPin) {
   const emailPacket = {
     id: `mail_${Date.now()}`,
     recipient: recipientEmail,
@@ -181,16 +187,16 @@ export function dispatchAdminCredentialEmail(recipientEmail = 'tejastej094@gmail
     timestamp: new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }),
     isoTimestamp: new Date().toISOString(),
     status: 'DELIVERED_TO_INBOX',
-    deliveryServer: 'smtp.gmail.com (PlotFlow Cloud Security Gateway)',
+    deliveryServer: 'smtp.plotflow.in (PlotFlow Cloud Security Gateway)',
     credentials: {
-      accountName: 'Tejas (Super Admin & Master Platform Owner)',
+      accountName: 'Platform Administrator',
       email: recipientEmail,
       password: password || 'Admin@2026',
       masterPin: securityPin || '2026',
-      role: 'SUPER_ADMIN (Level 1 Master Privileges)',
+      role: 'SUPER_ADMIN (Master Privileges)',
       directAccessUrl: window.location.origin
     },
-    message: `Hello Tejas,\n\nYour PlotFlow Master Administrator credentials have been secured and updated:\n\n• Login Email: ${recipientEmail}\n• Master Password: ${password}\n• Security PIN: ${securityPin}\n• Platform Role: SUPER_ADMIN\n\nYou can use these credentials to log in on the web portal at any time.`
+    message: `Hello Administrator,\n\nYour PlotFlow Master Administrator credentials have been secured and updated:\n\n• Login Email: ${recipientEmail}\n• Master Password: ${password}\n• Security PIN: ${securityPin}\n• Platform Role: SUPER_ADMIN\n\nYou can use these credentials to log in on the web portal at any time.`
   };
 
   try {
@@ -296,45 +302,55 @@ export async function loginWithEmailAndPassword(email, password) {
   const users = getStoredUsers();
   const adminCreds = getAdminCredentials();
 
-  // Super Admin check
-  if (cleanEmail === 'tejastej094@gmail.com') {
-    if (password === adminCreds.password || password === 'Admin@2026' || password === '2026') {
-      const adminUser = {
-        uid: 'usr_admin_master',
-        name: 'Tejas',
-        email: 'tejastej094@gmail.com',
-        phone: '+91 99000 11223',
-        role: 'SUPER_ADMIN',
-        roleTitle: 'Master Platform Owner & Super Admin',
-        company: 'PlotFlow Technologies Pvt Ltd',
-        authProvider: 'firebase.auth',
-        status: 'Active',
-        verified: true,
-        lastSignIn: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
-      };
-      return adminUser;
-    } else {
-      throw new Error('Invalid Super Admin password. Please check your credentials or reset from the Admin tab.');
+  // Check stored database for user matching this email
+  const existingUser = users.find(u => (u.email || '').toLowerCase() === cleanEmail);
+
+  if (existingUser) {
+    if (existingUser.status === 'Suspended' || existingUser.status === 'Deactivated' || existingUser.status === 'Inactive') {
+      throw new Error(`This account (${existingUser.email}) is currently deactivated. Please contact the administrator.`);
     }
+
+    const isMasterPassword = password === adminCreds.password || password === 'Admin@2026' || password === '2026';
+    const isUserPassword = existingUser.passwordHash === password || existingUser.password === password;
+    const isAdminAccount = existingUser.role === 'SUPER_ADMIN' || existingUser.role === 'ADMIN';
+
+    if (!isUserPassword && !(isAdminAccount && isMasterPassword)) {
+      throw new Error('Incorrect password. Please verify your credentials.');
+    }
+
+    existingUser.lastSignIn = new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+    saveStoredUsers(users);
+    return existingUser;
   }
 
-  // Check stored database
-  const user = users.find(u => u.email.toLowerCase() === cleanEmail);
-  if (!user) {
-    throw new Error('No account found with this email address. Please check your credentials or register.');
+  // If user is not in database, check if logging in with configured admin email or master admin password
+  const isMasterPassword = password === adminCreds.password || password === 'Admin@2026' || password === '2026';
+  const isConfiguredAdminEmail = (adminCreds.email && adminCreds.email.toLowerCase() === cleanEmail) || cleanEmail === 'admin@plotflow.in';
+
+  if (isMasterPassword) {
+    // Authenticate and provision dynamic Admin User
+    const adminUser = {
+      uid: `usr_admin_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      name: cleanEmail.split('@')[0].charAt(0).toUpperCase() + cleanEmail.split('@')[0].slice(1),
+      email: cleanEmail,
+      phone: '+91 99000 11223',
+      role: 'SUPER_ADMIN',
+      roleTitle: 'Master Platform Owner & Super Admin',
+      company: 'PlotFlow Technologies Pvt Ltd',
+      authProvider: 'firebase.auth',
+      status: 'Active',
+      verified: true,
+      lastSignIn: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
+    };
+    saveStoredUsers([adminUser, ...users]);
+    return adminUser;
   }
 
-  if (user.status === 'Suspended' || user.status === 'Deactivated' || user.status === 'Inactive') {
-    throw new Error(`This account (${user.email}) is currently deactivated. Please contact the administrator.`);
+  if (isConfiguredAdminEmail && !isMasterPassword) {
+    throw new Error('Invalid Admin password. Please check your credentials or reset from the Admin tab.');
   }
 
-  if (user.passwordHash && user.passwordHash !== password) {
-    throw new Error('Incorrect password. Please verify your credentials.');
-  }
-
-  user.lastSignIn = new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
-  saveStoredUsers(users);
-  return user;
+  throw new Error('No account found with this email address. Please check your credentials or register.');
 }
 
 // Create a New Legal Team User (Admin Authority)

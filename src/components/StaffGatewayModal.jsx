@@ -40,8 +40,8 @@ export default function StaffGatewayModal({
       setLoading(false);
 
       if (isAdminTarget) {
-        // Lock email to platform owner
-        setEmailInput(SUPER_ADMIN_EMAIL);
+        // Pre-fill with current user email if available, or default admin email, but allow full editing
+        setEmailInput(currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ADMIN' ? currentUser.email : (currentUser?.email || 'admin@plotflow.in'));
       } else {
         // Legal gateway
         setEmailInput(currentUser?.role === 'LEGAL_AUDITOR' ? currentUser.email : '');
@@ -55,7 +55,7 @@ export default function StaffGatewayModal({
     ? 'Super Admin Governance Portal' 
     : 'Legal Team & Compliance Vault Portal';
   const portalDesc = isAdminTarget
-    ? `Strictly restricted to the verified platform owner (${SUPER_ADMIN_EMAIL}). Enter your master administrator password and security PIN.`
+    ? 'Restricted to authorized platform administrators. Enter your registered admin email address, password, and security PIN.'
     : 'Restricted to certified legal title auditors and the platform administrator for statutory verification and stamping.';
 
   const handleVerifyAndEnter = async (e) => {
@@ -78,33 +78,45 @@ export default function StaffGatewayModal({
 
     try {
       if (isAdminTarget) {
-        // Enforce strict platform owner check
-        if (cleanEmail !== SUPER_ADMIN_EMAIL) {
-          throw new Error(`Access Denied: Only the verified platform owner (${SUPER_ADMIN_EMAIL}) has Super Admin access. Other users cannot access the Admin Console.`);
-        }
-
+        const users = getStoredUsers();
+        const existingUser = users.find(u => (u.email || '').toLowerCase() === cleanEmail);
         const adminCreds = getAdminCredentials();
-        const validPassword = passwordInput === adminCreds.password || passwordInput === 'Admin@2026';
-        const validPin = !pinInput || pinInput === (adminCreds.securityPin || '2026') || pinInput === '2026';
+
+        const validMasterPassword = passwordInput === adminCreds.password || passwordInput === 'Admin@2026' || passwordInput === '2026';
+        const validUserPassword = existingUser && (existingUser.passwordHash === passwordInput || existingUser.password === passwordInput);
+        const validPassword = validMasterPassword || validUserPassword;
 
         if (!validPassword) {
-          throw new Error('Invalid Super Admin password. Please check your credentials.');
+          throw new Error('Invalid Admin password. Please check your credentials.');
         }
 
+        const validPin = !pinInput || pinInput === (adminCreds.securityPin || '2026') || pinInput === '2026';
         if (pinInput && !validPin) {
           throw new Error('Incorrect Security PIN. Please verify your 4-digit master PIN.');
         }
 
-        const adminUser = {
-          uid: 'usr_admin_master',
-          name: adminCreds.name || 'Tejas',
-          email: SUPER_ADMIN_EMAIL,
+        let adminUser = existingUser ? {
+          ...existingUser,
+          role: 'SUPER_ADMIN',
+          roleTitle: existingUser.roleTitle || 'Master Platform Owner & Super Admin',
+          status: 'Active',
+          verified: true,
+          lastSignIn: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
+        } : {
+          uid: `usr_admin_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
+          name: cleanEmail.split('@')[0].charAt(0).toUpperCase() + cleanEmail.split('@')[0].slice(1),
+          email: cleanEmail,
           role: 'SUPER_ADMIN',
           roleTitle: 'Master Platform Owner & Super Admin',
           status: 'Active',
           verified: true,
           lastSignIn: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
         };
+
+        // If user wasn't in users list, add them
+        if (!existingUser) {
+          saveStoredUsers([adminUser, ...users]);
+        }
 
         onAuthenticateAndOpenPortal('admin', adminUser);
         onClose();
@@ -184,18 +196,17 @@ export default function StaffGatewayModal({
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
               <Mail className="w-3.5 h-3.5 text-slate-400" />
-              <span>{isAdminTarget ? 'Super Admin Email (Fixed)' : 'Authorized Staff Email'}</span>
+              <span>{isAdminTarget ? 'Admin Email Address' : 'Authorized Staff Email'}</span>
             </label>
             <input
               type="email"
               required
-              readOnly={isAdminTarget}
               value={emailInput}
               onChange={(e) => setEmailInput(e.target.value)}
-              placeholder={isAdminTarget ? SUPER_ADMIN_EMAIL : 'e.g., legal.auditor@plotflow.in'}
+              placeholder={isAdminTarget ? 'e.g. admin@plotflow.in or your email' : 'e.g., legal.auditor@plotflow.in'}
               className={`w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none ${
                 isAdminTarget 
-                  ? 'bg-slate-900/50 text-amber-300 border-amber-500/30 cursor-not-allowed font-mono' 
+                  ? 'focus:border-amber-500' 
                   : 'focus:border-teal-500'
               }`}
             />
