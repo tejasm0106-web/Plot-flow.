@@ -72,11 +72,13 @@ export default function AdminDashboard({
     { id: 'overview', label: 'Overview', icon: TrendingUp, badge: badgeCounts.overview },
     { id: 'townships', label: 'Townships', icon: Building2, badge: badgeCounts.townships },
     { id: 'plots', label: 'Plot Inventory', icon: Layers, badge: badgeCounts.plots },
+    { id: 'developers', label: 'Builder Governance', icon: Building2, badge: badgeCounts.developers },
+    { id: 'leads', label: 'Buyer CRM & Leads', icon: Mail, badge: badgeCounts.leads },
+    { id: 'legal_vault', label: 'Legal Vault Control', icon: ShieldCheck, badge: badgeCounts.legal_vault },
     { id: 'users', label: 'Users & Staff', icon: Users, badge: badgeCounts.users },
-    { id: 'leads', label: 'Leads & CRM', icon: Mail, badge: badgeCounts.leads },
     { id: 'cms', label: 'Site CMS', icon: Settings, badge: badgeCounts.cms },
-    { id: 'sections', label: 'Sections', icon: Sliders, badge: badgeCounts.sections },
-    { id: 'audit_logs', label: 'Audit Logs', icon: FileText, badge: badgeCounts.audit_logs }
+    { id: 'sections', label: 'Homepage Sections', icon: Sliders, badge: badgeCounts.sections },
+    { id: 'audit_logs', label: 'Audit & System', icon: FileText, badge: badgeCounts.audit_logs }
   ];
 
   const navItems = customNavItems || defaultNavItems;

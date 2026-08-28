@@ -27,7 +27,9 @@ export default function UserProfileView({
   shortlistedTownships = [],
   onToggleShortlist,
   onViewTownship,
-  onLaunch3D
+  onLaunch3D,
+  onOpenAdminPortal,
+  onOpenLegalPortal
 }) {
   const [activeTab, setActiveTab] = useState('saved'); // 'saved' | 'inquiries' | 'account' | 'roles'
 
@@ -94,13 +96,35 @@ export default function UserProfileView({
             </div>
           </div>
 
-          <button
-            onClick={onLogout}
-            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-rose-300 hover:text-rose-200 text-xs font-bold rounded-xl transition flex items-center space-x-1.5 self-start sm:self-auto"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>Sign Out</span>
-          </button>
+          <div className="flex items-center space-x-2 self-start sm:self-auto">
+            {currentUser?.role === 'SUPER_ADMIN' && onOpenAdminPortal && (
+              <button
+                onClick={onOpenAdminPortal}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-slate-950 text-xs font-black rounded-xl shadow-lg transition flex items-center space-x-1.5"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>Launch Master Admin Portal</span>
+              </button>
+            )}
+
+            {currentUser?.role === 'LEGAL_AUDITOR' && onOpenLegalPortal && (
+              <button
+                onClick={onOpenLegalPortal}
+                className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white text-xs font-black rounded-xl shadow-lg transition flex items-center space-x-1.5"
+              >
+                <Scale className="w-4 h-4" />
+                <span>Launch Legal Audit Portal</span>
+              </button>
+            )}
+
+            <button
+              onClick={onLogout}
+              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-rose-300 hover:text-rose-200 text-xs font-bold rounded-xl transition flex items-center space-x-1.5"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Sign Out</span>
+            </button>
+          </div>
         </div>
       </div>
 

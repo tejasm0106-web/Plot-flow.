@@ -18,7 +18,11 @@ import {
   Scale,
   Settings,
   Mail,
-  Info
+  Info,
+  ArrowRight,
+  ChevronRight,
+  Shield,
+  Key
 } from 'lucide-react';
 
 import { INITIAL_PROJECTS, DEMO_USERS } from './data/mockData';
@@ -50,6 +54,7 @@ import PlotDetailDrawer from './components/PlotDetailDrawer';
 import BookingModal from './components/BookingModal';
 import SiteVisitModal from './components/SiteVisitModal';
 import AuthModal from './components/AuthModal';
+import StaffGatewayModal from './components/StaffGatewayModal';
 
 export default function App() {
   // Master persistent state for townships
@@ -57,8 +62,12 @@ export default function App() {
   const [siteSettings, setSiteSettings] = useState(() => getSiteSettings());
   const [shortlistedTownshipIds, setShortlistedTownshipIds] = useState(() => getShortlist());
 
+  // Portal Architecture: 'main' (Buyer & Developer public web) | 'admin' (Dedicated Admin Governance Portal) | 'legal' (Dedicated Legal Audit Portal)
+  const [portalMode, setPortalMode] = useState('main'); 
+  const [isAdminPreviewMode, setIsAdminPreviewMode] = useState(false);
+
+  // Main Web views: 'landing' | 'marketplace' | 'project-detail' | '3d-twin' | 'verification' | 'compare' | 'developer-portal' | 'lead-crm' | 'about' | 'contact' | 'profile' | 'investor-pitch'
   const [currentView, setCurrentView] = useState('landing'); 
-  // 'landing' | 'marketplace' | 'project-detail' | '3d-twin' | 'verification' | 'compare' | 'developer-portal' | 'lead-crm' | 'admin-panel' | 'investor-pitch' | 'legal-portal' | 'about' | 'contact' | 'profile'
 
   const [selectedTownshipId, setSelectedTownshipId] = useState(() => {
     const list = getStoredTownships();
@@ -69,25 +78,40 @@ export default function App() {
   // User Authentication State
   const [currentUser, setCurrentUser] = useState(DEMO_USERS.superAdmin); // Initialized with Tejas Super Admin
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isStaffGatewayOpen, setIsStaffGatewayOpen] = useState(false);
+  const [staffGatewayTarget, setStaffGatewayTarget] = useState('admin'); // 'admin' | 'legal'
+
   const [isPlotDrawerOpen, setIsPlotDrawerOpen] = useState(false);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [isSiteVisitModalOpen, setIsSiteVisitModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Sync state on external updates
+  // Sync state on external updates & portal switches
   useEffect(() => {
     const handleTownshipsUpdate = (e) => setTownships(e.detail || getStoredTownships());
     const handleSettingsUpdate = (e) => setSiteSettings(e.detail || getSiteSettings());
     const handleShortlistUpdate = (e) => setShortlistedTownshipIds(e.detail || getShortlist());
+    const handleSwitchPortal = (e) => {
+      if (e.detail?.portal === 'admin') setPortalMode('admin');
+      else if (e.detail?.portal === 'legal') setPortalMode('legal');
+      else if (e.detail?.portal === 'developer') {
+        setPortalMode('main');
+        setCurrentView('developer-portal');
+      } else {
+        setPortalMode('main');
+      }
+    };
 
     window.addEventListener('plotflow_townships_updated', handleTownshipsUpdate);
     window.addEventListener('plotflow_settings_updated', handleSettingsUpdate);
     window.addEventListener('plotflow_shortlist_updated', handleShortlistUpdate);
+    window.addEventListener('plotflow_switch_portal', handleSwitchPortal);
 
     return () => {
       window.removeEventListener('plotflow_townships_updated', handleTownshipsUpdate);
       window.removeEventListener('plotflow_settings_updated', handleSettingsUpdate);
       window.removeEventListener('plotflow_shortlist_updated', handleShortlistUpdate);
+      window.removeEventListener('plotflow_switch_portal', handleSwitchPortal);
     };
   }, []);
 
@@ -126,7 +150,6 @@ export default function App() {
   };
 
   const handleBookingSuccess = (plotId) => {
-    // Update plot status to Reserved
     const updatedList = townships.map(ts => {
       if (ts.id === selectedTownship?.id) {
         return {
@@ -141,6 +164,211 @@ export default function App() {
     saveStoredTownships(updatedList);
   };
 
+  const handleOpenStaffPortal = (target) => {
+    if (target === 'admin') {
+      if (currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ADMIN') {
+        setPortalMode('admin');
+        setIsAdminPreviewMode(false);
+      } else {
+        setStaffGatewayTarget('admin');
+        setIsStaffGatewayOpen(true);
+      }
+    } else if (target === 'legal') {
+      if (currentUser?.role === 'LEGAL_AUDITOR' || currentUser?.role === 'SUPER_ADMIN') {
+        setPortalMode('legal');
+      } else {
+        setStaffGatewayTarget('legal');
+        setIsStaffGatewayOpen(true);
+      }
+    }
+  };
+
+  const handleAuthenticateStaffAndOpen = (target, user) => {
+    setCurrentUser(user);
+    if (target === 'admin') {
+      setPortalMode('admin');
+      setIsAdminPreviewMode(false);
+    } else if (target === 'legal') {
+      setPortalMode('legal');
+    }
+  };
+
+  // =========================================================================
+  // 1. DEDICATED SEPARATE ADMIN PORTAL VIEW
+  // =========================================================================
+  if (portalMode === 'admin') {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-black">
+        {/* Standalone Admin Portal Header */}
+        <header className="sticky top-0 z-50 bg-slate-950/95 backdrop-blur-md border-b border-amber-500/30 px-4 sm:px-8 py-3">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center space-x-3">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-600 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-950/50">
+                <ShieldCheck className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-base font-black text-white tracking-tight">PlotFlow Governance Center</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40">
+                    MASTER ADMIN
+                  </span>
+                </div>
+                <span className="text-[10px] text-slate-400 block font-mono">
+                  Full control over Buyer & Developer platforms
+                </span>
+              </div>
+            </div>
+
+            {/* Quick Live Preview & Portal Switchers */}
+            <div className="flex items-center space-x-2 text-xs">
+              <button
+                onClick={() => {
+                  setPortalMode('main');
+                  setCurrentView('marketplace');
+                  setIsAdminPreviewMode(true);
+                }}
+                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold rounded-xl transition flex items-center space-x-1.5"
+                title="Inspect how Buyer Marketplace looks and tests"
+              >
+                <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Inspect Buyer View</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setPortalMode('main');
+                  setCurrentView('developer-portal');
+                  setIsAdminPreviewMode(true);
+                }}
+                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-indigo-300 font-bold rounded-xl transition flex items-center space-x-1.5"
+                title="Inspect how Builder SaaS looks and tests"
+              >
+                <Building2 className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Inspect Developer SaaS</span>
+              </button>
+
+              <button
+                onClick={() => setPortalMode('legal')}
+                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-teal-300 font-bold rounded-xl transition flex items-center space-x-1.5"
+                title="Open Legal Audit Team Portal"
+              >
+                <Scale className="w-3.5 h-3.5 text-teal-400" />
+                <span>Legal Vault Portal</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setPortalMode('main');
+                  setIsAdminPreviewMode(false);
+                }}
+                className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-slate-950 font-black rounded-xl shadow-lg transition flex items-center space-x-1"
+              >
+                <span>Exit Admin Portal</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {/* Master Admin Panel Screen */}
+        <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8">
+          <AdminPanel
+            currentUser={currentUser}
+            townships={townships}
+            onUpdateTownship={handleUpdateTownship}
+            onAddTownship={handleAddTownship}
+            onRemoveTownship={handleRemoveTownship}
+            onExploreMarketplace={() => {
+              setPortalMode('main');
+              setCurrentView('marketplace');
+              setIsAdminPreviewMode(true);
+            }}
+          />
+        </main>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // 2. DEDICATED SEPARATE LEGAL TEAM PORTAL VIEW
+  // =========================================================================
+  if (portalMode === 'legal') {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-teal-500 selection:text-black">
+        {/* Standalone Legal Portal Header */}
+        <header className="sticky top-0 z-50 bg-slate-950/95 backdrop-blur-md border-b border-teal-500/30 px-4 sm:px-8 py-3">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center space-x-3">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-teal-600 to-emerald-500 flex items-center justify-center shadow-lg shadow-teal-950/50">
+                <Scale className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-base font-black text-white tracking-tight">PlotFlow Legal & Compliance Portal</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-300 font-bold border border-teal-500/40">
+                    TITLE AUDIT
+                  </span>
+                </div>
+                <span className="text-[10px] text-slate-400 block font-mono">
+                  Statutory 5-Layer Verification & Digital Legal Stamping
+                </span>
+              </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="flex items-center space-x-2 text-xs">
+              <button
+                onClick={() => {
+                  setPortalMode('main');
+                  setCurrentView('verification');
+                }}
+                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold rounded-xl transition flex items-center space-x-1.5"
+              >
+                <Eye className="w-3.5 h-3.5 text-teal-400" />
+                <span>Buyer Vault Preview</span>
+              </button>
+
+              {(currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'ADMIN') && (
+                <button
+                  onClick={() => setPortalMode('admin')}
+                  className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-300 font-bold rounded-xl transition flex items-center space-x-1.5"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Admin Console</span>
+                </button>
+              )}
+
+              <button
+                onClick={() => setPortalMode('main')}
+                className="px-3.5 py-1.5 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-xl shadow-lg transition flex items-center space-x-1"
+              >
+                <span>Return to Public Web</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {/* Legal Audit Portal Screen */}
+        <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8">
+          <LegalAuditPortal
+            currentUser={currentUser}
+            townships={townships}
+            onUpdateTownship={handleUpdateTownship}
+            onNavigateTo3D={(ts) => {
+              if (ts) setSelectedTownshipId(ts.id);
+              setPortalMode('main');
+              setCurrentView('3d-twin');
+            }}
+          />
+        </main>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // 3. MAIN WEB APPLICATION (BUYER & DEVELOPER PORTAL ONLY)
+  // =========================================================================
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-white">
       {/* Optional Top Announcement Bar from CMS */}
@@ -151,7 +379,26 @@ export default function App() {
         </div>
       )}
 
-      {/* Top Main Navigation Bar */}
+      {/* Floating Admin Inspection Mode Banner if previewing */}
+      {isAdminPreviewMode && (
+        <div className="bg-amber-500 text-slate-950 px-4 py-2 text-xs font-bold flex items-center justify-between shadow-lg sticky top-0 z-50">
+          <div className="flex items-center space-x-2">
+            <ShieldCheck className="w-4 h-4" />
+            <span>Administrator Inspection Mode: You are previewing live Buyer & Developer views. Changes made in Admin reflect here immediately.</span>
+          </div>
+          <button
+            onClick={() => {
+              setPortalMode('admin');
+              setIsAdminPreviewMode(false);
+            }}
+            className="px-3 py-1 bg-slate-950 hover:bg-slate-900 text-amber-400 text-xs font-black rounded-lg transition"
+          >
+            ← Return to Admin Control Center
+          </button>
+        </div>
+      )}
+
+      {/* Top Main Navigation Bar: STRICTLY FOR BUYER & DEVELOPER */}
       <header className="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-md border-b border-slate-800/80 px-4 sm:px-8 py-3.5">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           {/* Logo & Slogan */}
@@ -175,11 +422,11 @@ export default function App() {
             </div>
           </div>
 
-          {/* Desktop Navigation Links */}
+          {/* Desktop Navigation Links: BUYER & DEVELOPER ONLY */}
           <nav className="hidden lg:flex items-center space-x-1 bg-slate-900/80 p-1 rounded-2xl border border-slate-800 text-xs font-semibold">
             <button
               onClick={() => setCurrentView('landing')}
-              className={`px-3 py-2 rounded-xl transition ${
+              className={`px-3.5 py-2 rounded-xl transition ${
                 currentView === 'landing' ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -187,7 +434,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setCurrentView('marketplace')}
-              className={`px-3 py-2 rounded-xl transition ${
+              className={`px-3.5 py-2 rounded-xl transition ${
                 currentView === 'marketplace' ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -195,7 +442,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setCurrentView('3d-twin')}
-              className={`px-3 py-2 rounded-xl transition flex items-center space-x-1.5 ${
+              className={`px-3.5 py-2 rounded-xl transition flex items-center space-x-1.5 ${
                 currentView === '3d-twin' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -204,7 +451,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setCurrentView('verification')}
-              className={`px-3 py-2 rounded-xl transition flex items-center space-x-1.5 ${
+              className={`px-3.5 py-2 rounded-xl transition flex items-center space-x-1.5 ${
                 currentView === 'verification' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -213,53 +460,29 @@ export default function App() {
             </button>
             <button
               onClick={() => setCurrentView('compare')}
-              className={`px-3 py-2 rounded-xl transition flex items-center space-x-1.5 ${
+              className={`px-3.5 py-2 rounded-xl transition flex items-center space-x-1.5 ${
                 currentView === 'compare' ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
               <Bookmark className="w-3.5 h-3.5" />
               <span>Saved ({shortlistedTownshipIds.length})</span>
             </button>
-            
-            {/* Legal Audit Team Access */}
-            {(currentUser?.role === 'LEGAL_AUDITOR' || currentUser?.role === 'SUPER_ADMIN') && (
-              <button
-                onClick={() => setCurrentView('legal-portal')}
-                className={`px-3 py-2 rounded-xl transition flex items-center space-x-1.5 ${
-                  currentView === 'legal-portal' ? 'bg-teal-600 text-white shadow' : 'text-teal-400 hover:bg-teal-500/10'
-                }`}
-              >
-                <Scale className="w-3.5 h-3.5" />
-                <span>Legal Audit Team</span>
-              </button>
-            )}
 
             {/* Developer CRM & Builder SaaS Access */}
             <button
               onClick={() => setCurrentView('developer-portal')}
-              className={`px-3 py-2 rounded-xl transition flex items-center space-x-1.5 ${
-                currentView === 'developer-portal' || currentView === 'lead-crm' ? 'bg-indigo-900/60 border border-indigo-500/40 text-indigo-300 shadow' : 'text-slate-400 hover:text-slate-200'
+              className={`px-3.5 py-2 rounded-xl transition flex items-center space-x-1.5 ${
+                currentView === 'developer-portal' || currentView === 'lead-crm' 
+                  ? 'bg-indigo-900/60 border border-indigo-500/40 text-indigo-300 shadow' 
+                  : 'text-indigo-400 hover:bg-indigo-500/10'
               }`}
             >
               <Building2 className="w-3.5 h-3.5" />
               <span>Builder SaaS</span>
             </button>
-
-            {/* Tejas Super Admin Link */}
-            {currentUser?.role === 'SUPER_ADMIN' && (
-              <button
-                onClick={() => setCurrentView('admin-panel')}
-                className={`px-3 py-2 rounded-xl transition flex items-center space-x-1.5 ${
-                  currentView === 'admin-panel' ? 'bg-amber-600 text-white shadow' : 'text-amber-400 hover:bg-amber-500/10'
-                }`}
-              >
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Admin CMS</span>
-              </button>
-            )}
           </nav>
 
-          {/* User Auth Profile & Fast Action */}
+          {/* User Auth Profile & Fast Actions */}
           <div className="flex items-center space-x-3">
             {currentUser ? (
               <div className="flex items-center space-x-2">
@@ -345,22 +568,6 @@ export default function App() {
             >
               Builder SaaS & Inventory
             </button>
-            {currentUser?.role === 'SUPER_ADMIN' && (
-              <button
-                onClick={() => { setCurrentView('admin-panel'); setMobileMenuOpen(false); }}
-                className="w-full text-left p-2.5 rounded-xl hover:bg-slate-800 font-bold text-amber-400"
-              >
-                Super Admin Panel
-              </button>
-            )}
-            {(currentUser?.role === 'LEGAL_AUDITOR' || currentUser?.role === 'SUPER_ADMIN') && (
-              <button
-                onClick={() => { setCurrentView('legal-portal'); setMobileMenuOpen(false); }}
-                className="w-full text-left p-2.5 rounded-xl hover:bg-slate-800 font-bold text-teal-400"
-              >
-                Legal Audit Team
-              </button>
-            )}
             <button
               onClick={() => { setCurrentView('about'); setMobileMenuOpen(false); }}
               className="w-full text-left p-2.5 rounded-xl hover:bg-slate-800 font-bold text-slate-300"
@@ -372,12 +579,6 @@ export default function App() {
               className="w-full text-left p-2.5 rounded-xl hover:bg-slate-800 font-bold text-slate-300"
             >
               Contact & Concierge
-            </button>
-            <button
-              onClick={() => { setCurrentView('investor-pitch'); setMobileMenuOpen(false); }}
-              className="w-full text-left p-2.5 rounded-xl hover:bg-slate-800 font-bold text-slate-400"
-            >
-              Investor Pitch & TAM
             </button>
           </div>
         )}
@@ -543,25 +744,6 @@ export default function App() {
           </div>
         )}
 
-        {currentView === 'legal-portal' && (
-          <LegalAuditPortal
-            currentUser={currentUser}
-            townships={townships}
-            onUpdateTownship={handleUpdateTownship}
-          />
-        )}
-
-        {currentView === 'admin-panel' && (
-          <AdminPanel
-            currentUser={currentUser}
-            townships={townships}
-            onUpdateTownship={handleUpdateTownship}
-            onAddTownship={handleAddTownship}
-            onRemoveTownship={handleRemoveTownship}
-            onExploreMarketplace={() => setCurrentView('marketplace')}
-          />
-        )}
-
         {currentView === 'investor-pitch' && (
           <InvestorPitchView
             onExplore={() => setCurrentView('marketplace')}
@@ -591,9 +773,9 @@ export default function App() {
             }}
             onSwitchUser={(user) => {
               setCurrentUser(user);
-              if (user.role === 'SUPER_ADMIN') setCurrentView('admin-panel');
+              if (user.role === 'SUPER_ADMIN') setPortalMode('admin');
+              else if (user.role === 'LEGAL_AUDITOR') setPortalMode('legal');
               else if (user.role === 'DEVELOPER') setCurrentView('developer-portal');
-              else if (user.role === 'LEGAL_AUDITOR') setCurrentView('legal-portal');
             }}
             townships={townships}
             shortlistedTownships={shortlistedTownshipIds}
@@ -606,6 +788,8 @@ export default function App() {
               setSelectedTownshipId(ts.id);
               setCurrentView('3d-twin');
             }}
+            onOpenAdminPortal={() => handleOpenStaffPortal('admin')}
+            onOpenLegalPortal={() => handleOpenStaffPortal('legal')}
           />
         )}
       </main>
@@ -654,18 +838,48 @@ export default function App() {
         onLoginSuccess={(user) => {
           setCurrentUser(user);
           if (user.role === 'SUPER_ADMIN') {
-            setCurrentView('admin-panel');
+            setPortalMode('admin');
+          } else if (user.role === 'LEGAL_AUDITOR') {
+            setPortalMode('legal');
           } else if (user.role === 'DEVELOPER') {
             setCurrentView('developer-portal');
-          } else if (user.role === 'LEGAL_AUDITOR') {
-            setCurrentView('legal-portal');
           } else {
             setCurrentView('marketplace');
           }
         }}
       />
 
-      {/* Footer */}
+      {/* Staff & Governance Gateway Modal */}
+      <StaffGatewayModal
+        isOpen={isStaffGatewayOpen}
+        onClose={() => setIsStaffGatewayOpen(false)}
+        targetPortal={staffGatewayTarget}
+        currentUser={currentUser}
+        onAuthenticateAndOpenPortal={handleAuthenticateStaffAndOpen}
+      />
+
+      {/* Floating Staff Portal Gateway Quick Launcher */}
+      <div className="fixed bottom-5 right-5 z-30 flex items-center space-x-2">
+        <button
+          onClick={() => handleOpenStaffPortal('admin')}
+          className="p-2.5 bg-slate-950/90 hover:bg-slate-900 border border-amber-500/40 text-amber-400 rounded-2xl shadow-xl backdrop-blur-md text-xs font-bold flex items-center space-x-2 transition hover:scale-105"
+          title="Open Protected Admin Governance Portal"
+        >
+          <ShieldCheck className="w-4 h-4 text-amber-400" />
+          <span className="hidden sm:inline">Admin Gateway</span>
+        </button>
+
+        <button
+          onClick={() => handleOpenStaffPortal('legal')}
+          className="p-2.5 bg-slate-950/90 hover:bg-slate-900 border border-teal-500/40 text-teal-400 rounded-2xl shadow-xl backdrop-blur-md text-xs font-bold flex items-center space-x-2 transition hover:scale-105"
+          title="Open Protected Legal Team Portal"
+        >
+          <Scale className="w-4 h-4 text-teal-400" />
+          <span className="hidden sm:inline">Legal Portal</span>
+        </button>
+      </div>
+
+      {/* Footer: Buyer & Developer Focused with Discrete Staff Gateway */}
       <footer className="bg-slate-950 border-t border-slate-800/80 py-10 px-4 text-xs text-slate-500">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-3">
@@ -684,10 +898,24 @@ export default function App() {
             <button onClick={() => setCurrentView('verification')} className="hover:text-emerald-400 transition">5-Layer Legal Vault</button>
             <button onClick={() => setCurrentView('contact')} className="hover:text-emerald-400 transition">Concierge & Contact</button>
             <button onClick={() => setCurrentView('investor-pitch')} className="hover:text-indigo-400 transition">Investor TAM</button>
-            <button onClick={() => setCurrentView('developer-portal')} className="hover:text-amber-400 transition">Developer SaaS</button>
-            {currentUser?.role === 'SUPER_ADMIN' && (
-              <button onClick={() => setCurrentView('admin-panel')} className="text-amber-400 hover:text-amber-300 font-bold transition">Admin Master CMS</button>
-            )}
+            <button onClick={() => setCurrentView('developer-portal')} className="text-indigo-400 hover:text-indigo-300 font-bold transition">Developer SaaS</button>
+            
+            {/* Discrete Protected Staff Links */}
+            <span className="text-slate-700">|</span>
+            <button 
+              onClick={() => handleOpenStaffPortal('admin')} 
+              className="text-amber-400 hover:text-amber-300 font-bold transition flex items-center space-x-1"
+            >
+              <Lock className="w-3 h-3 text-amber-400" />
+              <span>Admin Portal</span>
+            </button>
+            <button 
+              onClick={() => handleOpenStaffPortal('legal')} 
+              className="text-teal-400 hover:text-teal-300 font-bold transition flex items-center space-x-1"
+            >
+              <Scale className="w-3 h-3 text-teal-400" />
+              <span>Legal Team</span>
+            </button>
           </div>
 
           <div>
@@ -698,3 +926,4 @@ export default function App() {
     </div>
   );
 }
+

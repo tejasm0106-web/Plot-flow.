@@ -532,8 +532,10 @@ export default function AdminPanel({
           { id: 'overview', name: 'Overview', icon: TrendingUp },
           { id: 'townships', name: `Townships (${townships.length})`, icon: Building2 },
           { id: 'plots', name: 'Plot Inventory', icon: Layers },
+          { id: 'developers', name: 'Builder Governance', icon: Building2 },
+          { id: 'leads', name: `Buyer CRM (${leadsList.length})`, icon: Mail },
+          { id: 'legal_vault', name: 'Legal Vault Control', icon: ShieldCheck },
           { id: 'users', name: `Users & Staff (${usersList.length})`, icon: Users },
-          { id: 'leads', name: `Leads & CRM (${leadsList.length})`, icon: Mail },
           { id: 'cms', name: 'Site CMS & Branding', icon: Settings },
           { id: 'sections', name: 'Homepage Sections', icon: Sliders },
           { id: 'audit_logs', name: 'Audit Logs', icon: FileText }
@@ -871,9 +873,225 @@ export default function AdminPanel({
       )}
 
       {/* ==================================================== */}
-      {/* TAB 5: LEADS & CRM */}
+      {/* TAB: BUILDER & DEVELOPER GOVERNANCE */}
       {/* ==================================================== */}
-      {activeTab === 'leads' && (
+      {activeTab === 'developers' && (
+        <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+            <div>
+              <div className="flex items-center space-x-2">
+                <Building2 className="w-5 h-5 text-indigo-400" />
+                <h3 className="text-lg font-bold text-white">Developer SaaS & Builder Governance</h3>
+              </div>
+              <p className="text-xs text-slate-400">
+                Approve builder township submissions, manage developer commission rates, verify developer licenses, and inspect the developer portal.
+              </p>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('plotflow_switch_portal', { detail: { portal: 'developer' } }));
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow transition flex items-center space-x-1.5"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Test Developer Portal View</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Builder Management Metrics */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-1">
+              <span className="text-slate-500 text-[11px] block">Verified Builder Partners</span>
+              <span className="text-xl font-black text-white block">
+                {usersList.filter(u => u.role === 'DEVELOPER').length || 1} Builders
+              </span>
+              <span className="text-[10px] text-emerald-400">100% RERA & BMRDA Sanctioned</span>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-1">
+              <span className="text-slate-500 text-[11px] block">Builder Listings Published</span>
+              <span className="text-xl font-black text-indigo-400 block">{townships.length} Townships</span>
+              <span className="text-[10px] text-indigo-300">Live on Buyer Marketplace</span>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-1">
+              <span className="text-slate-500 text-[11px] block">Platform Marketplace Commission</span>
+              <span className="text-xl font-black text-amber-400 block">1.5% Standard Fee</span>
+              <span className="text-[10px] text-amber-300">Automatic Escrow Payouts</span>
+            </div>
+          </div>
+
+          {/* Townships Project Approvals Table */}
+          <div className="space-y-3">
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider text-slate-400">
+              Developer Township Submissions & Publication Status
+            </h4>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-500 font-bold uppercase tracking-wider">
+                    <th className="pb-3">Township Name</th>
+                    <th className="pb-3">Developer Brand</th>
+                    <th className="pb-3">Total Area / Plots</th>
+                    <th className="pb-3">RERA Status</th>
+                    <th className="pb-3">Marketplace Visibility</th>
+                    <th className="pb-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {townships.map(ts => (
+                    <tr key={ts.id} className="hover:bg-slate-900/40 transition">
+                      <td className="py-3.5 font-bold text-white flex items-center space-x-2">
+                        <span>{ts.name}</span>
+                        {ts.isFeatured && (
+                          <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[9px] font-bold">
+                            FEATURED
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3.5 text-slate-300 font-medium">{ts.developer || 'Prestige Plotted Townships'}</td>
+                      <td className="py-3.5 text-slate-400">
+                        {ts.totalAcres || '35 Acres'} • {ts.plots?.length || ts.totalPlots || 0} Plots
+                      </td>
+                      <td className="py-3.5">
+                        <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] border ${
+                          ts.reraApproved
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                            : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                        }`}>
+                          {ts.reraApproved ? 'RERA Approved' : 'In Review'}
+                        </span>
+                      </td>
+                      <td className="py-3.5">
+                        <button
+                          onClick={() => {
+                            const updated = {
+                              ...ts,
+                              status: ts.status === 'Published' ? 'Draft' : 'Published'
+                            };
+                            onUpdateTownship(updated);
+                            addAuditLog(
+                              'MARKETPLACE_STATUS_TOGGLED',
+                              currentUser?.email || 'Super Admin',
+                              ts.name,
+                              `Changed marketplace status to ${updated.status}.`,
+                              'INFO'
+                            );
+                            showToast(`Visibility for "${ts.name}" set to ${updated.status}.`);
+                          }}
+                          className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition ${
+                            ts.status === 'Published'
+                              ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600/30'
+                              : 'bg-slate-800 text-slate-400 border border-slate-700 hover:text-white'
+                          }`}
+                        >
+                          {ts.status === 'Published' ? '● Published on Buyer Web' : '○ Hidden (Draft)'}
+                        </button>
+                      </td>
+                      <td className="py-3.5 text-right space-x-2">
+                        <button
+                          onClick={() => handleOpenEditTownship(ts)}
+                          className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 text-[11px] font-bold rounded-lg transition"
+                        >
+                          Edit Details
+                        </button>
+                        <button
+                          onClick={() => {
+                            const updated = {
+                              ...ts,
+                              isFeatured: !ts.isFeatured
+                            };
+                            onUpdateTownship(updated);
+                            showToast(`Featured status for "${ts.name}" updated.`);
+                          }}
+                          className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-300 text-[11px] font-bold rounded-lg transition"
+                        >
+                          {ts.isFeatured ? 'Unfeature' : 'Feature on Hero'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================== */}
+      {/* TAB: LEGAL VAULT & COMPLIANCE GOVERNANCE */}
+      {/* ==================================================== */}
+      {activeTab === 'legal_vault' && (
+        <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+            <div>
+              <div className="flex items-center space-x-2">
+                <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                <h3 className="text-lg font-bold text-white">5-Layer Legal Vault & Compliance Control</h3>
+              </div>
+              <p className="text-xs text-slate-400">
+                Master administrative review of statutory title documents, Kaveri 2.0 Encumbrance Certificates, DC Conversions, and RERA certifications.
+              </p>
+            </div>
+
+            <button
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('plotflow_switch_portal', { detail: { portal: 'legal' } }));
+              }}
+              className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-xl shadow transition flex items-center space-x-1.5"
+            >
+              <Scale className="w-3.5 h-3.5" />
+              <span>Launch Legal Team Portal Workspace</span>
+            </button>
+          </div>
+
+          {/* Township Selector for Legal Audit */}
+          <div className="flex items-center space-x-3 bg-slate-900/60 p-3 rounded-2xl border border-slate-800 text-xs">
+            <span className="text-slate-400 font-semibold">Select Township to Audit:</span>
+            <select
+              value={selectedTsForPlotMgmt}
+              onChange={(e) => setSelectedTsForPlotMgmt(e.target.value)}
+              className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white font-bold focus:outline-none focus:border-emerald-500"
+            >
+              {townships.map(t => (
+                <option key={t.id} value={t.id}>{t.name} ({t.location})</option>
+              ))}
+            </select>
+          </div>
+
+          {/* 5-Layer Statutory Verification Layers */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            {[
+              { layer: 'Layer 1', name: '30-Year Title Search & Chain of Title', authority: 'Sub-Registrar Bangalore', status: 'Verified Clear Title', verified: true },
+              { layer: 'Layer 2', name: 'Kaveri 2.0 Nil Encumbrance Certificate (Form 15)', authority: 'Stamps & Registration Dept', status: 'Zero Liens or Mortgages', verified: true },
+              { layer: 'Layer 3', name: 'Revenue RTC / Pahani Mutation (Forms 4 & 16)', authority: 'Revenue Department (Bhoomi)', status: 'Clear Khata & Ownership', verified: true },
+              { layer: 'Layer 4', name: 'DC Conversion (Section 95 KLR Act 1964)', authority: 'Deputy Commissioner Bangalore', status: 'Non-Agri Residential Order', verified: true },
+              { layer: 'Layer 5', name: 'RERA & BDA/BMRDA Sanctioned Layout', authority: 'Karnataka Real Estate Authority', status: 'Sanctioned Masterplan', verified: true }
+            ].map((item, idx) => (
+              <div key={idx} className="p-4 rounded-2xl bg-slate-900/70 border border-slate-800 flex items-start justify-between">
+                <div className="space-y-1">
+                  <span className="text-[10px] font-mono text-emerald-400 font-bold block">{item.layer}</span>
+                  <h4 className="text-xs font-bold text-white">{item.name}</h4>
+                  <span className="text-[11px] text-slate-400 block">{item.authority}</span>
+                  <span className="inline-block mt-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold">
+                    ✓ {item.status}
+                  </span>
+                </div>
+                <button
+                  onClick={() => {
+                    showToast(`${item.name} verified with cryptographic seal.`);
+                    addAuditLog('LEGAL_LAYER_SEALED', currentUser?.email || 'Super Admin', currentTsForPlots?.name || 'Township', `Verified ${item.layer} compliance.`, 'SUCCESS');
+                  }}
+                  className="px-2.5 py-1 bg-emerald-950/40 hover:bg-emerald-900 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold rounded-lg transition"
+                >
+                  Verify Seal
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
         <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
           <div className="flex items-center justify-between">
             <div>
