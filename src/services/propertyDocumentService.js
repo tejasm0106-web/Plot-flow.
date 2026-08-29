@@ -19,6 +19,12 @@ const STORAGE_KEY = 'plotflow_property_documents_v2';
 const AUDIT_LOG_KEY = 'plotflow_document_audit_logs_v2';
 
 export const DOCUMENT_CATEGORIES = [
+  'Individual Plot Title Deed & Mother Deed Extract',
+  'Plot 11E Survey Sketch & Demarcation Map',
+  'Individual E-Khata / BDA / BIAAPA Form 9 & 11',
+  'Plot Encumbrance Certificate (EC Form 15)',
+  'Plot Sale Agreement & Allotment Draft',
+  'Plot Boundary Coordinates & Digital Survey Map',
   'RERA Sanction & Master Plan',
   'Land Revenue & Title Deed',
   'Encumbrance Certificate (EC Form 15)',
@@ -81,46 +87,64 @@ export function generateDocumentHash(title, refNumber, timestamp = Date.now()) {
  * Initialize default documents formatted with full access control flags
  */
 function getInitialFormattedDocs() {
-  return INITIAL_LEGAL_DOCUMENTS.map((docItem, idx) => ({
-    id: docItem.id || `doc_${idx + 1}`,
-    townshipId: docItem.townshipId || 'ts_01',
-    townshipName: docItem.townshipName || 'Prestige Sanctuary Greens',
-    developerId: 'dev_prestige',
-    developerName: 'Prestige Group Plotted Ventures',
-    title: docItem.title || 'Verified Property Document',
-    category: docItem.category || 'Land Revenue & Title Deed',
-    authority: docItem.authority || 'Government Authority',
-    refNumber: docItem.refNumber || `REF-${Date.now()}-${idx}`,
-    issueDate: docItem.uploadDate || '2024-04-10',
-    expiryDate: '2029-12-31',
-    uploadDate: docItem.uploadDate || '2024-04-10',
-    fileSize: docItem.fileSize || '3.5 MB (PDF)',
-    fileType: 'application/pdf',
-    fileName: `${(docItem.title || 'document').toLowerCase().replace(/[^a-z0-9]/g, '_')}.pdf`,
-    status: docItem.status || 'Verified',
-    verifiedBy: docItem.verifiedBy || 'Senior Legal Auditor',
-    verifiedAt: docItem.uploadDate || '2024-04-10',
-    description: docItem.description || 'Statutory land document uploaded and verified by developer.',
-    hash: generateDocumentHash(docItem.title, docItem.refNumber, 1712745600000 + idx * 10000),
-    accessControl: {
-      isPublic: docItem.isPublic !== false && idx < 3,
-      requiresVerifiedBuyer: idx >= 3,
-      legalAuditorOnly: idx === 4, // Advocate opinion is legal only by default
-      tokenGated: idx === 1 || idx === 4,
-      requiresNda: idx === 4,
-      watermarkEnabled: true,
-      allowDirectDownload: idx !== 4,
-      allowedRoles: idx === 4 ? ['admin', 'legal'] : ['admin', 'developer', 'legal', 'buyer']
-    },
-    auditTrail: [
-      {
-        action: 'CREATED_AND_STORED',
-        timestamp: new Date().toISOString(),
-        actor: 'Developer Portal (Initial Seeding)',
-        details: 'Initial statutory document registered with access control flags in Firestore.'
-      }
-    ]
-  }));
+  const plotAssignments = [
+    { plotId: 'ALL_PLOTS', plotNumber: 'All Township Plots' },
+    { plotId: 'ALL_PLOTS', plotNumber: 'All Township Plots' },
+    { plotId: 'p_101', plotNumber: 'Plot 101' },
+    { plotId: 'p_102', plotNumber: 'Plot 102' },
+    { plotId: 'p_103', plotNumber: 'Plot 103' },
+    { plotId: 'ALL_PLOTS', plotNumber: 'All Township Plots' }
+  ];
+
+  return INITIAL_LEGAL_DOCUMENTS.map((docItem, idx) => {
+    const assignment = plotAssignments[idx % plotAssignments.length] || { plotId: 'ALL_PLOTS', plotNumber: 'All Township Plots' };
+    const isSpecificPlot = assignment.plotId !== 'ALL_PLOTS';
+
+    return {
+      id: docItem.id || `doc_${idx + 1}`,
+      townshipId: docItem.townshipId || 'ts_01',
+      townshipName: docItem.townshipName || 'Prestige Sanctuary Greens',
+      developerId: 'dev_prestige',
+      developerName: 'Prestige Group Plotted Ventures',
+      plotId: docItem.plotId || assignment.plotId,
+      plotNumber: docItem.plotNumber || assignment.plotNumber,
+      attachedPlotIds: docItem.attachedPlotIds || (isSpecificPlot ? [assignment.plotId] : []),
+      isPlotSpecific: isSpecificPlot,
+      title: docItem.title || 'Verified Property Document',
+      category: isSpecificPlot && idx === 2 ? 'Individual Plot Title Deed & Mother Deed Extract' : (docItem.category || 'Land Revenue & Title Deed'),
+      authority: docItem.authority || 'Government Authority',
+      refNumber: docItem.refNumber || `REF-${Date.now()}-${idx}`,
+      issueDate: docItem.uploadDate || '2024-04-10',
+      expiryDate: '2029-12-31',
+      uploadDate: docItem.uploadDate || '2024-04-10',
+      fileSize: docItem.fileSize || '3.5 MB (PDF)',
+      fileType: 'application/pdf',
+      fileName: `${(docItem.title || 'document').toLowerCase().replace(/[^a-z0-9]/g, '_')}.pdf`,
+      status: docItem.status || 'Verified',
+      verifiedBy: docItem.verifiedBy || 'Senior Legal Auditor',
+      verifiedAt: docItem.uploadDate || '2024-04-10',
+      description: docItem.description || 'Statutory land document uploaded and verified by developer.',
+      hash: generateDocumentHash(docItem.title, docItem.refNumber, 1712745600000 + idx * 10000),
+      accessControl: {
+        isPublic: docItem.isPublic !== false && idx < 3,
+        requiresVerifiedBuyer: idx >= 3,
+        legalAuditorOnly: idx === 4, // Advocate opinion is legal only by default
+        tokenGated: idx === 1 || idx === 4,
+        requiresNda: idx === 4,
+        watermarkEnabled: true,
+        allowDirectDownload: idx !== 4,
+        allowedRoles: idx === 4 ? ['admin', 'legal'] : ['admin', 'developer', 'legal', 'buyer']
+      },
+      auditTrail: [
+        {
+          action: 'CREATED_AND_STORED',
+          timestamp: new Date().toISOString(),
+          actor: 'Developer Portal (Initial Seeding)',
+          details: `Initial statutory document registered for ${assignment.plotNumber} in Firestore vault.`
+        }
+      ]
+    };
+  });
 }
 
 /**
@@ -227,11 +251,14 @@ export async function fetchPropertyDocuments(townshipId = null) {
 }
 
 /**
- * Upload and store a new property document with metadata and access control flags in Firestore
+ * Upload and store a new property document with metadata, plot attachments, and access control flags in Firestore
  */
 export async function uploadPropertyDocument({
   townshipId,
   townshipName,
+  plotId = 'ALL_PLOTS',
+  plotNumber = 'All Township Plots',
+  attachedPlotIds = [],
   developerId = 'dev_current',
   developerName = 'Developer Portal',
   title,
@@ -242,6 +269,7 @@ export async function uploadPropertyDocument({
   expiryDate,
   description = '',
   file = null,
+  fileDataUrl = null,
   fileSize = '3.2 MB (PDF)',
   fileName = 'document.pdf',
   accessControl = DEFAULT_ACCESS_CONTROL,
@@ -253,16 +281,22 @@ export async function uploadPropertyDocument({
 
   const docId = `doc_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const hash = generateDocumentHash(title, refNumber, Date.now());
+  const isSpecificPlot = Boolean(plotId && plotId !== 'ALL_PLOTS');
+  const finalAttachedPlots = attachedPlotIds.length > 0 ? attachedPlotIds : (isSpecificPlot ? [plotId] : []);
 
   const newDoc = {
     id: docId,
     townshipId: townshipId || 'ts_01',
     townshipName: townshipName || 'Prestige Sanctuary Greens',
+    plotId: plotId || 'ALL_PLOTS',
+    plotNumber: plotNumber || (isSpecificPlot ? `Plot ${plotId.replace('p_', '')}` : 'All Township Plots'),
+    attachedPlotIds: finalAttachedPlots,
+    isPlotSpecific: isSpecificPlot,
     developerId,
     developerName,
     title: title.trim(),
     category: category.trim(),
-    authority: authority.trim() || 'Statutory Authority',
+    authority: authority?.trim() || 'Statutory Authority',
     refNumber: refNumber.trim().toUpperCase(),
     issueDate: issueDate || new Date().toISOString().split('T')[0],
     expiryDate: expiryDate || '2030-12-31',
@@ -270,6 +304,7 @@ export async function uploadPropertyDocument({
     fileSize: fileSize || (file ? `${(file.size / (1024 * 1024)).toFixed(1)} MB (${file.type?.split('/')[1]?.toUpperCase() || 'PDF'})` : '3.8 MB (PDF)'),
     fileType: file?.type || 'application/pdf',
     fileName: fileName || file?.name || `${title.toLowerCase().replace(/[^a-z0-9]/g, '_')}.pdf`,
+    fileDataUrl: fileDataUrl || null,
     status: VERIFICATION_STATUSES.UNDER_REVIEW,
     verifiedBy: 'Pending Legal Due Diligence',
     verifiedAt: null,
@@ -285,16 +320,16 @@ export async function uploadPropertyDocument({
       allowDirectDownload: accessControl.allowDirectDownload !== false,
       allowedRoles: accessControl.allowedRoles || ['admin', 'developer', 'legal', 'buyer']
     },
-    uploadedByEmail: currentUser?.email || 'developer@plotflow.in',
-    uploadedByName: currentUser?.name || 'Developer Admin',
+    uploadedByEmail: currentUser?.email || 'admin@plotflow.in',
+    uploadedByName: currentUser?.name || 'Platform Administrator',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     auditTrail: [
       {
         action: 'DOCUMENT_UPLOADED',
         timestamp: new Date().toISOString(),
-        actor: currentUser?.email || 'developer@plotflow.in',
-        details: `Uploaded with access flags: [Public: ${accessControl.isPublic ? 'Yes' : 'No'}, TokenGated: ${accessControl.tokenGated ? 'Yes' : 'No'}, LegalOnly: ${accessControl.legalAuditorOnly ? 'Yes' : 'No'}]`
+        actor: currentUser?.email || 'admin@plotflow.in',
+        details: `Uploaded for ${isSpecificPlot ? plotNumber : 'Entire Township'} with access flags: [Public: ${accessControl.isPublic ? 'Yes' : 'No'}, TokenGated: ${accessControl.tokenGated ? 'Yes' : 'No'}, LegalOnly: ${accessControl.legalAuditorOnly ? 'Yes' : 'No'}]`
       }
     ]
   };
@@ -321,11 +356,159 @@ export async function uploadPropertyDocument({
   await recordDocumentAudit(
     docId,
     'UPLOAD_DOCUMENT',
-    `Developer uploaded "${title}" (Ref: ${refNumber}) with initial access control flags.`,
+    `Administrator attached "${title}" to ${isSpecificPlot ? plotNumber : 'Township'} (Ref: ${refNumber}) with cryptographic seal.`,
     currentUser
   );
 
   return newDoc;
+}
+
+/**
+ * Fetch all documents applicable to a specific plot (Township Master + Plot Specific)
+ */
+export async function fetchDocumentsForPlot(townshipId, plotId) {
+  const allDocs = await fetchPropertyDocuments(townshipId);
+  return allDocs.filter(docItem => {
+    if (!plotId) return true;
+    const isTownshipLevel = !docItem.plotId || docItem.plotId === 'ALL_PLOTS';
+    const isDirectMatch = docItem.plotId === plotId;
+    const isInAttachedArray = Array.isArray(docItem.attachedPlotIds) && docItem.attachedPlotIds.includes(plotId);
+    return isTownshipLevel || isDirectMatch || isInAttachedArray;
+  });
+}
+
+/**
+ * Fetch only documents specifically attached to a given plot
+ */
+export function getPlotSpecificDocuments(townshipId, plotId) {
+  const allDocs = getLocalCachedDocuments();
+  return allDocs.filter(docItem => {
+    if (townshipId && docItem.townshipId !== townshipId) return false;
+    const isDirectMatch = docItem.plotId === plotId;
+    const isInAttachedArray = Array.isArray(docItem.attachedPlotIds) && docItem.attachedPlotIds.includes(plotId);
+    return isDirectMatch || isInAttachedArray;
+  });
+}
+
+/**
+ * Attach an existing document to a specific plot entry
+ */
+export async function attachDocumentToPlot(docId, plotId, plotNumber, currentUser) {
+  if (!docId || !plotId) throw new Error('Document ID and Plot ID are required.');
+
+  const currentDocs = getLocalCachedDocuments();
+  const targetDoc = currentDocs.find(d => d.id === docId);
+  if (!targetDoc) throw new Error(`Document ${docId} not found.`);
+
+  const existingPlots = Array.isArray(targetDoc.attachedPlotIds) ? targetDoc.attachedPlotIds : [];
+  const updatedPlots = Array.from(new Set([...existingPlots, plotId]));
+
+  const updatedDoc = {
+    ...targetDoc,
+    plotId: targetDoc.plotId === 'ALL_PLOTS' ? plotId : targetDoc.plotId,
+    plotNumber: targetDoc.plotNumber === 'All Township Plots' ? plotNumber : targetDoc.plotNumber,
+    attachedPlotIds: updatedPlots,
+    isPlotSpecific: true,
+    updatedAt: new Date().toISOString(),
+    auditTrail: [
+      {
+        action: 'ATTACHED_TO_PLOT',
+        timestamp: new Date().toISOString(),
+        actor: currentUser?.email || 'admin@plotflow.in',
+        details: `Attached document to ${plotNumber} (${plotId}).`
+      },
+      ...(targetDoc.auditTrail || [])
+    ]
+  };
+
+  const updatedList = currentDocs.map(d => d.id === docId ? updatedDoc : d);
+  saveLocalCachedDocuments(updatedList);
+
+  if (db) {
+    try {
+      const docRef = doc(db, 'property_documents', docId);
+      await updateDoc(docRef, {
+        plotId: updatedDoc.plotId,
+        plotNumber: updatedDoc.plotNumber,
+        attachedPlotIds: updatedDoc.attachedPlotIds,
+        isPlotSpecific: true,
+        updatedAt: serverTimestamp ? serverTimestamp() : new Date().toISOString(),
+        auditTrail: updatedDoc.auditTrail
+      });
+    } catch (e) {
+      console.warn('Firestore updateDoc attachDocumentToPlot notice:', e?.message || e);
+    }
+  }
+
+  await recordDocumentAudit(
+    docId,
+    'ATTACH_TO_PLOT',
+    `Attached "${targetDoc.title}" to ${plotNumber}`,
+    currentUser
+  );
+
+  return updatedDoc;
+}
+
+/**
+ * Detach a document from a specific plot entry
+ */
+export async function detachDocumentFromPlot(docId, plotId, currentUser) {
+  if (!docId || !plotId) throw new Error('Document ID and Plot ID are required.');
+
+  const currentDocs = getLocalCachedDocuments();
+  const targetDoc = currentDocs.find(d => d.id === docId);
+  if (!targetDoc) throw new Error(`Document ${docId} not found.`);
+
+  const existingPlots = Array.isArray(targetDoc.attachedPlotIds) ? targetDoc.attachedPlotIds : [];
+  const updatedPlots = existingPlots.filter(id => id !== plotId);
+  const isNowTownship = updatedPlots.length === 0;
+
+  const updatedDoc = {
+    ...targetDoc,
+    plotId: isNowTownship ? 'ALL_PLOTS' : (targetDoc.plotId === plotId ? updatedPlots[0] : targetDoc.plotId),
+    plotNumber: isNowTownship ? 'All Township Plots' : targetDoc.plotNumber,
+    attachedPlotIds: updatedPlots,
+    isPlotSpecific: !isNowTownship,
+    updatedAt: new Date().toISOString(),
+    auditTrail: [
+      {
+        action: 'DETACHED_FROM_PLOT',
+        timestamp: new Date().toISOString(),
+        actor: currentUser?.email || 'admin@plotflow.in',
+        details: `Detached document from plot ${plotId}.`
+      },
+      ...(targetDoc.auditTrail || [])
+    ]
+  };
+
+  const updatedList = currentDocs.map(d => d.id === docId ? updatedDoc : d);
+  saveLocalCachedDocuments(updatedList);
+
+  if (db) {
+    try {
+      const docRef = doc(db, 'property_documents', docId);
+      await updateDoc(docRef, {
+        plotId: updatedDoc.plotId,
+        plotNumber: updatedDoc.plotNumber,
+        attachedPlotIds: updatedDoc.attachedPlotIds,
+        isPlotSpecific: updatedDoc.isPlotSpecific,
+        updatedAt: serverTimestamp ? serverTimestamp() : new Date().toISOString(),
+        auditTrail: updatedDoc.auditTrail
+      });
+    } catch (e) {
+      console.warn('Firestore updateDoc detachDocumentFromPlot notice:', e?.message || e);
+    }
+  }
+
+  await recordDocumentAudit(
+    docId,
+    'DETACH_FROM_PLOT',
+    `Detached "${targetDoc.title}" from plot ${plotId}`,
+    currentUser
+  );
+
+  return updatedDoc;
 }
 
 /**

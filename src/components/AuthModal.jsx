@@ -23,7 +23,8 @@ import {
   sendPasswordResetLink,
   getStoredUsers,
   resetAdminPasswordWithPinOrOtp,
-  getAdminCredentials
+  getAdminCredentials,
+  requestAdminPasswordResetOtp
 } from '../services/userService';
 import { auth, GoogleAuthProvider, signInWithPopup } from '../services/firebase';
 
@@ -46,6 +47,15 @@ export default function AuthModal({
   // Forgot Password State
   const [resetEmail, setResetEmail] = useState('');
   const [resetSent, setResetSent] = useState(false);
+  const [forgotTab, setForgotTab] = useState('email-link'); // 'email-link' | 'admin-instant'
+  const [adminResetPin, setAdminResetPin] = useState('');
+  const [adminNewPassword, setAdminNewPassword] = useState('');
+  const [adminConfirmNewPassword, setAdminConfirmNewPassword] = useState('');
+  const [adminResetMethod, setAdminResetMethod] = useState('pin'); // 'pin' | 'otp'
+  const [adminOtpCode, setAdminOtpCode] = useState('');
+  const [adminGeneratedOtp, setAdminGeneratedOtp] = useState('');
+  const [adminOtpDispatched, setAdminOtpDispatched] = useState(false);
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
 
   // Registration Form State
   const [regForm, setRegForm] = useState({
@@ -176,6 +186,62 @@ export default function AuthModal({
       setSuccessMsg(result.message || 'Password reset link sent to your email.');
     } catch (err) {
       setError(err.message || 'Failed to dispatch password reset link.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle Dispatching OTP Code for Admin Reset in AuthModal
+  const handleRequestAdminOtp = (e) => {
+    e?.preventDefault();
+    setError('');
+    setSuccessMsg('');
+
+    const target = (resetEmail || 'tejastej094@gmail.com').trim().toLowerCase();
+    try {
+      const res = requestAdminPasswordResetOtp(target);
+      setAdminGeneratedOtp(res.otpCode);
+      setAdminOtpCode(res.otpCode); // Pre-fill for instant test convenience
+      setAdminOtpDispatched(true);
+      setSuccessMsg(`Recovery code [${res.otpCode}] dispatched to ${target}. (Pre-filled for rapid validation).`);
+    } catch (err) {
+      setError(err.message || 'Failed to dispatch recovery code.');
+    }
+  };
+
+  // Handle Admin Instant Reset with Master PIN or OTP in AuthModal
+  const handleAdminInstantReset = (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+
+    const targetEmail = (resetEmail || 'tejastej094@gmail.com').trim().toLowerCase();
+    if (!adminNewPassword || adminNewPassword.length < 6) {
+      setError('New password must be at least 6 characters long.');
+      return;
+    }
+    if (adminNewPassword !== adminConfirmNewPassword) {
+      setError('Passwords do not match. Please re-enter.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = resetAdminPasswordWithPinOrOtp({
+        email: targetEmail,
+        securityPin: adminResetMethod === 'pin' ? adminResetPin : undefined,
+        otpCode: adminResetMethod === 'otp' ? adminOtpCode : undefined,
+        newPassword: adminNewPassword
+      });
+
+      setSuccessMsg(`Admin password updated successfully! You can now log in with your new password.`);
+      setLoginEmail(targetEmail);
+      setLoginPassword(adminNewPassword);
+      setTimeout(() => {
+        setActiveMode('login');
+      }, 1200);
+    } catch (err) {
+      setError(err.message || 'Failed to reset Admin password. Please check your PIN or OTP.');
     } finally {
       setLoading(false);
     }
@@ -665,55 +731,224 @@ export default function AuthModal({
           {/* ================= MODE 3: FORGOT PASSWORD ================= */}
           {activeMode === 'forgot-password' && (
             <div className="space-y-4">
-              <button
-                type="button"
-                onClick={() => { setActiveMode('login'); setError(''); setSuccessMsg(''); }}
-                className="text-xs text-slate-400 hover:text-white flex items-center space-x-1.5 transition mb-2"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Back to Sign In</span>
-              </button>
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => { setActiveMode('login'); setError(''); setSuccessMsg(''); }}
+                  className="text-xs text-slate-400 hover:text-white flex items-center space-x-1.5 transition"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Back to Sign In</span>
+                </button>
 
-              <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-xs text-amber-200">
-                <p className="font-semibold mb-1">Account & Admin Password Recovery</p>
-                <p className="text-[11px] text-slate-300">
-                  Enter your registered account email. A secure password reset link will be dispatched through Firebase Auth. Platform Administrators can also use the Staff Gateway Master PIN (<strong className="text-amber-300 font-mono">2026</strong>).
-                </p>
+                <div className="flex items-center space-x-1 bg-slate-900 p-1 rounded-xl border border-slate-800 text-[11px] font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => { setForgotTab('email-link'); setError(''); }}
+                    className={`px-2.5 py-1 rounded-lg transition ${
+                      forgotTab === 'email-link' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Email Reset Link
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setForgotTab('admin-instant'); setError(''); }}
+                    className={`px-2.5 py-1 rounded-lg transition flex items-center space-x-1 ${
+                      forgotTab === 'admin-instant' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <ShieldCheck className="w-3 h-3 text-indigo-400" />
+                    <span>Admin PIN / OTP</span>
+                  </button>
+                </div>
               </div>
 
-              <form onSubmit={handlePasswordReset} className="space-y-3 text-xs">
-                <div>
-                  <label className="text-slate-300 font-semibold block mb-1">
-                    Your Registered Email *
-                  </label>
-                  <div className="relative">
-                    <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
-                    <input
-                      type="email"
-                      required
-                      placeholder="e.g. user@domain.com or tejastej094@gmail.com"
-                      value={resetEmail}
-                      onChange={(e) => setResetEmail(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 text-xs"
-                    />
+              {forgotTab === 'email-link' ? (
+                <>
+                  <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-xs text-amber-200">
+                    <p className="font-semibold mb-1">Standard Password Reset</p>
+                    <p className="text-[11px] text-slate-300">
+                      Enter your registered account email. A secure password reset link will be dispatched through Firebase Auth.
+                    </p>
                   </div>
-                </div>
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-3 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center space-x-2 bg-amber-600 hover:bg-amber-500 shadow-amber-950/50"
-                >
-                  {loading ? (
-                    <span>Dispatching Reset Link...</span>
-                  ) : (
-                    <>
-                      <KeyRound className="w-4 h-4" />
-                      <span>Send Password Reset Link</span>
-                    </>
-                  )}
-                </button>
-              </form>
+                  <form onSubmit={handlePasswordReset} className="space-y-3 text-xs">
+                    <div>
+                      <label className="text-slate-300 font-semibold block mb-1">
+                        Your Registered Email *
+                      </label>
+                      <div className="relative">
+                        <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                        <input
+                          type="email"
+                          required
+                          placeholder="e.g. user@domain.com or tejastej094@gmail.com"
+                          value={resetEmail}
+                          onChange={(e) => setResetEmail(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full py-3 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center space-x-2 bg-amber-600 hover:bg-amber-500 shadow-amber-950/50"
+                    >
+                      {loading ? (
+                        <span>Dispatching Reset Link...</span>
+                      ) : (
+                        <>
+                          <KeyRound className="w-4 h-4" />
+                          <span>Send Password Reset Link</span>
+                        </>
+                      )}
+                    </button>
+                  </form>
+                </>
+              ) : (
+                <>
+                  <div className="p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl text-xs text-indigo-200">
+                    <p className="font-semibold mb-1 flex items-center space-x-1.5">
+                      <ShieldCheck className="w-4 h-4 text-indigo-400" />
+                      <span>Admin Instant Password Reset & Recovery</span>
+                    </p>
+                    <p className="text-[11px] text-slate-300 leading-relaxed">
+                      Admins can immediately set a new login password using their 4-digit Master Security PIN (<strong className="text-indigo-300 font-mono">2026</strong>) or by generating a 6-digit OTP code.
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleAdminInstantReset} className="space-y-3 text-xs">
+                    <div>
+                      <label className="text-slate-300 font-semibold block mb-1">
+                        Admin Email Address *
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        placeholder="e.g. tejastej094@gmail.com"
+                        value={resetEmail || 'tejastej094@gmail.com'}
+                        onChange={(e) => setResetEmail(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+
+                    {/* Method Selector: PIN vs OTP */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAdminResetMethod('pin')}
+                        className={`p-2.5 rounded-xl border text-center font-bold text-xs transition ${
+                          adminResetMethod === 'pin'
+                            ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300'
+                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        Master PIN (Default: 2026)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdminResetMethod('otp');
+                          if (!adminOtpDispatched) handleRequestAdminOtp();
+                        }}
+                        className={`p-2.5 rounded-xl border text-center font-bold text-xs transition ${
+                          adminResetMethod === 'otp'
+                            ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300'
+                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        6-Digit OTP Code
+                      </button>
+                    </div>
+
+                    {adminResetMethod === 'pin' ? (
+                      <div>
+                        <label className="text-slate-300 font-semibold block mb-1">
+                          Master Security PIN (Default: 2026) *
+                        </label>
+                        <input
+                          type="password"
+                          required
+                          placeholder="Enter 4-digit PIN (2026)"
+                          value={adminResetPin}
+                          onChange={(e) => setAdminResetPin(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white font-mono placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                        />
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="text-slate-300 font-semibold block">
+                            6-Digit Verification OTP *
+                          </label>
+                          <button
+                            type="button"
+                            onClick={handleRequestAdminOtp}
+                            className="text-[11px] font-bold text-indigo-400 hover:text-indigo-300"
+                          >
+                            Resend Code
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          required
+                          placeholder="6-digit OTP code"
+                          value={adminOtpCode}
+                          onChange={(e) => setAdminOtpCode(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white font-mono placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                        />
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                      <div>
+                        <label className="text-slate-300 font-semibold block mb-1">
+                          New Admin Password *
+                        </label>
+                        <input
+                          type={showAdminPassword ? 'text' : 'password'}
+                          required
+                          placeholder="Min 6 characters"
+                          value={adminNewPassword}
+                          onChange={(e) => setAdminNewPassword(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-slate-300 font-semibold block mb-1">
+                          Confirm Password *
+                        </label>
+                        <input
+                          type={showAdminPassword ? 'text' : 'password'}
+                          required
+                          placeholder="Re-enter password"
+                          value={adminConfirmNewPassword}
+                          onChange={(e) => setAdminConfirmNewPassword(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full py-3 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center space-x-2 bg-indigo-600 hover:bg-indigo-500 shadow-indigo-950/50 mt-2"
+                    >
+                      {loading ? (
+                        <span>Updating Admin Password...</span>
+                      ) : (
+                        <>
+                          <KeyRound className="w-4 h-4" />
+                          <span>Reset & Save Admin Password</span>
+                        </>
+                      )}
+                    </button>
+                  </form>
+                </>
+              )}
             </div>
           )}
 

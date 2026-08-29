@@ -83,6 +83,8 @@ import {
   deleteLead,
   resetPlatformToDefaults
 } from '../services/storeService';
+import AdminPlotDocumentModal from '../components/AdminPlotDocumentModal';
+import { getLocalCachedDocuments, subscribeToPropertyDocuments } from '../services/propertyDocumentService';
 
 export default function AdminPanel({ 
   currentUser,
@@ -115,6 +117,9 @@ export default function AdminPanel({
   const [showAddTownshipModal, setShowAddTownshipModal] = useState(false);
   const [editingTownship, setEditingTownship] = useState(null);
   const [showAddPlotModal, setShowAddPlotModal] = useState(false);
+  const [showPlotDocsModal, setShowPlotDocsModal] = useState(false);
+  const [selectedPlotForDocs, setSelectedPlotForDocs] = useState(null);
+  const [allPropertyDocs, setAllPropertyDocs] = useState(() => getLocalCachedDocuments());
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [showEditUserModal, setShowEditUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
@@ -204,12 +209,14 @@ export default function AdminPanel({
     const handleSectionsUpdate = (e) => setHomepageSectionsState(e.detail || getHomepageSections());
     const handleLeadsUpdate = (e) => setLeadsList(e.detail || getStoredLeads());
     const handleAuditUpdate = () => setAuditLogs(getStoredAuditLogs());
+    const handleDocsUpdate = (e) => setAllPropertyDocs(e.detail || getLocalCachedDocuments());
 
     window.addEventListener('plotflow_users_updated', handleUsersUpdate);
     window.addEventListener('plotflow_settings_updated', handleSettingsUpdate);
     window.addEventListener('plotflow_sections_updated', handleSectionsUpdate);
     window.addEventListener('plotflow_leads_updated', handleLeadsUpdate);
     window.addEventListener('plotflow_townships_updated', handleAuditUpdate);
+    window.addEventListener('plotflow_property_documents_updated', handleDocsUpdate);
 
     return () => {
       window.removeEventListener('plotflow_users_updated', handleUsersUpdate);
@@ -217,6 +224,7 @@ export default function AdminPanel({
       window.removeEventListener('plotflow_sections_updated', handleSectionsUpdate);
       window.removeEventListener('plotflow_leads_updated', handleLeadsUpdate);
       window.removeEventListener('plotflow_townships_updated', handleAuditUpdate);
+      window.removeEventListener('plotflow_property_documents_updated', handleDocsUpdate);
     };
   }, []);
 
@@ -964,15 +972,20 @@ export default function AdminPanel({
         <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h3 className="text-lg font-bold text-white">Master Plot Directory & Status Manager</h3>
-              <p className="text-xs text-slate-400">Add, edit pricing, update status, and manage individual plots.</p>
+              <div className="flex items-center space-x-2">
+                <Layers className="w-5 h-5 text-emerald-400" />
+                <h3 className="text-lg font-bold text-white">Master Plot Directory & Legal Attachment Manager</h3>
+              </div>
+              <p className="text-xs text-slate-400">
+                Manage plot inventory, configure pricing & Vastu scores, and attach verified PDF property documents directly to specific plot entries in Firestore.
+              </p>
             </div>
 
-            <div className="flex items-center space-x-3">
+            <div className="flex flex-wrap items-center gap-2.5">
               <select
                 value={selectedTsForPlotMgmt}
                 onChange={(e) => setSelectedTsForPlotMgmt(e.target.value)}
-                className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+                className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 cursor-pointer font-bold"
               >
                 {townships.map(t => (
                   <option key={t.id} value={t.id}>{t.name}</option>
@@ -980,8 +993,19 @@ export default function AdminPanel({
               </select>
 
               <button
+                onClick={() => {
+                  setSelectedPlotForDocs(null);
+                  setShowPlotDocsModal(true);
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5 shadow"
+              >
+                <FileText className="w-4 h-4" />
+                <span>Manage All Plot Docs</span>
+              </button>
+
+              <button
                 onClick={() => setShowAddPlotModal(true)}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5"
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5 shadow"
               >
                 <Plus className="w-4 h-4" />
                 <span>Add Plot</span>
@@ -1001,35 +1025,77 @@ export default function AdminPanel({
                   <th className="pb-3">Price</th>
                   <th className="pb-3">Vastu</th>
                   <th className="pb-3">Status</th>
-                  <th className="pb-3 text-right">Delete</th>
+                  <th className="pb-3 text-center">Attached Documents (Firestore)</th>
+                  <th className="pb-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {(currentTsForPlots?.plots || []).map((plot) => (
-                  <tr key={plot.id} className="hover:bg-slate-900/40 transition">
-                    <td className="py-3 font-bold text-white">{plot.plotNumber || plot.number}</td>
-                    <td className="py-3 text-slate-300 font-mono">{plot.dimensions || plot.dimension}</td>
-                    <td className="py-3 text-slate-300 font-bold">{plot.sqft || 1200} sq.ft</td>
-                    <td className="py-3 text-emerald-400 font-semibold">{plot.facing}</td>
-                    <td className="py-3 font-bold text-white">{plot.price}</td>
-                    <td className="py-3 font-bold text-amber-400">{plot.vastuScore || '9.5'}/10</td>
-                    <td className="py-3">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        plot.status === 'Available' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
-                      }`}>
-                        {plot.status}
-                      </span>
-                    </td>
-                    <td className="py-3 text-right">
-                      <button
-                        onClick={() => handleDeletePlot(plot.id, plot.plotNumber || plot.number)}
-                        className="p-1.5 rounded-lg bg-rose-950/40 text-rose-400 hover:bg-rose-900 transition"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {(currentTsForPlots?.plots || []).map((plot) => {
+                  const plotDocCount = allPropertyDocs.filter(d => {
+                    const isDirect = d.plotId === plot.id;
+                    const inArray = Array.isArray(d.attachedPlotIds) && d.attachedPlotIds.includes(plot.id);
+                    return isDirect || inArray;
+                  }).length;
+
+                  return (
+                    <tr key={plot.id} className="hover:bg-slate-900/40 transition">
+                      <td className="py-3 font-bold text-white flex items-center space-x-2">
+                        <span>{plot.plotNumber || plot.number}</span>
+                        {plotDocCount > 0 && (
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" title="Verified PDF documents attached" />
+                        )}
+                      </td>
+                      <td className="py-3 text-slate-300 font-mono">{plot.dimensions || plot.dimension}</td>
+                      <td className="py-3 text-slate-300 font-bold">{plot.sqft || 1200} sq.ft</td>
+                      <td className="py-3 text-emerald-400 font-semibold">{plot.facing}</td>
+                      <td className="py-3 font-bold text-white">{plot.price}</td>
+                      <td className="py-3 font-bold text-amber-400">{plot.vastuScore || '9.5'}/10</td>
+                      <td className="py-3">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          plot.status === 'Available' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
+                        }`}>
+                          {plot.status}
+                        </span>
+                      </td>
+                      <td className="py-3 text-center">
+                        <button
+                          onClick={() => {
+                            setSelectedPlotForDocs(plot);
+                            setShowPlotDocsModal(true);
+                          }}
+                          className={`px-3 py-1.5 rounded-xl font-bold text-[11px] transition inline-flex items-center space-x-1.5 border ${
+                            plotDocCount > 0
+                              ? 'bg-emerald-950/40 hover:bg-emerald-900/60 border-emerald-500/40 text-emerald-300 shadow-sm'
+                              : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
+                          }`}
+                          title={`Manage PDF documents for ${plot.plotNumber || plot.number}`}
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          <span>{plotDocCount > 0 ? `${plotDocCount} PDF Dossier${plotDocCount > 1 ? 's' : ''}` : '+ Attach PDF'}</span>
+                        </button>
+                      </td>
+                      <td className="py-3 text-right space-x-1.5">
+                        <button
+                          onClick={() => {
+                            setSelectedPlotForDocs(plot);
+                            setShowPlotDocsModal(true);
+                          }}
+                          className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-indigo-300 hover:text-white hover:bg-slate-800 transition"
+                          title="Open Document Vault for this Plot"
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeletePlot(plot.id, plot.plotNumber || plot.number)}
+                          className="p-1.5 rounded-lg bg-rose-950/40 text-rose-400 hover:bg-rose-900 transition"
+                          title="Delete Plot"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -1755,18 +1821,31 @@ export default function AdminPanel({
             </div>
           </div>
 
-          {/* Township Selector for Legal Audit */}
-          <div className="flex items-center space-x-3 bg-slate-900/60 p-3 rounded-2xl border border-slate-800 text-xs">
-            <span className="text-slate-400 font-semibold">Select Township to Audit:</span>
-            <select
-              value={selectedTsForPlotMgmt}
-              onChange={(e) => setSelectedTsForPlotMgmt(e.target.value)}
-              className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white font-bold focus:outline-none focus:border-emerald-500"
+          {/* Township Selector & Plot Vault Trigger for Legal Audit */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/60 p-3.5 rounded-2xl border border-slate-800 text-xs">
+            <div className="flex items-center space-x-3">
+              <span className="text-slate-400 font-semibold">Township Context:</span>
+              <select
+                value={selectedTsForPlotMgmt}
+                onChange={(e) => setSelectedTsForPlotMgmt(e.target.value)}
+                className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white font-bold focus:outline-none focus:border-emerald-500"
+              >
+                {townships.map(t => (
+                  <option key={t.id} value={t.id}>{t.name} ({t.location})</option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              onClick={() => {
+                setSelectedPlotForDocs(null);
+                setShowPlotDocsModal(true);
+              }}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition flex items-center space-x-1.5 shadow"
             >
-              {townships.map(t => (
-                <option key={t.id} value={t.id}>{t.name} ({t.location})</option>
-              ))}
-            </select>
+              <FileText className="w-4 h-4" />
+              <span>Attach & Upload Plot Documents (Firestore)</span>
+            </button>
           </div>
 
           {/* 5-Layer Statutory Verification Layers */}
@@ -3582,6 +3661,24 @@ export default function AdminPanel({
           </div>
         </div>
       )}
+
+      {/* ==================================================== */}
+      {/* MODAL: ADMIN PLOT DOCUMENT ATTACHMENT VAULT */}
+      {/* ==================================================== */}
+      <AdminPlotDocumentModal
+        isOpen={showPlotDocsModal}
+        onClose={() => {
+          setShowPlotDocsModal(false);
+          setSelectedPlotForDocs(null);
+        }}
+        township={currentTsForPlots || townships.find(t => t.id === selectedTsForPlotMgmt) || townships[0]}
+        plot={selectedPlotForDocs}
+        allTownships={townships}
+        currentUser={currentUser}
+        onDocumentChange={() => {
+          setAllPropertyDocs(getLocalCachedDocuments());
+        }}
+      />
       </div>
     </AdminDashboard>
   );
