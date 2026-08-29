@@ -11,11 +11,13 @@ import {
   Building2, 
   MessageSquare,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  HelpCircle,
+  ChevronDown
 } from 'lucide-react';
 import { addLead } from '../services/storeService';
 
-export default function ContactView({ townships = [], onExplore }) {
+export default function ContactView({ townships = [], onExplore, siteSettings = {} }) {
   const [formData, setFormData] = useState({
     buyerName: '',
     email: '',
@@ -29,6 +31,23 @@ export default function ContactView({ townships = [], onExplore }) {
 
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [activeFaq, setActiveFaq] = useState(null);
+
+  const conciergeHeading = siteSettings.conciergeHeading || 'PlotFlow Concierge & Advisory';
+  const conciergeSubheading = siteSettings.conciergeSubheading || 'Schedule a Verified Site Visit or Speak with an Advisor';
+  const conciergeDesc = siteSettings.conciergeDescription || 'Whether you are booking a complimentary chauffeur-driven site visit, listing a plotted development, or requesting title diligence records, our team is at your service.';
+  const conciergePhone = siteSettings.conciergePhone || '+91 80 4712 9900';
+  const conciergeWhatsapp = siteSettings.conciergeWhatsapp || '+91 98450 88990';
+  const tollFreeNumber = siteSettings.tollFreeNumber || '1800 425 7890';
+  const conciergeEmail = siteSettings.conciergeEmail || 'concierge@plotflow.in';
+  const developerEmail = siteSettings.developerEmail || siteSettings.partnersEmail || 'developers@plotflow.in';
+  const legalEmail = siteSettings.legalEmail || 'legal@plotflow.in';
+  const supportEmail = siteSettings.supportEmail || 'support@plotflow.in';
+  const officeAddress = siteSettings.officeAddress || 'PlotFlow Technologies Pvt Ltd, Tower 3, Embassy TechVillage, Outer Ring Road, Bellandur, Bengaluru, Karnataka 560103';
+  const officeLandmark = siteSettings.officeLandmark || 'Opposite Trinity Metro Station, Central Business District';
+  const supportHours = siteSettings.supportHours || '9:00 AM – 8:00 PM IST (Mon-Sun)';
+  const conciergeSla = siteSettings.conciergeSla || '< 15 minutes callback guarantee during business hours';
+  const chauffeurPolicy = siteSettings.conciergeChauffeurPolicy || siteSettings.chauffeurPolicy || 'Complimentary doorstep chauffeur pick-up & drop within a 45-km radius across major metropolitan hubs.';
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -64,16 +83,28 @@ export default function ContactView({ townships = [], onExplore }) {
         <div className="relative z-10 max-w-3xl space-y-3">
           <div className="inline-flex items-center space-x-2 px-3.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
             <Car className="w-4 h-4" />
-            <span>PlotFlow Concierge & Advisory</span>
+            <span>{conciergeHeading}</span>
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight">
-            Schedule a Verified Site Visit or Speak with an Advisor
+            {conciergeSubheading}
           </h1>
 
           <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-            Whether you are booking a complimentary chauffeur-driven site visit, listing a plotted development, or requesting title diligence records, our team is at your service.
+            {conciergeDesc}
           </p>
+
+          {/* Concierge Perks Strip */}
+          <div className="pt-3 flex flex-wrap gap-4 text-xs">
+            <div className="flex items-center space-x-2 text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 px-3 py-1.5 rounded-xl font-medium">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>{conciergeSla}</span>
+            </div>
+            <div className="flex items-center space-x-2 text-indigo-400 bg-indigo-950/40 border border-indigo-800/40 px-3 py-1.5 rounded-xl font-medium">
+              <Car className="w-3.5 h-3.5" />
+              <span>Chauffeur Service Included</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -108,7 +139,7 @@ export default function ContactView({ townships = [], onExplore }) {
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5">
-              <h3 className="text-lg font-bold text-white">Direct Advisory Request</h3>
+              <h3 className="text-lg font-bold text-white">Direct Advisory & Site Visit Booking</h3>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -200,6 +231,11 @@ export default function ContactView({ townships = [], onExplore }) {
                 />
               </div>
 
+              <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800 text-[11px] text-slate-400 flex items-start space-x-2">
+                <Car className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+                <span><strong>Chauffeur Pickup Policy:</strong> {chauffeurPolicy}</span>
+              </div>
+
               <button
                 type="submit"
                 disabled={loading}
@@ -223,54 +259,80 @@ export default function ContactView({ townships = [], onExplore }) {
 
         {/* Right: Direct Information Cards */}
         <div className="space-y-4">
+          {/* Helpline Card */}
           <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
             <h4 className="text-sm font-bold text-white flex items-center space-x-2">
               <Phone className="w-4 h-4 text-emerald-400" />
-              <span>Direct Concierge Helpline</span>
+              <span>Direct Concierge Helplines</span>
             </h4>
-            <div className="space-y-1">
-              <span className="text-base font-bold text-emerald-400 block">+91 80 4712 9900</span>
-              <span className="text-xs text-slate-400 block">Toll-free advisory for site visits & title verification</span>
+            <div className="space-y-2">
+              <div>
+                <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">Advisory Helpline:</span>
+                <span className="text-base font-bold text-emerald-400 block">{conciergePhone}</span>
+              </div>
+              {conciergeWhatsapp && (
+                <div>
+                  <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">WhatsApp Desk:</span>
+                  <span className="text-xs font-bold text-emerald-300 block">{conciergeWhatsapp}</span>
+                </div>
+              )}
+              {tollFreeNumber && (
+                <div>
+                  <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">Toll-Free Number:</span>
+                  <span className="text-xs font-bold text-indigo-300 block">{tollFreeNumber}</span>
+                </div>
+              )}
             </div>
             <div className="pt-2 border-t border-slate-800 text-[11px] text-slate-400 space-y-1">
               <div className="flex items-center space-x-2">
                 <Clock className="w-3.5 h-3.5 text-slate-500" />
-                <span>Operating Hours: 9:00 AM – 8:00 PM IST (Mon-Sun)</span>
+                <span>{supportHours}</span>
               </div>
             </div>
           </div>
 
+          {/* Departmental Emails Card */}
           <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 space-y-4 shadow-xl">
             <h4 className="text-sm font-bold text-white flex items-center space-x-2">
               <Mail className="w-4 h-4 text-indigo-400" />
-              <span>Departmental Emails</span>
+              <span>Departmental Inboxes</span>
             </h4>
-            <div className="space-y-2 text-xs">
+            <div className="space-y-2.5 text-xs">
               <div>
-                <span className="text-slate-500 block text-[10px]">Buyer Advisory & Site Visits:</span>
-                <span className="text-slate-200 font-semibold">concierge@plotflow.in</span>
+                <span className="text-slate-500 block text-[10px] uppercase font-semibold">Buyer Advisory & Visits:</span>
+                <span className="text-slate-200 font-semibold">{conciergeEmail}</span>
               </div>
               <div>
-                <span className="text-slate-500 block text-[10px]">Developer & Builder Onboarding:</span>
-                <span className="text-slate-200 font-semibold">partners@plotflow.in</span>
+                <span className="text-slate-500 block text-[10px] uppercase font-semibold">Developer & Builder Onboarding:</span>
+                <span className="text-slate-200 font-semibold">{developerEmail}</span>
               </div>
               <div>
-                <span className="text-slate-500 block text-[10px]">Title Diligence & Legal Wing:</span>
-                <span className="text-slate-200 font-semibold">legal@plotflow.in</span>
+                <span className="text-slate-500 block text-[10px] uppercase font-semibold">Title Diligence & Legal Wing:</span>
+                <span className="text-slate-200 font-semibold">{legalEmail}</span>
               </div>
+              {supportEmail && (
+                <div>
+                  <span className="text-slate-500 block text-[10px] uppercase font-semibold">General Support:</span>
+                  <span className="text-slate-200 font-semibold">{supportEmail}</span>
+                </div>
+              )}
             </div>
           </div>
 
+          {/* Corporate Office Card */}
           <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 space-y-3 shadow-xl">
             <h4 className="text-sm font-bold text-white flex items-center space-x-2">
               <MapPin className="w-4 h-4 text-amber-400" />
-              <span>Corporate Office</span>
+              <span>Corporate Headquarters</span>
             </h4>
             <p className="text-xs text-slate-300 leading-relaxed">
-              PlotFlow Technologies Pvt Ltd <br />
-              Tower 3, Embassy TechVillage, Outer Ring Road, <br />
-              Bellandur, Bengaluru, Karnataka 560103
+              {officeAddress}
             </p>
+            {officeLandmark && (
+              <div className="pt-2 border-t border-slate-800/80 text-[11px] text-emerald-400 font-medium">
+                Landmark: {officeLandmark}
+              </div>
+            )}
           </div>
         </div>
       </div>

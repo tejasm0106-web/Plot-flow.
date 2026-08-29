@@ -16,7 +16,20 @@ import {
   Globe
 } from 'lucide-react';
 
-export default function AboutView({ onExplore, onContact }) {
+export default function AboutView({ onExplore, onContact, siteSettings = {} }) {
+  const missionTitle = siteSettings.aboutMissionTitle || 'Building the Trust & Visualization Layer for Land';
+  const missionSub = siteSettings.aboutMissionSubtitle || 'Modernizing Plotted Land Real Estate';
+  const missionText = siteSettings.aboutMissionText || 'Plotted developments offer the highest return on investment in real estate, but have historically suffered from title ambiguity and inadequate visual layouts. PlotFlow combines 3D Digital Twin simulations with a rigorous 5-layer due diligence framework to make buying land transparent, verified, and predictable.';
+  const pillar1Title = siteSettings.aboutPillar1Title || '1. Interactive 3D Digital Twin';
+  const pillar1Desc = siteSettings.aboutPillar1Desc || 'Every plotted enclave is modeled with precise GPS coordinates, digital boundary perimeters, elevation contours, and physics-based solar angle simulations to assess morning and afternoon sunlight.';
+  const pillar2Title = siteSettings.aboutPillar2Title || '2. 5-Layer Due Diligence Framework';
+  const pillar2Desc = siteSettings.aboutPillar2Desc || 'Prior to publishing, layouts undergo title searches spanning 30-year sub-registrar archives (Kaveri-2 EC Form 15), DC Conversion orders, RERA approval sanctions, and environmental utility clearances.';
+  const pillar3Title = siteSettings.aboutPillar3Title || '3. Live Inventory & Escrow Ledger';
+  const pillar3Desc = siteSettings.aboutPillar3Desc || 'Real-time synchronization ensures buyers only view genuinely available inventory. Refundable token advances are held under standard escrow terms until agreement execution.';
+  const tamSize = siteSettings.tamMarketSize || '$60B+';
+  const takeRate = siteSettings.takeRateFee || 0.75;
+  const brandName = siteSettings.siteName || 'PlotFlow';
+
   return (
     <div className="space-y-12 pb-16">
       {/* Hero Header */}
@@ -27,15 +40,15 @@ export default function AboutView({ onExplore, onContact }) {
         <div className="relative z-10 max-w-3xl space-y-4">
           <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
             <ShieldCheck className="w-4 h-4" />
-            <span>Modernizing Plotted Land Real Estate</span>
+            <span>{missionSub}</span>
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight">
-            Building the Trust & Visualization Layer for Land
+            {missionTitle}
           </h1>
 
           <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-            Plotted developments offer the highest return on investment in real estate, but have historically suffered from title ambiguity and inadequate visual layouts. PlotFlow combines 3D Digital Twin simulations with a rigorous 5-layer due diligence framework to make buying land transparent, verified, and predictable.
+            {missionText}
           </p>
 
           <div className="pt-4 flex flex-wrap gap-4">
@@ -52,7 +65,7 @@ export default function AboutView({ onExplore, onContact }) {
               className="px-6 py-3.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold text-xs rounded-xl transition flex items-center space-x-2"
             >
               <Users className="w-4 h-4 text-emerald-400" />
-              <span>Contact Team & Partners</span>
+              <span>Contact Concierge & Team</span>
             </button>
           </div>
         </div>
@@ -62,7 +75,7 @@ export default function AboutView({ onExplore, onContact }) {
       <section className="space-y-6">
         <div>
           <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Our Core Architecture</span>
-          <h2 className="text-2xl font-black text-white tracking-tight">The 3 Technology Pillars of PlotFlow</h2>
+          <h2 className="text-2xl font-black text-white tracking-tight">The 3 Technology Pillars of {brandName}</h2>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -70,9 +83,9 @@ export default function AboutView({ onExplore, onContact }) {
             <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">
               <Eye className="w-6 h-6" />
             </div>
-            <h3 className="text-lg font-bold text-white">1. Interactive 3D Digital Twin</h3>
+            <h3 className="text-lg font-bold text-white">{pillar1Title}</h3>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Every plotted enclave is modeled with precise GPS coordinates, digital boundary perimeters, elevation contours, and physics-based solar angle simulations to assess morning and afternoon sunlight.
+              {pillar1Desc}
             </p>
           </div>
 
@@ -80,9 +93,9 @@ export default function AboutView({ onExplore, onContact }) {
             <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center">
               <ShieldCheck className="w-6 h-6" />
             </div>
-            <h3 className="text-lg font-bold text-white">2. 5-Layer Due Diligence Framework</h3>
+            <h3 className="text-lg font-bold text-white">{pillar2Title}</h3>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Prior to publishing, layouts undergo title searches spanning 30-year sub-registrar archives (Kaveri-2 EC Form 15), DC Conversion orders, RERA approval sanctions, and environmental utility clearances.
+              {pillar2Desc}
             </p>
           </div>
 
@@ -90,9 +103,9 @@ export default function AboutView({ onExplore, onContact }) {
             <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center">
               <Database className="w-6 h-6" />
             </div>
-            <h3 className="text-lg font-bold text-white">3. Live Inventory & Escrow Ledger</h3>
+            <h3 className="text-lg font-bold text-white">{pillar3Title}</h3>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Real-time synchronization ensures buyers only view genuinely available inventory. Refundable token advances are held under standard escrow terms until agreement execution.
+              {pillar3Desc}
             </p>
           </div>
         </div>
@@ -102,15 +115,15 @@ export default function AboutView({ onExplore, onContact }) {
       <section className="bg-slate-950 border border-slate-800 rounded-3xl p-8 sm:p-10 shadow-2xl space-y-8">
         <div>
           <span className="text-xs font-bold uppercase tracking-wider text-indigo-400">Market Dynamics</span>
-          <h2 className="text-2xl font-black text-white tracking-tight">The $60 Billion Plotted Land Market</h2>
+          <h2 className="text-2xl font-black text-white tracking-tight">The {tamSize} Plotted Land Market</h2>
           <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-            Plotted residential land accounts for over 35% of all new homebuyer transactions across Tier-1 and Tier-2 growth corridors.
+            {siteSettings.tamDescription || 'Plotted residential land accounts for over 35% of all new homebuyer transactions across Tier-1 and Tier-2 growth corridors.'}
           </p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800">
-            <span className="text-2xl sm:text-3xl font-black text-emerald-400 block">$60B+</span>
+            <span className="text-2xl sm:text-3xl font-black text-emerald-400 block">{tamSize}</span>
             <span className="text-xs font-bold text-white block mt-1">Total Addressable Market</span>
             <span className="text-[11px] text-slate-400 mt-1 block">Annual plotted land transactions across major Indian urban hubs.</span>
           </div>
@@ -122,14 +135,14 @@ export default function AboutView({ onExplore, onContact }) {
           </div>
 
           <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800">
-            <span className="text-2xl sm:text-3xl font-black text-amber-400 block">0.75%</span>
+            <span className="text-2xl sm:text-3xl font-black text-amber-400 block">{takeRate}%</span>
             <span className="text-xs font-bold text-white block mt-1">Transaction Take-Rate</span>
             <span className="text-[11px] text-slate-400 mt-1 block">Transparent fee model on successfully registered plot transactions.</span>
           </div>
 
           <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800">
-            <span className="text-2xl sm:text-3xl font-black text-teal-400 block">100%</span>
-            <span className="text-xs font-bold text-white block mt-1">RERA & Title Checked</span>
+            <span className="text-2xl sm:text-3xl font-black text-teal-400 block">{siteSettings.trustMetric1Value || '100%'}</span>
+            <span className="text-xs font-bold text-white block mt-1">{siteSettings.trustMetric1Label || 'RERA & Title Checked'}</span>
             <span className="text-[11px] text-slate-400 mt-1 block">Only approved projects with verifiable statutory records are onboarded.</span>
           </div>
         </div>

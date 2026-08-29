@@ -996,6 +996,7 @@ export default function App() {
           <AboutView
             onExplore={() => setCurrentView('marketplace')}
             onContact={() => setCurrentView('contact')}
+            siteSettings={siteSettings}
           />
         )}
 
@@ -1003,6 +1004,7 @@ export default function App() {
           <ContactView
             townships={townships}
             onExplore={() => setCurrentView('marketplace')}
+            siteSettings={siteSettings}
           />
         )}
 

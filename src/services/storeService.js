@@ -22,7 +22,10 @@ const STORAGE_KEYS = {
 export function getSiteSettings() {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return { ...INITIAL_SITE_SETTINGS, ...parsed };
+    }
   } catch (e) {
     console.warn('Error loading site settings:', e);
   }

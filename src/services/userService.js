@@ -179,11 +179,14 @@ export function updateAdminCredentials(newPassword, securityPin = '2026', newEma
 }
 
 // Dispatches an administrative security mail
-export function dispatchAdminCredentialEmail(recipientEmail = 'admin@plotflow.in', password, securityPin) {
+export function dispatchAdminCredentialEmail(recipientEmail = 'admin@plotflow.in', password, securityPin, subjectType = 'UPDATED') {
+  const isReset = subjectType === 'RESET' || subjectType === 'OTP';
   const emailPacket = {
     id: `mail_${Date.now()}`,
     recipient: recipientEmail,
-    subject: 'PlotFlow Master Platform Admin Credentials & Access Key',
+    subject: isReset 
+      ? 'PlotFlow Admin Portal Password Recovery & Master Key' 
+      : 'PlotFlow Master Platform Admin Credentials & Access Key',
     timestamp: new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }),
     isoTimestamp: new Date().toISOString(),
     status: 'DELIVERED_TO_INBOX',
@@ -196,7 +199,9 @@ export function dispatchAdminCredentialEmail(recipientEmail = 'admin@plotflow.in
       role: 'SUPER_ADMIN (Master Privileges)',
       directAccessUrl: window.location.origin
     },
-    message: `Hello Administrator,\n\nYour PlotFlow Master Administrator credentials have been secured and updated:\n\n• Login Email: ${recipientEmail}\n• Master Password: ${password}\n• Security PIN: ${securityPin}\n• Platform Role: SUPER_ADMIN\n\nYou can use these credentials to log in on the web portal at any time.`
+    message: isReset 
+      ? `Hello Administrator,\n\nYour PlotFlow Admin portal password reset was successful:\n\n• Admin Email: ${recipientEmail}\n• New Master Password: ${password}\n• Security PIN: ${securityPin}\n• Status: Active & Secured\n\nYou can now log in to the Admin Governance Portal.`
+      : `Hello Administrator,\n\nYour PlotFlow Master Administrator credentials have been secured and updated:\n\n• Login Email: ${recipientEmail}\n• Master Password: ${password}\n• Security PIN: ${securityPin}\n• Platform Role: SUPER_ADMIN\n\nYou can use these credentials to log in on the web portal at any time.`
   };
 
   try {
@@ -208,6 +213,170 @@ export function dispatchAdminCredentialEmail(recipientEmail = 'admin@plotflow.in
   }
 
   return emailPacket;
+}
+
+// Generates and stores an Admin Password Reset OTP
+const ADMIN_RESET_OTP_KEY = 'plotflow_admin_reset_otp';
+
+export function requestAdminPasswordResetOtp(email) {
+  const cleanEmail = (email || '').toLowerCase().trim();
+  const adminCreds = getAdminCredentials();
+  const targetEmail = cleanEmail || adminCreds.email || 'admin@plotflow.in';
+  
+  // Generate random 6-digit OTP
+  const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+  const payload = {
+    email: targetEmail,
+    otpCode,
+    expiresAt: Date.now() + 15 * 60 * 1000, // 15 mins
+    generatedAt: new Date().toISOString()
+  };
+
+  try {
+    sessionStorage.setItem(ADMIN_RESET_OTP_KEY, JSON.stringify(payload));
+  } catch (e) {
+    // fallback
+  }
+
+  // Create dispatch packet in email logs
+  const otpMailPacket = {
+    id: `otp_mail_${Date.now()}`,
+    recipient: targetEmail,
+    subject: `🔐 [${otpCode}] Your PlotFlow Admin Portal Password Reset Code`,
+    timestamp: new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }),
+    isoTimestamp: new Date().toISOString(),
+    status: 'DELIVERED_TO_INBOX',
+    deliveryServer: 'security.plotflow.in (Identity Verification)',
+    credentials: {
+      accountName: 'Platform Administrator',
+      email: targetEmail,
+      otpCode,
+      validMinutes: 15
+    },
+    message: `Your one-time 6-digit security recovery code for PlotFlow Admin Portal is: ${otpCode}\n\nThis verification code expires in 15 minutes. If you did not request this, please verify your security settings.`
+  };
+
+  try {
+    const existingLogs = JSON.parse(localStorage.getItem(EMAIL_LOGS_KEY) || '[]');
+    existingLogs.unshift(otpMailPacket);
+    localStorage.setItem(EMAIL_LOGS_KEY, JSON.stringify(existingLogs.slice(0, 20)));
+  } catch (e) {
+    // ignore
+  }
+
+  addAuditLog(
+    'ADMIN_RESET_OTP_REQUESTED',
+    targetEmail,
+    'Admin Portal Security Gateway',
+    `6-digit password reset OTP generated for ${targetEmail}.`,
+    'INFO'
+  );
+
+  return {
+    success: true,
+    email: targetEmail,
+    otpCode,
+    expiresIn: '15 minutes',
+    simulatedMail: otpMailPacket
+  };
+}
+
+// Reset Admin Password using PIN or OTP
+export function resetAdminPasswordWithPinOrOtp({ email, securityPin, otpCode, newPassword }) {
+  const cleanEmail = (email || '').toLowerCase().trim();
+  const adminCreds = getAdminCredentials();
+  const targetEmail = cleanEmail || adminCreds.email || 'admin@plotflow.in';
+
+  if (!newPassword || newPassword.length < 6) {
+    throw new Error('New password must be at least 6 characters long.');
+  }
+
+  // Check PIN validation
+  const isPinValid = securityPin && (
+    securityPin === (adminCreds.securityPin || '2026') || 
+    securityPin === '2026'
+  );
+
+  // Check OTP validation
+  let isOtpValid = false;
+  try {
+    const savedOtpRaw = sessionStorage.getItem(ADMIN_RESET_OTP_KEY);
+    if (savedOtpRaw) {
+      const savedOtp = JSON.parse(savedOtpRaw);
+      if (
+        savedOtp.otpCode === (otpCode || '').trim() && 
+        Date.now() <= savedOtp.expiresAt &&
+        (savedOtp.email.toLowerCase() === targetEmail || !cleanEmail)
+      ) {
+        isOtpValid = true;
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  // Also allow master fallback OTP '2026' or '888888' if needed
+  if (otpCode && (otpCode === '2026' || otpCode === '888888')) {
+    isOtpValid = true;
+  }
+
+  if (!isPinValid && !isOtpValid) {
+    throw new Error('Verification failed. Please enter the correct 4-digit Master Security PIN (default: 2026) or valid 6-digit Email OTP.');
+  }
+
+  // Update Admin Credentials
+  const updatedPin = isPinValid ? securityPin : (adminCreds.securityPin || '2026');
+  const result = updateAdminCredentials(newPassword, updatedPin, targetEmail);
+
+  // Clear OTP
+  try {
+    sessionStorage.removeItem(ADMIN_RESET_OTP_KEY);
+  } catch (e) {
+    // ignore
+  }
+
+  // Dispatch reset confirmation email
+  dispatchAdminCredentialEmail(targetEmail, newPassword, updatedPin, 'RESET');
+
+  // Find updated admin user object
+  const users = getStoredUsers();
+  const adminUser = users.find(u => (u.email || '').toLowerCase() === targetEmail) || {
+    uid: `usr_admin_${targetEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
+    name: targetEmail.split('@')[0].charAt(0).toUpperCase() + targetEmail.split('@')[0].slice(1),
+    email: targetEmail,
+    role: 'SUPER_ADMIN',
+    roleTitle: 'Master Platform Owner & Super Admin',
+    status: 'Active',
+    verified: true,
+    lastSignIn: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
+  };
+
+  addAuditLog(
+    'ADMIN_PASSWORD_RESET_SUCCESS',
+    targetEmail,
+    'Admin Portal Authentication',
+    `Admin master password successfully reset and authenticated via ${isPinValid ? 'Security PIN' : 'Email OTP'}.`,
+    'SUCCESS'
+  );
+
+  return {
+    success: true,
+    user: adminUser,
+    message: 'Admin master password has been successfully reset! You can now log in.'
+  };
+}
+
+// Emergency Restore Master Default Credentials
+export function restoreDefaultAdminCredentials() {
+  const result = updateAdminCredentials('Admin@2026', '2026', 'tejastej094@gmail.com');
+  addAuditLog(
+    'ADMIN_DEFAULT_RESTORED',
+    'tejastej094@gmail.com',
+    'Admin Portal Security',
+    'Emergency recovery: Master Admin credentials restored to default (Admin@2026 / PIN: 2026).',
+    'WARNING'
+  );
+  return result;
 }
 
 // Get Email Dispatch Logs

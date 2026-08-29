@@ -40,24 +40,31 @@ export default function LandingView({
   const ctaPrimary = siteSettings.ctaPrimaryText || 'Explore Verified Townships';
   const ctaSecondary = siteSettings.ctaSecondaryText || 'Launch 3D Sun-Path Twin';
 
-  const faqs = [
+  const defaultFaqs = [
     {
+      id: 'faq_1',
       q: 'How does PlotFlow verify land titles and eliminate litigation risks?',
       a: 'Every plotted development undergoes our 5-Layer Due Diligence process. We cross-reference 30-year sub-registrar deed archives via Kaveri-2 (Form 15 Nil Encumbrance), verify DC conversion sanctions, authenticate RERA approvals, and compile an independent 42-point title search opinion.'
     },
     {
+      id: 'faq_2',
       q: 'What is the 3D Digital Twin and Sun-Path simulator?',
       a: 'Our physics-based visualizer models the exact solar trajectory and shadow angles across morning, afternoon, and evening. You can inspect plot dimensions, elevation contours, road frontage, and Vastu directional alignments before visiting the site.'
     },
     {
+      id: 'faq_3',
       q: 'Can I book a physical site visit with complimentary transportation?',
       a: 'Yes. PlotFlow provides a complimentary chauffeur-driven concierge service for verified buyers. You can schedule a site visit directly through the portal, and our property advisors will accompany you with certified layout blueprints.'
     },
     {
+      id: 'faq_4',
       q: 'How does the refundable token advance and escrow work?',
       a: 'When you select an available plot, a nominal token deposit (e.g. ₹25,000) reserves the plot. The amount remains protected under standard escrow terms until agreement signing or is 100% refunded if you choose not to proceed.'
     }
   ];
+
+  const faqs = (siteSettings.faqs && siteSettings.faqs.length > 0) ? siteSettings.faqs : defaultFaqs;
+  const testimonials = siteSettings.testimonials || [];
 
   return (
     <div className="space-y-16 pb-16">
@@ -119,20 +126,20 @@ export default function LandingView({
           {/* Trust Metric Badges */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-10 border-t border-slate-800/80">
             <div className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800/80">
-              <span className="text-2xl sm:text-3xl font-black text-white block">100%</span>
-              <span className="text-xs text-slate-400 font-medium">K-RERA Sanctioned</span>
+              <span className="text-2xl sm:text-3xl font-black text-white block">{siteSettings.trustMetric1Value || '100%'}</span>
+              <span className="text-xs text-slate-400 font-medium">{siteSettings.trustMetric1Label || 'K-RERA Sanctioned'}</span>
             </div>
             <div className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800/80">
-              <span className="text-2xl sm:text-3xl font-black text-emerald-400 block">30 Years</span>
-              <span className="text-xs text-slate-400 font-medium">Kaveri-2 EC Form 15 Audit</span>
+              <span className="text-2xl sm:text-3xl font-black text-emerald-400 block">{siteSettings.trustMetric2Value || '30 Years'}</span>
+              <span className="text-xs text-slate-400 font-medium">{siteSettings.trustMetric2Label || 'Kaveri-2 EC Form 15 Audit'}</span>
             </div>
             <div className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800/80">
-              <span className="text-2xl sm:text-3xl font-black text-indigo-400 block">Physics 3D</span>
-              <span className="text-xs text-slate-400 font-medium">Real Solar Sun-Path Simulation</span>
+              <span className="text-2xl sm:text-3xl font-black text-indigo-400 block">{siteSettings.trustMetric3Value || 'Physics 3D'}</span>
+              <span className="text-xs text-slate-400 font-medium">{siteSettings.trustMetric3Label || 'Real Solar Sun-Path Simulation'}</span>
             </div>
             <div className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800/80">
-              <span className="text-2xl sm:text-3xl font-black text-teal-400 block">42 Points</span>
-              <span className="text-xs text-slate-400 font-medium">Title Due Diligence Checklist</span>
+              <span className="text-2xl sm:text-3xl font-black text-teal-400 block">{siteSettings.trustMetric4Value || '42 Points'}</span>
+              <span className="text-xs text-slate-400 font-medium">{siteSettings.trustMetric4Label || 'Title Due Diligence Checklist'}</span>
             </div>
           </div>
         </div>
@@ -309,6 +316,40 @@ export default function LandingView({
           </div>
         </div>
       </section>
+
+      {/* Buyer & Investor Testimonials */}
+      {testimonials && testimonials.length > 0 && (
+        <section className="space-y-6">
+          <div className="text-center max-w-2xl mx-auto space-y-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Verified Buyer Experiences</span>
+            <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">Trusted by Land Buyers & Investors</h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {testimonials.map((t) => (
+              <div key={t.id} className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-4 shadow-xl relative overflow-hidden">
+                <div className="flex items-center space-x-1 text-amber-400">
+                  {Array.from({ length: t.rating || 5 }).map((_, i) => (
+                    <span key={i} className="text-base">★</span>
+                  ))}
+                </div>
+                <p className="text-xs sm:text-sm text-slate-300 italic leading-relaxed">
+                  "{t.content}"
+                </p>
+                <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold text-white">{t.author}</h4>
+                    <span className="text-[11px] text-slate-400">{t.role}</span>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-bold border border-emerald-500/30">
+                    Verified Buyer
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* FAQ Accordion */}
       <section className="space-y-6 max-w-3xl mx-auto">

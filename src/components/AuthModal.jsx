@@ -21,7 +21,9 @@ import {
   loginWithEmailAndPassword, 
   registerNewUser,
   sendPasswordResetLink,
-  getStoredUsers
+  getStoredUsers,
+  resetAdminPasswordWithPinOrOtp,
+  getAdminCredentials
 } from '../services/userService';
 import { auth, GoogleAuthProvider, signInWithPopup } from '../services/firebase';
 
@@ -673,9 +675,9 @@ export default function AuthModal({
               </button>
 
               <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-xs text-amber-200">
-                <p className="font-semibold mb-1">Firebase Password Recovery</p>
+                <p className="font-semibold mb-1">Account & Admin Password Recovery</p>
                 <p className="text-[11px] text-slate-300">
-                  Enter your registered account email. A secure password reset link will be dispatched through Firebase Auth.
+                  Enter your registered account email. A secure password reset link will be dispatched through Firebase Auth. Platform Administrators can also use the Staff Gateway Master PIN (<strong className="text-amber-300 font-mono">2026</strong>).
                 </p>
               </div>
 
@@ -689,7 +691,7 @@ export default function AuthModal({
                     <input
                       type="email"
                       required
-                      placeholder="e.g. user@domain.com"
+                      placeholder="e.g. user@domain.com or tejastej094@gmail.com"
                       value={resetEmail}
                       onChange={(e) => setResetEmail(e.target.value)}
                       className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 text-xs"
@@ -703,7 +705,7 @@ export default function AuthModal({
                   className="w-full py-3 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center space-x-2 bg-amber-600 hover:bg-amber-500 shadow-amber-950/50"
                 >
                   {loading ? (
-                    <span>Dispatching Reset Email...</span>
+                    <span>Dispatching Reset Link...</span>
                   ) : (
                     <>
                       <KeyRound className="w-4 h-4" />

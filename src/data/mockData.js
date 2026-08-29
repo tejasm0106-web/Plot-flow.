@@ -1037,12 +1037,98 @@ export const INITIAL_SITE_SETTINGS = {
   tokenDepositAmount: 25000, // ₹25,000 token deposit
   stampDutyPercent: 6.6, // 6.6% Karnataka standard
   maintenanceMode: false,
+  maintenanceMessage: 'PlotFlow is undergoing scheduled statutory sync. Market inquiries remain queued safely.',
 
-  // Contact Info
+  // Concierge, Chauffeur & Contact Information
   conciergePhone: '+91 80 4712 9900',
+  conciergeWhatsapp: '+91 98450 88990',
+  tollFreeNumber: '1800 425 7890',
   conciergeEmail: 'concierge@plotflow.in',
-  officeAddress: 'Embassy TechVillage, Outer Ring Road, Bellandur, Bengaluru, Karnataka 560103',
-  supportHours: 'Mon - Sun: 9:00 AM - 8:00 PM IST',
+  partnersEmail: 'partners@plotflow.in',
+  legalEmail: 'legal@plotflow.in',
+  supportEmail: 'support@plotflow.in',
+  officeAddress: 'PlotFlow Technologies Pvt Ltd, Tower 3, Embassy TechVillage, Outer Ring Road, Bellandur, Bengaluru, Karnataka 560103',
+  officeLandmark: 'Embassy TechVillage, Bellandur, Bengaluru 560103',
+  supportHours: '9:00 AM – 8:00 PM IST (Mon-Sun)',
+  conciergeHeading: 'PlotFlow Concierge & Advisory',
+  conciergeSubheading: 'Schedule a Verified Site Visit or Speak with an Advisor',
+  conciergeDescription: 'Whether you are booking a complimentary chauffeur-driven site visit, listing a plotted development, or requesting title diligence records, our team is at your service.',
+  conciergeSla: '< 15 minutes callback guarantee during business hours',
+  chauffeurPolicy: 'Complimentary doorstep chauffeur pick-up & drop within a 45-km radius across major metropolitan hubs.',
+  
+  // Trust Badges & Metrics
+  trustMetric1Value: '100%',
+  trustMetric1Label: 'K-RERA Sanctioned',
+  trustMetric2Value: '30 Years',
+  trustMetric2Label: 'Kaveri-2 EC Form 15 Audit',
+  trustMetric3Value: 'Physics 3D',
+  trustMetric3Label: 'Real Solar Sun-Path Simulation',
+  trustMetric4Value: '42 Points',
+  trustMetric4Label: 'Title Due Diligence Checklist',
+
+  // About Us & Company Information
+  aboutMissionTitle: 'Building the Trust & Visualization Layer for Land',
+  aboutMissionSubtitle: 'Modernizing Plotted Land Real Estate',
+  aboutMissionText: 'Plotted developments offer the highest return on investment in real estate, but have historically suffered from title ambiguity and inadequate visual layouts. PlotFlow combines 3D Digital Twin simulations with a rigorous 5-layer due diligence framework to make buying land transparent, verified, and predictable.',
+  aboutPillar1Title: '1. Interactive 3D Digital Twin',
+  aboutPillar1Desc: 'Every plotted enclave is modeled with precise GPS coordinates, digital boundary perimeters, elevation contours, and physics-based solar angle simulations to assess morning and afternoon sunlight.',
+  aboutPillar2Title: '2. 5-Layer Due Diligence Framework',
+  aboutPillar2Desc: 'Prior to publishing, layouts undergo title searches spanning 30-year sub-registrar archives (Kaveri-2 EC Form 15), DC Conversion orders, RERA approval sanctions, and environmental utility clearances.',
+  aboutPillar3Title: '3. Live Inventory & Escrow Ledger',
+  aboutPillar3Desc: 'Real-time synchronization ensures buyers only view genuinely available inventory. Refundable token advances are held under standard escrow terms until agreement execution.',
+  tamMarketSize: '$60B+',
+  tamDescription: 'Annual plotted land transactions across major Indian urban growth corridors.',
+
+  // Footer Disclaimers & Copyright
+  footerDisclaimer: 'PlotFlow is an institutional verification and digital visualization platform. All listings conform to respective State RERA provisions.',
+  footerCopyright: '© 2026 PlotFlow Technologies Pvt. Ltd. All rights reserved.',
+
+  // Editable FAQs List
+  faqs: [
+    {
+      id: 'faq_1',
+      q: 'How does PlotFlow verify land titles and eliminate litigation risks?',
+      a: 'Every plotted development undergoes our 5-Layer Due Diligence process. We cross-reference 30-year sub-registrar deed archives via Kaveri-2 (Form 15 Nil Encumbrance), verify DC conversion sanctions, authenticate RERA approvals, and compile an independent 42-point title search opinion.'
+    },
+    {
+      id: 'faq_2',
+      q: 'What is the 3D Digital Twin and Sun-Path simulator?',
+      a: 'Our physics-based visualizer models the exact solar trajectory and shadow angles across morning, afternoon, and evening. You can inspect plot dimensions, elevation contours, road frontage, and Vastu directional alignments before visiting the site.'
+    },
+    {
+      id: 'faq_3',
+      q: 'Can I book a physical site visit with complimentary transportation?',
+      a: 'Yes. PlotFlow provides a complimentary chauffeur-driven concierge service for verified buyers. You can schedule a site visit directly through the portal, and our property advisors will accompany you with certified layout blueprints.'
+    },
+    {
+      id: 'faq_4',
+      q: 'How does the refundable token advance and escrow work?',
+      a: 'When you select an available plot, a nominal token deposit (e.g. ₹25,000) reserves the plot. The amount remains protected under standard escrow terms until agreement signing or is 100% refunded if you choose not to proceed.'
+    },
+    {
+      id: 'faq_5',
+      q: 'Can developers and land aggregator firms list layouts on PlotFlow?',
+      a: 'Yes. Developers can register via the Developer SaaS Portal. Layouts must pass title scrutiny and provide AutoCAD/GIS perimeter coordinates before going live.'
+    }
+  ],
+
+  // Editable Testimonials List
+  testimonials: [
+    {
+      id: 'test_1',
+      author: 'Rajesh & Malini Iyer',
+      role: 'Villa Plot Buyers at Devanahalli',
+      rating: 5,
+      content: 'The 3D sun-path simulation helped us choose an East-facing plot with perfect morning light. Seeing 30-year Kaveri-2 Encumbrance certificates online gave us complete peace of mind.'
+    },
+    {
+      id: 'test_2',
+      author: 'Ananya Deshmukh',
+      role: 'Angel Investor & Plotted Land Portfolio',
+      rating: 5,
+      content: 'PlotFlow eliminates the traditional opacity in plotted layouts. The chauffeur concierge service and instant legal title opinions made our acquisition smooth and swift.'
+    }
+  ],
 
   // SEO Defaults
   seoTitle: 'PlotFlow | Verified Plotted Land & 3D Digital Twins',

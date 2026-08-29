@@ -38,7 +38,18 @@ import {
   BadgeCheck,
   UserCheck2,
   KeyRound,
-  ShieldAlert
+  ShieldAlert,
+  Phone,
+  MapPin,
+  Clock,
+  MessageSquare,
+  HelpCircle,
+  Star,
+  Globe,
+  Percent,
+  Award,
+  Car,
+  RefreshCcw
 } from 'lucide-react';
 import { 
   getStoredUsers, 
@@ -87,6 +98,7 @@ export default function AdminPanel({
   // Platform Data
   const [usersList, setUsersList] = useState(() => getStoredUsers());
   const [siteSettings, setSiteSettingsState] = useState(() => getSiteSettings());
+  const [cmsSubTab, setCmsSubTab] = useState('concierge_contact'); // 'concierge_contact' | 'branding_hero' | 'about_mission' | 'economics' | 'trust_metrics' | 'faqs' | 'testimonials'
   const [homepageSections, setHomepageSectionsState] = useState(() => getHomepageSections());
   const [auditLogs, setAuditLogs] = useState(() => getStoredAuditLogs());
   const [leadsList, setLeadsList] = useState(() => getStoredLeads());
@@ -589,10 +601,74 @@ export default function AdminPanel({
   // CMS & BRANDING HANDLERS
   // ----------------------------------------------------
   const handleSaveSiteSettings = (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     saveSiteSettings(siteSettings);
-    addAuditLog('CMS_SETTINGS_SAVED', currentUser?.email || 'Super Admin', 'Branding & Platform CMS', 'Updated homepage hero text, announcement banner, or contact details.', 'SUCCESS');
-    showToast('Platform branding and CMS settings saved.');
+    addAuditLog('CMS_SETTINGS_SAVED', currentUser?.email || 'Super Admin', 'Platform Global CMS', 'Updated website concierge, contact details, branding, economics, or FAQs.', 'SUCCESS');
+    showToast('Platform CMS settings updated & published successfully.');
+  };
+
+  const handleAddFaq = () => {
+    const newFaq = {
+      id: `faq_${Date.now()}`,
+      q: 'New Question: Enter your inquiry title here?',
+      a: 'Detailed verified response explaining legal, financial, or spatial twin features.'
+    };
+    const updated = {
+      ...siteSettings,
+      faqs: [...(siteSettings.faqs || []), newFaq]
+    };
+    setSiteSettingsState(updated);
+    saveSiteSettings(updated);
+    showToast('New FAQ item added.');
+  };
+
+  const handleUpdateFaq = (faqId, field, value) => {
+    const updatedFaqs = (siteSettings.faqs || []).map(f => {
+      if (f.id === faqId) return { ...f, [field]: value };
+      return f;
+    });
+    setSiteSettingsState({ ...siteSettings, faqs: updatedFaqs });
+  };
+
+  const handleDeleteFaq = (faqId) => {
+    const updatedFaqs = (siteSettings.faqs || []).filter(f => f.id !== faqId);
+    const updated = { ...siteSettings, faqs: updatedFaqs };
+    setSiteSettingsState(updated);
+    saveSiteSettings(updated);
+    showToast('FAQ item deleted.');
+  };
+
+  const handleAddTestimonial = () => {
+    const newTestimonial = {
+      id: `test_${Date.now()}`,
+      author: 'New Buyer Name',
+      role: 'Villa Owner, Bengaluru',
+      content: 'PlotFlow gave us absolute peace of mind with 30-year title clearances and true solar orientation modeling.',
+      rating: 5
+    };
+    const updated = {
+      ...siteSettings,
+      testimonials: [...(siteSettings.testimonials || []), newTestimonial]
+    };
+    setSiteSettingsState(updated);
+    saveSiteSettings(updated);
+    showToast('New buyer testimonial added.');
+  };
+
+  const handleUpdateTestimonial = (testId, field, value) => {
+    const updatedTests = (siteSettings.testimonials || []).map(t => {
+      if (t.id === testId) return { ...t, [field]: value };
+      return t;
+    });
+    setSiteSettingsState({ ...siteSettings, testimonials: updatedTests });
+  };
+
+  const handleDeleteTestimonial = (testId) => {
+    const updatedTests = (siteSettings.testimonials || []).filter(t => t.id !== testId);
+    const updated = { ...siteSettings, testimonials: updatedTests };
+    setSiteSettingsState(updated);
+    saveSiteSettings(updated);
+    showToast('Buyer review removed.');
   };
 
   const handleToggleSection = (sectionId) => {
@@ -1785,104 +1861,982 @@ export default function AdminPanel({
       )}
 
       {/* ==================================================== */}
-      {/* TAB 6: SITE CMS & BRANDING */}
+      {/* TAB 6: MASTER SITE CMS & CONFIGURATION */}
       {/* ==================================================== */}
       {activeTab === 'cms' && (
-        <form onSubmit={handleSaveSiteSettings} className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-            <div>
-              <h3 className="text-lg font-bold text-white">Platform Branding & Homepage CMS</h3>
-              <p className="text-xs text-slate-400">Edit titles, value propositions, CTA buttons, and announcement bar in real time.</p>
-            </div>
-            <button
-              type="submit"
-              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow transition"
-            >
-              Save CMS Changes
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            <div>
-              <label className="text-xs font-semibold text-slate-400 block mb-1.5">Hero Headline Title</label>
-              <input
-                type="text"
-                value={siteSettings.heroTitle}
-                onChange={(e) => setSiteSettingsState({ ...siteSettings, heroTitle: e.target.value })}
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold text-slate-400 block mb-1.5">Hero Badge Text</label>
-              <input
-                type="text"
-                value={siteSettings.heroBadge}
-                onChange={(e) => setSiteSettingsState({ ...siteSettings, heroBadge: e.target.value })}
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold text-slate-400 block mb-1.5">Hero Subtitle & Value Proposition</label>
-            <textarea
-              rows={2}
-              value={siteSettings.heroSubtitle}
-              onChange={(e) => setSiteSettingsState({ ...siteSettings, heroSubtitle: e.target.value })}
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2 border-t border-slate-800">
-            <div>
-              <label className="text-xs font-semibold text-slate-400 block mb-1.5">Primary Button CTA</label>
-              <input
-                type="text"
-                value={siteSettings.ctaPrimaryText}
-                onChange={(e) => setSiteSettingsState({ ...siteSettings, ctaPrimaryText: e.target.value })}
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold text-slate-400 block mb-1.5">Secondary Button CTA</label>
-              <input
-                type="text"
-                value={siteSettings.ctaSecondaryText}
-                onChange={(e) => setSiteSettingsState({ ...siteSettings, ctaSecondaryText: e.target.value })}
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-          </div>
-
-          <div className="pt-2 border-t border-slate-800 space-y-4">
-            <h4 className="text-xs font-bold text-white">Top Announcement Banner</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-6">
+          {/* CMS Sub-Navigation Header */}
+          <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800 pb-6">
               <div>
-                <label className="text-xs font-semibold text-slate-400 block mb-1.5">Banner Text</label>
-                <input
-                  type="text"
-                  value={siteSettings.announcementText}
-                  onChange={(e) => setSiteSettingsState({ ...siteSettings, announcementText: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
-                />
+                <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold mb-2">
+                  <Settings className="w-3.5 h-3.5" />
+                  <span>Master Content Management System (CMS)</span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-black text-white">Platform Content & Global Controls</h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Full administrative control over Concierge, Contact info, Branding, Mission, Economics, FAQs, and Buyer Reviews.
+                </p>
               </div>
-              <div className="flex items-center space-x-3 pt-6">
-                <input
-                  type="checkbox"
-                  id="enableBanner"
-                  checked={siteSettings.announcementEnabled}
-                  onChange={(e) => setSiteSettingsState({ ...siteSettings, announcementEnabled: e.target.checked })}
-                  className="w-4 h-4 accent-emerald-500 cursor-pointer"
-                />
-                <label htmlFor="enableBanner" className="text-xs font-semibold text-slate-300 cursor-pointer">
-                  Display Announcement Bar on Web App
-                </label>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveSiteSettings}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg transition flex items-center space-x-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Save All CMS Changes</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onExploreMarketplace}
+                  className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl transition flex items-center space-x-1.5"
+                >
+                  <Eye className="w-4 h-4 text-emerald-400" />
+                  <span>Preview Changes</span>
+                </button>
               </div>
             </div>
+
+            {/* CMS Section Pills */}
+            <div className="flex flex-wrap gap-2 text-xs font-bold">
+              {[
+                { id: 'concierge_contact', name: 'Concierge & Contact Details', icon: Phone },
+                { id: 'branding_hero', name: 'Brand & Hero Section', icon: Globe },
+                { id: 'about_mission', name: 'About Us & Mission', icon: Award },
+                { id: 'economics', name: 'Economics & Platform Policies', icon: DollarSign },
+                { id: 'trust_metrics', name: 'Trust & Due Diligence Badges', icon: ShieldCheck },
+                { id: 'faqs', name: `FAQs (${(siteSettings.faqs || []).length})`, icon: HelpCircle },
+                { id: 'testimonials', name: `Buyer Reviews (${(siteSettings.testimonials || []).length})`, icon: Star }
+              ].map(sub => {
+                const SubIcon = sub.icon;
+                const isCurrent = cmsSubTab === sub.id;
+                return (
+                  <button
+                    key={sub.id}
+                    type="button"
+                    onClick={() => setCmsSubTab(sub.id)}
+                    className={`px-3.5 py-2 rounded-xl transition flex items-center space-x-1.5 ${
+                      isCurrent
+                        ? 'bg-emerald-600 text-white shadow'
+                        : 'bg-slate-900/80 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800'
+                    }`}
+                  >
+                    <SubIcon className="w-3.5 h-3.5" />
+                    <span>{sub.name}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </form>
+
+          {/* SUB-TAB 1: CONCIERGE & CONTACT DETAILS */}
+          {cmsSubTab === 'concierge_contact' && (
+            <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl animate-fadeIn">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                <div>
+                  <h4 className="text-base font-bold text-white flex items-center space-x-2">
+                    <Phone className="w-4 h-4 text-emerald-400" />
+                    <span>Buyer Concierge & Statutory Contact Information</span>
+                  </h4>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    These contact numbers, WhatsApp lines, and emails update across the Contact page, Footer, and Chauffeur booking drawers in real time.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSaveSiteSettings}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition shadow"
+                >
+                  Save Section
+                </button>
+              </div>
+
+              {/* Concierge Helplines & Numbers */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 block mb-1.5 flex items-center space-x-1.5">
+                    <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Concierge Helpline Phone</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={siteSettings.conciergePhone || ''}
+                    onChange={(e) => setSiteSettingsState({ ...siteSettings, conciergePhone: e.target.value })}
+                    placeholder="+91 80 4719 3300"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+                  />
+                  <span className="text-[10px] text-slate-500 mt-1 block">Displayed on live web headers and contact view</span>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 block mb-1.5 flex items-center space-x-1.5">
+                    <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>WhatsApp Direct Concierge</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={siteSettings.conciergeWhatsapp || ''}
+                    onChange={(e) => setSiteSettingsState({ ...siteSettings, conciergeWhatsapp: e.target.value })}
+                    placeholder="+91 99000 88221"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+                  />
+                  <span className="text-[10px] text-slate-500 mt-1 block">Used for instant 1-click WhatsApp plot twin share</span>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 block mb-1.5 flex items-center space-x-1.5">
+                    <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Toll-Free National Helpline</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={siteSettings.tollFreeNumber || ''}
+                    onChange={(e) => setSiteSettingsState({ ...siteSettings, tollFreeNumber: e.target.value })}
+                    placeholder="1800-419-7568"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+                  />
+                  <span className="text-[10px] text-slate-500 mt-1 block">Toll-free customer assistance line</span>
+                </div>
+              </div>
+
+              {/* Departmental Emails */}
+              <div className="pt-4 border-t border-slate-800">
+                <h5 className="text-xs font-bold text-slate-200 mb-4">Departmental Email Routing</h5>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-400 block mb-1.5">Buyer Concierge Email</label>
+                    <input
+                      type="email"
+                      value={siteSettings.conciergeEmail || ''}
+                      onChange={(e) => setSiteSettingsState({ ...siteSettings, conciergeEmail: e.target.value })}
+                      placeholder="concierge@plotflow.in"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-400 block mb-1.5">Builder / Developer Onboarding</label>
+                    <input
+                      type="email"
+                      value={siteSettings.developerEmail || ''}
+                      onChange={(e) => setSiteSettingsState({ ...siteSettings, developerEmail: e.target.value })}
+                      placeholder="developers@plotflow.in"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-400 block mb-1.5">Legal Wing & Title Search</label>
+                    <input
+                      type="email"
+                      value={siteSettings.legalEmail || ''}
+                      onChange={(e) => setSiteSettingsState({ ...siteSettings, legalEmail: e.target.value })}
+                      placeholder="legal@plotflow.in"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-400 block mb-1.5">General Inquiries & Support</label>
+                    <input
+                      type="email"
+                      value={siteSettings.supportEmail || ''}
+                      onChange={(e) => setSiteSettingsState({ ...siteSettings, supportEmail: e.target.value })}
+                      placeholder="support@plotflow.in"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Physical Office Address & Operating Hours */}
+              <div className="pt-4 border-t border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 block mb-1.5 flex items-center space-x-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Headquarters Physical Address</span>
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={siteSettings.officeAddress || ''}
+                    onChange={(e) => setSiteSettingsState({ ...siteSettings, officeAddress: e.target.value })}
+                    placeholder="PlotFlow Technologies Private Limited, Level 7, Prestige Meridian II, 30 M.G. Road, Bengaluru, Karnataka 560001"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 block mb-1.5 flex items-center space-x-1.5">
+                    <Clock className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Operating & Chauffeur Service Hours</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={siteSettings.supportHours || ''}
+                    onChange={(e) => setSiteSettingsState({ ...siteSettings, supportHours: e.target.value })}
+                    placeholder="Monday to Sunday: 8:00 AM - 8:00 PM IST (Site visits available all 7 days)"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  />
+                  <div className="mt-3">
+                    <label className="text-xs font-semibold text-slate-400 block mb-1">Office Landmark / Campus</label>
+                    <input
+                      type="text"
+                      value={siteSettings.officeLandmark || ''}
+                      onChange={(e) => setSiteSettingsState({ ...siteSettings, officeLandmark: e.target.value })}
+                      placeholder="Opposite Trinity Metro Station, Central Business District"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Concierge Experience Copy & SLA Policy */}
+              <div className="pt-4 border-t border-slate-800 space-y-4">
+                <h5 className="text-xs font-bold text-slate-200">Concierge Service Narrative & SLA Guarantee</h5>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-400 block mb-1.5">Concierge Main Heading</label>
+                    <input
+                      type="text"
+                      value={siteSettings.conciergeHeading || ''}
+                      onChange={(e) => setSiteSettingsState({ ...siteSettings, conciergeHeading: e.target.value })}
+                      placeholder="White-Glove Land Advisory & Complimentary Chauffeur Visits"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-400 block mb-1.5">Callback SLA Commitment</label>
+                    <input
+                      type="text"
+                      value={siteSettings.conciergeSla || ''}
+                      onChange={(e) => setSiteSettingsState({ ...siteSettings, conciergeSla: e.target.value })}
+                      placeholder="Guaranteed advisory callback in under 15 minutes during operating hours"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 block mb-1.5">Chauffeur Transport Policy & Radius</label>
+                  <textarea
+                    rows={2}
+                    value={siteSettings.conciergeChauffeurPolicy || ''}
+                    onChange={(e) => setSiteSettingsState({ ...siteSettings, conciergeChauffeurPolicy: e.target.value })}
+                    placeholder="Complimentary doorstep pickup & return across all Bengaluru zones (Hebbal, Whitefield, Indiranagar, Koramangala, Electronic City, Jayanagar) in air-conditioned executive vehicles."
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SUB-TAB 2: BRAND & HERO PRESENTATION */}
+          {cmsSubTab === 'branding_hero' && (
+            <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl animate-fadeIn">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                <div>
+                  <h4 className="text-base font-bold text-white flex items-center space-x-2">
+                    <Globe className="w-4 h-4 text-emerald-400" />
+                    <span>Brand Identity, Homepage Hero & Banner</span>
+                  </h4>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Customize the platform title, tagline, hero value proposition, and top announcement ribbon.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSaveSiteSettings}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition shadow"
+                >
+                  Save Section
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 block mb-1.5">Platform Brand Name</label>
+                  <input
+                    type="text"
+                    value={siteSettings.siteName || ''}
+                    onChange={(e) => setSiteSettingsState({ ...siteSettings, siteName: e.target.value })}
+                    placeholder="PlotFlow"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 block mb-1.5">Brand Tagline</label>
+                  <input
+                    type="text"
+                    value={siteSettings.tagline || ''}
+                    onChange={(e) => setSiteSettingsState({ ...siteSettings, tagline: e.target.value })}
+                    placeholder="India's Premier 3D Digital Twin & Verified Land Marketplace"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2 border-t border-slate-800">
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 block mb-1.5">Hero Headline Title</label>
+                  <input
+                    type="text"
+                    value={siteSettings.heroTitle || ''}
+                    onChange={(e) => setSiteSettingsState({ ...siteSettings, heroTitle: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 block mb-1.5">Hero Top Badge Pill</label>
+                  <input
+                    type="text"
+                    value={siteSettings.heroBadge || ''}
+                    onChange={(e) => setSiteSettingsState({ ...siteSettings, heroBadge: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-400 block mb-1.5">Hero Subtitle & Value Proposition</label>
+                <textarea
+                  rows={3}
+                  value={siteSettings.heroSubtitle || ''}
+                  onChange={(e) => setSiteSettingsState({ ...siteSettings, heroSubtitle: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 leading-relaxed"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2 border-t border-slate-800">
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 block mb-1.5">Primary CTA Button Label</label>
+                  <input
+                    type="text"
+                    value={siteSettings.ctaPrimaryText || ''}
+                    onChange={(e) => setSiteSettingsState({ ...siteSettings, ctaPrimaryText: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 block mb-1.5">Secondary CTA Button Label</label>
+                  <input
+                    type="text"
+                    value={siteSettings.ctaSecondaryText || ''}
+                    onChange={(e) => setSiteSettingsState({ ...siteSettings, ctaSecondaryText: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* Top Announcement Bar Configuration */}
+              <div className="pt-4 border-t border-slate-800 space-y-4">
+                <h5 className="text-xs font-bold text-white flex items-center space-x-2">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Top Announcement Banner</span>
+                </h5>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-400 block mb-1.5">Announcement Message Text</label>
+                    <input
+                      type="text"
+                      value={siteSettings.announcementText || ''}
+                      onChange={(e) => setSiteSettingsState({ ...siteSettings, announcementText: e.target.value })}
+                      placeholder="✨ Introducing 3D Physics Sun-Path Digital Twins for 5 New BMRDA Townships"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                  <div className="flex items-center space-x-3 pt-6">
+                    <input
+                      type="checkbox"
+                      id="enableBanner"
+                      checked={Boolean(siteSettings.announcementEnabled)}
+                      onChange={(e) => setSiteSettingsState({ ...siteSettings, announcementEnabled: e.target.checked })}
+                      className="w-4 h-4 accent-emerald-500 cursor-pointer"
+                    />
+                    <label htmlFor="enableBanner" className="text-xs font-semibold text-slate-300 cursor-pointer">
+                      Display Announcement Banner on Top of Public Website
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer Policies & Copyright */}
+              <div className="pt-4 border-t border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 block mb-1.5">Footer Disclaimer Text</label>
+                  <textarea
+                    rows={2}
+                    value={siteSettings.footerDisclaimer || ''}
+                    onChange={(e) => setSiteSettingsState({ ...siteSettings, footerDisclaimer: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 block mb-1.5">Footer Copyright Statement</label>
+                  <input
+                    type="text"
+                    value={siteSettings.footerCopyright || ''}
+                    onChange={(e) => setSiteSettingsState({ ...siteSettings, footerCopyright: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SUB-TAB 3: ABOUT US & MISSION */}
+          {cmsSubTab === 'about_mission' && (
+            <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl animate-fadeIn">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                <div>
+                  <h4 className="text-base font-bold text-white flex items-center space-x-2">
+                    <Award className="w-4 h-4 text-emerald-400" />
+                    <span>Company Mission, Technology Pillars & Market TAM</span>
+                  </h4>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Controls what users see on the About Us page, including governance principles and core technological advantages.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSaveSiteSettings}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition shadow"
+                >
+                  Save Section
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 block mb-1.5">Mission Headline</label>
+                  <input
+                    type="text"
+                    value={siteSettings.aboutMissionTitle || ''}
+                    onChange={(e) => setSiteSettingsState({ ...siteSettings, aboutMissionTitle: e.target.value })}
+                    placeholder="Building India's Most Trusted Digital Plotted Land Protocol"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 block mb-1.5">Mission Subtitle</label>
+                  <input
+                    type="text"
+                    value={siteSettings.aboutMissionSubtitle || ''}
+                    onChange={(e) => setSiteSettingsState({ ...siteSettings, aboutMissionSubtitle: e.target.value })}
+                    placeholder="Eliminating land fraud with 30-year sub-registrar verification and physics-based solar simulation."
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-400 block mb-1.5">Core Mission Statement</label>
+                <textarea
+                  rows={3}
+                  value={siteSettings.aboutMissionText || ''}
+                  onChange={(e) => setSiteSettingsState({ ...siteSettings, aboutMissionText: e.target.value })}
+                  placeholder="PlotFlow was founded with a singular conviction: buying land in India should be as transparent, frictionless, and digitally verifiable as purchasing blue-chip equities."
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 leading-relaxed"
+                />
+              </div>
+
+              {/* Technology Pillars */}
+              <div className="pt-4 border-t border-slate-800 space-y-4">
+                <h5 className="text-xs font-bold text-slate-200">Three Pillars of Due Diligence & Spatial Tech</h5>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-2xl space-y-2">
+                    <label className="text-[11px] font-bold text-emerald-400 block">Pillar 1: Legal Audit</label>
+                    <input
+                      type="text"
+                      value={siteSettings.aboutPillar1Title || ''}
+                      onChange={(e) => setSiteSettingsState({ ...siteSettings, aboutPillar1Title: e.target.value })}
+                      placeholder="30-Year Title Search & EC Audit"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white font-bold"
+                    />
+                    <textarea
+                      rows={3}
+                      value={siteSettings.aboutPillar1Desc || ''}
+                      onChange={(e) => setSiteSettingsState({ ...siteSettings, aboutPillar1Desc: e.target.value })}
+                      placeholder="Every layout is authenticated through Kaveri-2 deed archives and certified title opinions."
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300"
+                    />
+                  </div>
+
+                  <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-2xl space-y-2">
+                    <label className="text-[11px] font-bold text-indigo-400 block">Pillar 2: 3D Twin Physics</label>
+                    <input
+                      type="text"
+                      value={siteSettings.aboutPillar2Title || ''}
+                      onChange={(e) => setSiteSettingsState({ ...siteSettings, aboutPillar2Title: e.target.value })}
+                      placeholder="Physics-Accurate Sun-Path Simulation"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white font-bold"
+                    />
+                    <textarea
+                      rows={3}
+                      value={siteSettings.aboutPillar2Desc || ''}
+                      onChange={(e) => setSiteSettingsState({ ...siteSettings, aboutPillar2Desc: e.target.value })}
+                      placeholder="Simulates exact solar angles and shadow casts across every hour from 6:00 AM to 7:00 PM."
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300"
+                    />
+                  </div>
+
+                  <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-2xl space-y-2">
+                    <label className="text-[11px] font-bold text-teal-400 block">Pillar 3: Chauffeur Concierge</label>
+                    <input
+                      type="text"
+                      value={siteSettings.aboutPillar3Title || ''}
+                      onChange={(e) => setSiteSettingsState({ ...siteSettings, aboutPillar3Title: e.target.value })}
+                      placeholder="White-Glove Doorstep Transportation"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white font-bold"
+                    />
+                    <textarea
+                      rows={3}
+                      value={siteSettings.aboutPillar3Desc || ''}
+                      onChange={(e) => setSiteSettingsState({ ...siteSettings, aboutPillar3Desc: e.target.value })}
+                      placeholder="Complimentary executive transport with dedicated advisors and certified physical blueprints."
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Total Addressable Market (TAM) */}
+              <div className="pt-4 border-t border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 block mb-1.5">TAM Market Projection Metric</label>
+                  <input
+                    type="text"
+                    value={siteSettings.aboutTamMetric || ''}
+                    onChange={(e) => setSiteSettingsState({ ...siteSettings, aboutTamMetric: e.target.value })}
+                    placeholder="$14 Billion Plotted Market in Tier-1 Corridors by 2030"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 block mb-1.5">TAM Market Commentary</label>
+                  <input
+                    type="text"
+                    value={siteSettings.aboutTamDesc || ''}
+                    onChange={(e) => setSiteSettingsState({ ...siteSettings, aboutTamDesc: e.target.value })}
+                    placeholder="Driven by high-density tech hubs, infrastructure corridor expansion, and preference for bespoke villas."
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SUB-TAB 4: ECONOMICS & POLICIES */}
+          {cmsSubTab === 'economics' && (
+            <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl animate-fadeIn">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                <div>
+                  <h4 className="text-base font-bold text-white flex items-center space-x-2">
+                    <DollarSign className="w-4 h-4 text-emerald-400" />
+                    <span>Platform Economics, Escrow & Statutory Fees</span>
+                  </h4>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Configure refundable token advance amounts, marketplace take rates, and stamp duty guidance rates.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSaveSiteSettings}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition shadow"
+                >
+                  Save Section
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 block mb-1.5">Token Reservation Deposit (₹)</label>
+                  <input
+                    type="number"
+                    value={siteSettings.tokenDepositAmount || 25000}
+                    onChange={(e) => setSiteSettingsState({ ...siteSettings, tokenDepositAmount: Number(e.target.value) })}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono font-bold"
+                  />
+                  <span className="text-[10px] text-slate-500 mt-1 block">Default token amount required to reserve a plot in escrow</span>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 block mb-1.5">Platform Marketplace Take-Rate (%)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={siteSettings.platformFeePercent || 1.5}
+                    onChange={(e) => setSiteSettingsState({ ...siteSettings, platformFeePercent: Number(e.target.value) })}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono font-bold"
+                  />
+                  <span className="text-[10px] text-slate-500 mt-1 block">Platform facilitation commission on completed deed executions</span>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 block mb-1.5">Stamp Duty & Registration Guidance (%)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={siteSettings.stampDutyGuidancePercent || 5.6}
+                    onChange={(e) => setSiteSettingsState({ ...siteSettings, stampDutyGuidancePercent: Number(e.target.value) })}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono font-bold"
+                  />
+                  <span className="text-[10px] text-slate-500 mt-1 block">Standard Karnataka Sub-Registrar statutory stamp duty rate</span>
+                </div>
+              </div>
+
+              {/* Maintenance Mode Controls */}
+              <div className="pt-4 border-t border-slate-800 space-y-4">
+                <h5 className="text-xs font-bold text-slate-200">System Maintenance Mode & Outage Notice</h5>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-400 block mb-1.5">Maintenance Banner Message</label>
+                    <input
+                      type="text"
+                      value={siteSettings.maintenanceNotice || ''}
+                      onChange={(e) => setSiteSettingsState({ ...siteSettings, maintenanceNotice: e.target.value })}
+                      placeholder="Scheduled Sub-Registrar API maintenance in progress. Plot reservations remain fully active."
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div className="flex items-center space-x-3 pt-4">
+                    <input
+                      type="checkbox"
+                      id="maintenanceModeToggle"
+                      checked={Boolean(siteSettings.maintenanceMode)}
+                      onChange={(e) => setSiteSettingsState({ ...siteSettings, maintenanceMode: e.target.checked })}
+                      className="w-4 h-4 accent-amber-500 cursor-pointer"
+                    />
+                    <label htmlFor="maintenanceModeToggle" className="text-xs font-semibold text-slate-300 cursor-pointer">
+                      Enable Maintenance Notice Ribbon on Public Website
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SUB-TAB 5: TRUST & DUE DILIGENCE BADGES */}
+          {cmsSubTab === 'trust_metrics' && (
+            <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl animate-fadeIn">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                <div>
+                  <h4 className="text-base font-bold text-white flex items-center space-x-2">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    <span>Trust Badges & Due Diligence Statistics</span>
+                  </h4>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Edit the four primary proof metrics rendered below the Hero section on the landing page.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSaveSiteSettings}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition shadow"
+                >
+                  Save Section
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {/* Metric 1 */}
+                <div className="bg-slate-900/70 border border-slate-800 p-4 rounded-2xl space-y-3">
+                  <span className="text-[10px] font-bold uppercase text-slate-400">Badge 1</span>
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-300 block mb-1">Value (e.g. 100%)</label>
+                    <input
+                      type="text"
+                      value={siteSettings.trustMetric1Value || ''}
+                      onChange={(e) => setSiteSettingsState({ ...siteSettings, trustMetric1Value: e.target.value })}
+                      placeholder="100%"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-black"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-300 block mb-1">Label Text</label>
+                    <input
+                      type="text"
+                      value={siteSettings.trustMetric1Label || ''}
+                      onChange={(e) => setSiteSettingsState({ ...siteSettings, trustMetric1Label: e.target.value })}
+                      placeholder="K-RERA Sanctioned"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 font-medium"
+                    />
+                  </div>
+                </div>
+
+                {/* Metric 2 */}
+                <div className="bg-slate-900/70 border border-slate-800 p-4 rounded-2xl space-y-3">
+                  <span className="text-[10px] font-bold uppercase text-emerald-400">Badge 2</span>
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-300 block mb-1">Value (e.g. 30 Years)</label>
+                    <input
+                      type="text"
+                      value={siteSettings.trustMetric2Value || ''}
+                      onChange={(e) => setSiteSettingsState({ ...siteSettings, trustMetric2Value: e.target.value })}
+                      placeholder="30 Years"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-emerald-400 font-black"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-300 block mb-1">Label Text</label>
+                    <input
+                      type="text"
+                      value={siteSettings.trustMetric2Label || ''}
+                      onChange={(e) => setSiteSettingsState({ ...siteSettings, trustMetric2Label: e.target.value })}
+                      placeholder="Kaveri-2 EC Form 15 Audit"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 font-medium"
+                    />
+                  </div>
+                </div>
+
+                {/* Metric 3 */}
+                <div className="bg-slate-900/70 border border-slate-800 p-4 rounded-2xl space-y-3">
+                  <span className="text-[10px] font-bold uppercase text-indigo-400">Badge 3</span>
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-300 block mb-1">Value (e.g. Physics 3D)</label>
+                    <input
+                      type="text"
+                      value={siteSettings.trustMetric3Value || ''}
+                      onChange={(e) => setSiteSettingsState({ ...siteSettings, trustMetric3Value: e.target.value })}
+                      placeholder="Physics 3D"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-indigo-400 font-black"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-300 block mb-1">Label Text</label>
+                    <input
+                      type="text"
+                      value={siteSettings.trustMetric3Label || ''}
+                      onChange={(e) => setSiteSettingsState({ ...siteSettings, trustMetric3Label: e.target.value })}
+                      placeholder="Real Solar Sun-Path Simulation"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 font-medium"
+                    />
+                  </div>
+                </div>
+
+                {/* Metric 4 */}
+                <div className="bg-slate-900/70 border border-slate-800 p-4 rounded-2xl space-y-3">
+                  <span className="text-[10px] font-bold uppercase text-teal-400">Badge 4</span>
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-300 block mb-1">Value (e.g. 42 Points)</label>
+                    <input
+                      type="text"
+                      value={siteSettings.trustMetric4Value || ''}
+                      onChange={(e) => setSiteSettingsState({ ...siteSettings, trustMetric4Value: e.target.value })}
+                      placeholder="42 Points"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-teal-400 font-black"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-300 block mb-1">Label Text</label>
+                    <input
+                      type="text"
+                      value={siteSettings.trustMetric4Label || ''}
+                      onChange={(e) => setSiteSettingsState({ ...siteSettings, trustMetric4Label: e.target.value })}
+                      placeholder="Title Due Diligence Checklist"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 font-medium"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SUB-TAB 6: FREQUENTLY ASKED QUESTIONS (FAQ) */}
+          {cmsSubTab === 'faqs' && (
+            <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl animate-fadeIn">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+                <div>
+                  <h4 className="text-base font-bold text-white flex items-center space-x-2">
+                    <HelpCircle className="w-4 h-4 text-emerald-400" />
+                    <span>Frequently Asked Questions (FAQ) Manager</span>
+                  </h4>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Add, edit, or delete questions rendered in the public Landing and Contact accordions.
+                  </p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={handleAddFaq}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5 shadow"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add New Question</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveSiteSettings}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition shadow"
+                  >
+                    Save All FAQs
+                  </button>
+                </div>
+              </div>
+
+              {/* FAQs Editable List */}
+              <div className="space-y-4">
+                {(!siteSettings.faqs || siteSettings.faqs.length === 0) ? (
+                  <div className="p-8 text-center bg-slate-900/40 border border-slate-800 rounded-2xl text-slate-400 text-xs">
+                    No FAQs currently created. Click "Add New Question" to create your first item.
+                  </div>
+                ) : (
+                  siteSettings.faqs.map((faq, idx) => (
+                    <div key={faq.id || idx} className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-emerald-400">Question #{idx + 1}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteFaq(faq.id)}
+                          className="p-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900 text-rose-400 transition"
+                          title="Delete FAQ"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-semibold text-slate-400 block mb-1">Question Title</label>
+                        <input
+                          type="text"
+                          value={faq.q || ''}
+                          onChange={(e) => handleUpdateFaq(faq.id, 'q', e.target.value)}
+                          placeholder="e.g. How does PlotFlow verify title encumbrances?"
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-bold"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-semibold text-slate-400 block mb-1">Answer Body</label>
+                        <textarea
+                          rows={2}
+                          value={faq.a || ''}
+                          onChange={(e) => handleUpdateFaq(faq.id, 'a', e.target.value)}
+                          placeholder="Provide a detailed, verified explanation..."
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-300 focus:outline-none focus:border-emerald-500 leading-relaxed"
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* SUB-TAB 7: TESTIMONIALS & BUYER REVIEWS */}
+          {cmsSubTab === 'testimonials' && (
+            <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl animate-fadeIn">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+                <div>
+                  <h4 className="text-base font-bold text-white flex items-center space-x-2">
+                    <Star className="w-4 h-4 text-amber-400" />
+                    <span>Buyer Testimonials & Social Proof Manager</span>
+                  </h4>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Showcase verified land buyer reviews and ratings on the landing page.
+                  </p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={handleAddTestimonial}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition flex items-center space-x-1.5 shadow"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Buyer Review</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveSiteSettings}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition shadow"
+                  >
+                    Save All Reviews
+                  </button>
+                </div>
+              </div>
+
+              {/* Testimonials List */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {(!siteSettings.testimonials || siteSettings.testimonials.length === 0) ? (
+                  <div className="p-8 text-center bg-slate-900/40 border border-slate-800 rounded-2xl text-slate-400 text-xs col-span-2">
+                    No testimonials currently created. Click "Add Buyer Review" to add one.
+                  </div>
+                ) : (
+                  siteSettings.testimonials.map((t, idx) => (
+                    <div key={t.id || idx} className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-amber-400">Review #{idx + 1}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteTestimonial(t.id)}
+                          className="p-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900 text-rose-400 transition"
+                          title="Delete Review"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[11px] font-semibold text-slate-400 block mb-1">Buyer / Author Name</label>
+                          <input
+                            type="text"
+                            value={t.author || ''}
+                            onChange={(e) => handleUpdateTestimonial(t.id, 'author', e.target.value)}
+                            placeholder="Anand S."
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white font-bold"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[11px] font-semibold text-slate-400 block mb-1">Role / Designation</label>
+                          <input
+                            type="text"
+                            value={t.role || ''}
+                            onChange={(e) => handleUpdateTestimonial(t.id, 'role', e.target.value)}
+                            placeholder="Villa Owner, Devanahalli"
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-semibold text-slate-400 block mb-1">Star Rating (1 - 5)</label>
+                        <select
+                          value={t.rating || 5}
+                          onChange={(e) => handleUpdateTestimonial(t.id, 'rating', Number(e.target.value))}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-amber-300 font-bold"
+                        >
+                          <option value={5}>★★★★★ (5 Stars)</option>
+                          <option value={4}>★★★★☆ (4 Stars)</option>
+                          <option value={3}>★★★☆☆ (3 Stars)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-semibold text-slate-400 block mb-1">Buyer Review Quote</label>
+                        <textarea
+                          rows={2}
+                          value={t.content || ''}
+                          onChange={(e) => handleUpdateTestimonial(t.id, 'content', e.target.value)}
+                          placeholder="Quote content..."
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-200 leading-relaxed"
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* ==================================================== */}
