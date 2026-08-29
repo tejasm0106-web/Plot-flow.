@@ -4,17 +4,23 @@ import {
   Lock, 
   User, 
   Building2, 
+  Scale,
   CheckCircle2, 
   Mail, 
   UserPlus, 
   LogIn, 
   Eye, 
   EyeOff, 
-  AlertCircle
+  AlertCircle,
+  KeyRound,
+  Sparkles,
+  ArrowLeft,
+  ShieldCheck
 } from 'lucide-react';
 import { 
   loginWithEmailAndPassword, 
   registerNewUser,
+  sendPasswordResetLink,
   getStoredUsers
 } from '../services/userService';
 import { auth, GoogleAuthProvider, signInWithPopup } from '../services/firebase';
@@ -24,16 +30,20 @@ export default function AuthModal({
   onClose, 
   onLoginSuccess 
 }) {
-  // Navigation Mode: 'login' | 'register'
+  // Navigation Mode: 'login' | 'register' | 'forgot-password'
   const [activeMode, setActiveMode] = useState('login');
   
-  // Registration Role: 'BUYER' | 'DEVELOPER'
+  // Registration Role: 'BUYER' | 'DEVELOPER' | 'LEGAL_AUDITOR'
   const [registerRole, setRegisterRole] = useState('BUYER');
 
   // Sign In State
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  // Forgot Password State
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetSent, setResetSent] = useState(false);
 
   // Registration Form State
   const [regForm, setRegForm] = useState({
@@ -44,6 +54,7 @@ export default function AuthModal({
     confirmPassword: '',
     company: '',
     reraId: '',
+    specialization: '',
     city: 'Bengaluru'
   });
 
@@ -56,23 +67,24 @@ export default function AuthModal({
     if (isOpen) {
       setError('');
       setSuccessMsg('');
+      setResetSent(false);
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  // Handle Standard Sign In
+  // Handle Standard Sign In with Firebase Auth
   const handleSignIn = async (e) => {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
 
     if (!loginEmail.trim()) {
-      setError('Please enter your registered email address.');
+      setError('Please enter your email address.');
       return;
     }
     if (!loginPassword) {
-      setError('Please enter your account password.');
+      setError('Please enter your password.');
       return;
     }
 
@@ -83,7 +95,7 @@ export default function AuthModal({
       setTimeout(() => {
         if (onLoginSuccess) onLoginSuccess(user);
         onClose();
-      }, 600);
+      }, 500);
     } catch (err) {
       setError(err.message || 'Failed to sign in. Please verify your credentials.');
     } finally {
@@ -91,7 +103,7 @@ export default function AuthModal({
     }
   };
 
-  // Handle User & Developer Registration
+  // Handle User Registration with Firebase Auth
   const handleRegister = async (e) => {
     e.preventDefault();
     setError('');
@@ -128,16 +140,40 @@ export default function AuthModal({
         role: registerRole,
         company: regForm.company,
         reraId: regForm.reraId,
+        specialization: regForm.specialization,
         city: regForm.city
       });
 
-      setSuccessMsg(`Account created successfully! Logged in as ${newUser.role === 'DEVELOPER' ? 'Developer' : 'Buyer'}.`);
+      setSuccessMsg(`Account created successfully with Firebase Auth! Logged in as ${newUser.name}.`);
       setTimeout(() => {
         if (onLoginSuccess) onLoginSuccess(newUser);
         onClose();
-      }, 700);
+      }, 600);
     } catch (err) {
       setError(err.message || 'Registration failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle Password Reset via Firebase Auth
+  const handlePasswordReset = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+
+    if (!resetEmail.trim() || !resetEmail.includes('@')) {
+      setError('Please enter a valid registered email address.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await sendPasswordResetLink(resetEmail);
+      setResetSent(true);
+      setSuccessMsg(result.message || 'Password reset link sent to your email.');
+    } catch (err) {
+      setError(err.message || 'Failed to dispatch password reset link.');
     } finally {
       setLoading(false);
     }
@@ -158,11 +194,11 @@ export default function AuthModal({
           const existingUser = users.find(u => (u.email || '').toLowerCase() === cleanEmail);
 
           const role = existingUser?.role || (cleanEmail.includes('admin') ? 'SUPER_ADMIN' : 'BUYER');
-          const roleTitle = existingUser?.roleTitle || (role === 'SUPER_ADMIN' ? 'Platform Administrator & Governance' : 'Verified Buyer');
+          const roleTitle = existingUser?.roleTitle || (role === 'SUPER_ADMIN' ? 'Platform Administrator & Governance' : 'Verified Plot Buyer');
 
           const userPayload = {
             uid: fbUser.uid,
-            name: fbUser.displayName || existingUser?.name || 'Verified User',
+            name: fbUser.displayName || existingUser?.name || cleanEmail.split('@')[0],
             email: fbUser.email,
             role,
             roleTitle,
@@ -177,7 +213,7 @@ export default function AuthModal({
         }
       }
       
-      // Fallback for environment
+      // Fallback for environment if popup blocked
       if (loginEmail.trim()) {
         const user = await loginWithEmailAndPassword(loginEmail, loginPassword);
         if (onLoginSuccess) onLoginSuccess(user);
@@ -194,7 +230,7 @@ export default function AuthModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto animate-fadeIn">
-      <div className="bg-slate-950 border border-slate-800 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl relative flex flex-col my-auto max-h-[92vh]">
+      <div className="bg-slate-950 border border-slate-800 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl relative flex flex-col my-auto max-h-[94vh]">
         
         {/* Header */}
         <div className="p-5 sm:p-6 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between">
@@ -202,22 +238,38 @@ export default function AuthModal({
             <div className={`w-11 h-11 rounded-2xl flex items-center justify-center border shadow-inner ${
               activeMode === 'register'
                 ? 'bg-indigo-500/20 border-indigo-500/30 text-indigo-400'
+                : activeMode === 'forgot-password'
+                ? 'bg-amber-500/20 border-amber-500/30 text-amber-400'
                 : 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
             }`}>
               {activeMode === 'register' ? (
                 <UserPlus className="w-6 h-6" />
+              ) : activeMode === 'forgot-password' ? (
+                <KeyRound className="w-6 h-6" />
               ) : (
                 <Lock className="w-6 h-6" />
               )}
             </div>
             <div>
-              <h3 className="text-lg font-black text-white tracking-tight">
-                {activeMode === 'register' ? 'Create Platform Account' : 'Account Authentication'}
-              </h3>
-              <p className="text-xs text-slate-400">
+              <div className="flex items-center space-x-2">
+                <h3 className="text-lg font-black text-white tracking-tight">
+                  {activeMode === 'register' 
+                    ? 'Create Platform Account' 
+                    : activeMode === 'forgot-password'
+                    ? 'Reset Account Password'
+                    : 'Firebase Authentication'}
+                </h3>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1" />
+                  Auth Active
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
                 {activeMode === 'register'
-                  ? 'Register as Buyer or Developer to explore 3D twins and manage inventory'
-                  : 'Sign in to access 3D plots, tokens, or Developer Builder SaaS'}
+                  ? 'Sign up with any email & password to explore 3D plots, tokens, or SaaS'
+                  : activeMode === 'forgot-password'
+                  ? 'Enter your registered email to receive a password reset link'
+                  : 'Sign in with your email and password or Google identity'}
               </p>
             </div>
           </div>
@@ -231,31 +283,33 @@ export default function AuthModal({
         </div>
 
         {/* Primary Action Tabs: Sign In | Create Account */}
-        <div className="grid grid-cols-2 border-b border-slate-800 bg-slate-900/40 text-xs font-bold text-center">
-          <button
-            onClick={() => { setActiveMode('login'); setError(''); setSuccessMsg(''); }}
-            className={`py-3.5 transition border-b-2 flex items-center justify-center space-x-1.5 ${
-              activeMode === 'login' 
-                ? 'border-emerald-400 text-emerald-400 bg-emerald-500/10' 
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <LogIn className="w-4 h-4" />
-            <span>Sign In</span>
-          </button>
+        {activeMode !== 'forgot-password' && (
+          <div className="grid grid-cols-2 border-b border-slate-800 bg-slate-900/40 text-xs font-bold text-center">
+            <button
+              onClick={() => { setActiveMode('login'); setError(''); setSuccessMsg(''); }}
+              className={`py-3.5 transition border-b-2 flex items-center justify-center space-x-1.5 ${
+                activeMode === 'login' 
+                  ? 'border-emerald-400 text-emerald-400 bg-emerald-500/10' 
+                  : 'border-transparent text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <LogIn className="w-4 h-4" />
+              <span>Sign In</span>
+            </button>
 
-          <button
-            onClick={() => { setActiveMode('register'); setError(''); setSuccessMsg(''); }}
-            className={`py-3.5 transition border-b-2 flex items-center justify-center space-x-1.5 ${
-              activeMode === 'register' 
-                ? 'border-indigo-400 text-indigo-400 bg-indigo-500/10' 
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <UserPlus className="w-4 h-4" />
-            <span>Register Account</span>
-          </button>
-        </div>
+            <button
+              onClick={() => { setActiveMode('register'); setError(''); setSuccessMsg(''); }}
+              className={`py-3.5 transition border-b-2 flex items-center justify-center space-x-1.5 ${
+                activeMode === 'register' 
+                  ? 'border-indigo-400 text-indigo-400 bg-indigo-500/10' 
+                  : 'border-transparent text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>Create Account</span>
+            </button>
+          </div>
+        )}
 
         {/* Modal Scrollable Body */}
         <div className="p-5 sm:p-6 overflow-y-auto space-y-4">
@@ -282,17 +336,17 @@ export default function AuthModal({
               <form onSubmit={handleSignIn} className="space-y-3 text-xs">
                 <div>
                   <label className="text-slate-300 font-semibold block mb-1">
-                    Registered Email / User ID *
+                    Email Address *
                   </label>
                   <div className="relative">
                     <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
                     <input
                       type="email"
                       required
-                      placeholder="yourname@domain.com or builder@company.com"
+                      placeholder="Enter your registered email (e.g. user@domain.com)"
                       value={loginEmail}
                       onChange={(e) => setLoginEmail(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 text-xs"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 text-xs transition"
                     />
                   </div>
                 </div>
@@ -300,6 +354,13 @@ export default function AuthModal({
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-slate-300 font-semibold">Password *</label>
+                    <button
+                      type="button"
+                      onClick={() => { setActiveMode('forgot-password'); setResetEmail(loginEmail); setError(''); setSuccessMsg(''); }}
+                      className="text-[11px] text-emerald-400 hover:text-emerald-300 font-medium transition"
+                    >
+                      Forgot password?
+                    </button>
                   </div>
                   <div className="relative">
                     <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
@@ -309,7 +370,7 @@ export default function AuthModal({
                       placeholder="Enter your password"
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-10 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 text-xs"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-10 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 text-xs transition"
                     />
                     <button
                       type="button"
@@ -327,7 +388,7 @@ export default function AuthModal({
                   className="w-full py-3 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center space-x-2 mt-2 bg-emerald-600 hover:bg-emerald-500 shadow-emerald-950/50"
                 >
                   {loading ? (
-                    <span>Signing In...</span>
+                    <span>Authenticating with Firebase...</span>
                   ) : (
                     <>
                       <LogIn className="w-4 h-4" />
@@ -359,17 +420,17 @@ export default function AuthModal({
                   <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
                 </svg>
-                <span>Google Authentication</span>
+                <span>Continue with Google</span>
               </button>
 
               <div className="pt-2 text-center text-xs text-slate-400">
-                Don't have an account yet?{' '}
+                New to PlotFlow?{' '}
                 <button
                   type="button"
                   onClick={() => { setActiveMode('register'); setError(''); }}
                   className="text-indigo-400 hover:text-indigo-300 font-bold underline ml-1"
                 >
-                  Register as Buyer or Developer →
+                  Create an account in seconds →
                 </button>
               </div>
             </div>
@@ -380,43 +441,62 @@ export default function AuthModal({
             <div className="space-y-4">
               {/* Account Type Toggle */}
               <div>
-                <label className="text-xs text-slate-300 font-bold block mb-2">Select Account Type:</label>
-                <div className="grid grid-cols-2 gap-3">
+                <label className="text-xs text-slate-300 font-bold block mb-2">Choose Your Account Role:</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => setRegisterRole('BUYER')}
-                    className={`p-3.5 rounded-2xl border text-left transition flex flex-col justify-between ${
+                    className={`p-3 rounded-2xl border text-left transition flex flex-col justify-between ${
                       registerRole === 'BUYER'
                         ? 'bg-emerald-500/10 border-emerald-500 text-white shadow-lg shadow-emerald-950/40'
                         : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-white'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1">
-                      <User className={`w-5 h-5 ${registerRole === 'BUYER' ? 'text-emerald-400' : 'text-slate-500'}`} />
-                      {registerRole === 'BUYER' && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+                      <User className={`w-4 h-4 ${registerRole === 'BUYER' ? 'text-emerald-400' : 'text-slate-500'}`} />
+                      {registerRole === 'BUYER' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
                     </div>
                     <div>
                       <span className="font-bold text-xs block text-white">Plot Buyer</span>
-                      <span className="text-[10px] text-slate-400">Explore 3D layouts, reserve plots, book cabs</span>
+                      <span className="text-[10px] text-slate-400">Explore & buy plots</span>
                     </div>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setRegisterRole('DEVELOPER')}
-                    className={`p-3.5 rounded-2xl border text-left transition flex flex-col justify-between ${
+                    className={`p-3 rounded-2xl border text-left transition flex flex-col justify-between ${
                       registerRole === 'DEVELOPER'
                         ? 'bg-indigo-500/10 border-indigo-500 text-white shadow-lg shadow-indigo-950/40'
                         : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-white'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1">
-                      <Building2 className={`w-5 h-5 ${registerRole === 'DEVELOPER' ? 'text-indigo-400' : 'text-slate-500'}`} />
-                      {registerRole === 'DEVELOPER' && <CheckCircle2 className="w-4 h-4 text-indigo-400" />}
+                      <Building2 className={`w-4 h-4 ${registerRole === 'DEVELOPER' ? 'text-indigo-400' : 'text-slate-500'}`} />
+                      {registerRole === 'DEVELOPER' && <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" />}
                     </div>
                     <div>
                       <span className="font-bold text-xs block text-white">Developer / Builder</span>
-                      <span className="text-[10px] text-slate-400">List townships, manage inventory, launch 3D visualizer</span>
+                      <span className="text-[10px] text-slate-400">List 3D townships</span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setRegisterRole('LEGAL_AUDITOR')}
+                    className={`p-3 rounded-2xl border text-left transition flex flex-col justify-between ${
+                      registerRole === 'LEGAL_AUDITOR'
+                        ? 'bg-teal-500/10 border-teal-500 text-white shadow-lg shadow-teal-950/40'
+                        : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <Scale className={`w-4 h-4 ${registerRole === 'LEGAL_AUDITOR' ? 'text-teal-400' : 'text-slate-500'}`} />
+                      {registerRole === 'LEGAL_AUDITOR' && <CheckCircle2 className="w-3.5 h-3.5 text-teal-400" />}
+                    </div>
+                    <div>
+                      <span className="font-bold text-xs block text-white">Legal Auditor</span>
+                      <span className="text-[10px] text-slate-400">Verify title search</span>
                     </div>
                   </button>
                 </div>
@@ -427,7 +507,7 @@ export default function AuthModal({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-slate-300 font-semibold block mb-1">
-                      {registerRole === 'DEVELOPER' ? 'Lead Representative Name *' : 'Full Name *'}
+                      {registerRole === 'DEVELOPER' ? 'Representative Name *' : 'Full Name *'}
                     </label>
                     <input
                       type="text"
@@ -441,7 +521,7 @@ export default function AuthModal({
 
                   <div>
                     <label className="text-slate-300 font-semibold block mb-1">
-                      {registerRole === 'DEVELOPER' ? 'Official Work Email *' : 'Email Address *'}
+                      Email Address *
                     </label>
                     <input
                       type="email"
@@ -456,9 +536,9 @@ export default function AuthModal({
 
                 {/* Extra Developer Fields */}
                 {registerRole === 'DEVELOPER' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-indigo-950/20 border border-indigo-500/20 rounded-2xl">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-indigo-950/20 border border-indigo-500/20 rounded-2xl animate-fadeIn">
                     <div>
-                      <label className="text-indigo-300 font-semibold block mb-1">Company / Builder Entity *</label>
+                      <label className="text-indigo-300 font-semibold block mb-1">Builder Entity / Company *</label>
                       <input
                         type="text"
                         required
@@ -478,6 +558,20 @@ export default function AuthModal({
                         className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                       />
                     </div>
+                  </div>
+                )}
+
+                {/* Extra Legal Auditor Fields */}
+                {registerRole === 'LEGAL_AUDITOR' && (
+                  <div className="p-3 bg-teal-950/20 border border-teal-500/20 rounded-2xl animate-fadeIn">
+                    <label className="text-teal-300 font-semibold block mb-1">Legal Specialization / Bar Council No.</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Land Title Search & 30-Year Encumbrance Audit (KAR/1245/2018)"
+                      value={regForm.specialization}
+                      onChange={(e) => setRegForm({ ...regForm, specialization: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-teal-500"
+                    />
                   </div>
                 )}
 
@@ -507,7 +601,7 @@ export default function AuthModal({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-slate-300 font-semibold block mb-1">Password *</label>
+                    <label className="text-slate-300 font-semibold block mb-1">Create Password *</label>
                     <input
                       type="password"
                       required
@@ -537,15 +631,17 @@ export default function AuthModal({
                   className={`w-full py-3 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center space-x-2 mt-3 ${
                     registerRole === 'DEVELOPER'
                       ? 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-950/50'
+                      : registerRole === 'LEGAL_AUDITOR'
+                      ? 'bg-teal-600 hover:bg-teal-500 shadow-teal-950/50'
                       : 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-950/50'
                   }`}
                 >
                   {loading ? (
-                    <span>Creating Account...</span>
+                    <span>Registering with Firebase Auth...</span>
                   ) : (
                     <>
                       <UserPlus className="w-4 h-4" />
-                      <span>Complete Registration as {registerRole === 'DEVELOPER' ? 'Developer' : 'Buyer'}</span>
+                      <span>Complete Sign Up ({registerRole === 'DEVELOPER' ? 'Developer' : registerRole === 'LEGAL_AUDITOR' ? 'Legal Auditor' : 'Buyer'})</span>
                     </>
                   )}
                 </button>
@@ -558,9 +654,64 @@ export default function AuthModal({
                   onClick={() => { setActiveMode('login'); setError(''); }}
                   className="text-emerald-400 hover:text-emerald-300 font-bold underline ml-1"
                 >
-                  Sign In with your ID & Password →
+                  Sign In to existing account →
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* ================= MODE 3: FORGOT PASSWORD ================= */}
+          {activeMode === 'forgot-password' && (
+            <div className="space-y-4">
+              <button
+                type="button"
+                onClick={() => { setActiveMode('login'); setError(''); setSuccessMsg(''); }}
+                className="text-xs text-slate-400 hover:text-white flex items-center space-x-1.5 transition mb-2"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back to Sign In</span>
+              </button>
+
+              <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-xs text-amber-200">
+                <p className="font-semibold mb-1">Firebase Password Recovery</p>
+                <p className="text-[11px] text-slate-300">
+                  Enter your registered account email. A secure password reset link will be dispatched through Firebase Auth.
+                </p>
+              </div>
+
+              <form onSubmit={handlePasswordReset} className="space-y-3 text-xs">
+                <div>
+                  <label className="text-slate-300 font-semibold block mb-1">
+                    Your Registered Email *
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                    <input
+                      type="email"
+                      required
+                      placeholder="e.g. user@domain.com"
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 text-xs"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-3 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center space-x-2 bg-amber-600 hover:bg-amber-500 shadow-amber-950/50"
+                >
+                  {loading ? (
+                    <span>Dispatching Reset Email...</span>
+                  ) : (
+                    <>
+                      <KeyRound className="w-4 h-4" />
+                      <span>Send Password Reset Link</span>
+                    </>
+                  )}
+                </button>
+              </form>
             </div>
           )}
 

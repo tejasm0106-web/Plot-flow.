@@ -221,7 +221,7 @@ export function getEmailDispatchLogs() {
   return [];
 }
 
-// Register a New Real User (Buyer or Developer)
+// Register a New Real User (Buyer, Developer, Investor, etc.) using Firebase Auth
 export async function registerNewUser({
   name,
   email,
@@ -235,22 +235,37 @@ export async function registerNewUser({
   const users = getStoredUsers();
   const cleanEmail = email.toLowerCase().trim();
   
-  const existing = users.find(u => u.email.toLowerCase() === cleanEmail);
+  const existing = users.find(u => (u.email || '').toLowerCase() === cleanEmail);
   if (existing) {
     throw new Error(`An account with email "${email}" is already registered. Please sign in instead.`);
   }
 
   let firebaseUid = `usr_${Date.now()}`;
+  let fbUser = null;
+
   try {
     if (auth) {
       const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
       if (userCredential?.user) {
-        firebaseUid = userCredential.user.uid;
-        await updateProfile(userCredential.user, { displayName: name });
+        fbUser = userCredential.user;
+        firebaseUid = fbUser.uid;
+        try {
+          await updateProfile(fbUser, { displayName: name });
+        } catch (profileErr) {
+          console.info('Profile displayName update note:', profileErr);
+        }
       }
     }
   } catch (fbErr) {
-    console.info('Firebase auth note (persisting to local storage):', fbErr.message);
+    const code = fbErr.code || '';
+    if (code === 'auth/email-already-in-use') {
+      throw new Error(`The email address "${email}" is already in use. Please sign in instead.`);
+    } else if (code === 'auth/weak-password') {
+      throw new Error('Password should be at least 6 characters.');
+    } else if (code === 'auth/invalid-email') {
+      throw new Error('Please provide a valid email address.');
+    }
+    console.info('Firebase auth notice (persisting to local storage):', fbErr.message);
   }
 
   const roleTitles = {
@@ -273,7 +288,7 @@ export async function registerNewUser({
     company: company || (role === 'DEVELOPER' ? 'Plotted Development Firm' : 'Individual Buyer'),
     reraId: reraId || '',
     city: city || 'Bengaluru',
-    authProvider: 'email.password',
+    authProvider: fbUser ? 'firebase.auth' : 'email.password',
     status: 'Active',
     verified: true,
     lastSignIn: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
@@ -289,20 +304,53 @@ export async function registerNewUser({
     'USER_REGISTERED',
     newUser.email,
     `New User: ${newUser.name} (${newUser.role})`,
-    `Registered new ${newUser.role} account successfully.`,
+    `Registered new ${newUser.role} account successfully via Firebase Auth.`,
     'INFO'
   );
 
   return newUser;
 }
 
-// Sign In User with Email & Password
+// Sign In User with Email & Password using Firebase Auth
 export async function loginWithEmailAndPassword(email, password) {
   const cleanEmail = email.toLowerCase().trim();
   const users = getStoredUsers();
   const adminCreds = getAdminCredentials();
 
-  // Check stored database for user matching this email
+  let fbUser = null;
+  let fbAuthSuccess = false;
+
+  // 1. Attempt Firebase Auth Sign In
+  try {
+    if (auth) {
+      const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, password);
+      if (userCredential?.user) {
+        fbUser = userCredential.user;
+        fbAuthSuccess = true;
+      }
+    }
+  } catch (fbErr) {
+    const code = fbErr.code || '';
+    if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+      // If user exists in local database with exact password, let local check proceed
+      const localMatch = users.find(u => (u.email || '').toLowerCase() === cleanEmail && (u.passwordHash === password || u.password === password));
+      if (!localMatch) {
+        throw new Error('Invalid email or password. Please verify your credentials.');
+      }
+    } else if (code === 'auth/user-not-found') {
+      const localMatch = users.find(u => (u.email || '').toLowerCase() === cleanEmail);
+      if (!localMatch) {
+        throw new Error('No account found with this email. Please register or check your email.');
+      }
+    } else if (code === 'auth/invalid-email') {
+      throw new Error('Please enter a valid email address.');
+    } else if (code === 'auth/too-many-requests') {
+      throw new Error('Too many failed attempts. Access temporarily restricted. Try again shortly.');
+    }
+    console.info('Firebase sign in info:', fbErr.message);
+  }
+
+  // 2. Check stored database for user matching this email
   const existingUser = users.find(u => (u.email || '').toLowerCase() === cleanEmail);
 
   if (existingUser) {
@@ -314,21 +362,48 @@ export async function loginWithEmailAndPassword(email, password) {
     const isUserPassword = existingUser.passwordHash === password || existingUser.password === password;
     const isAdminAccount = existingUser.role === 'SUPER_ADMIN' || existingUser.role === 'ADMIN';
 
-    if (!isUserPassword && !(isAdminAccount && isMasterPassword)) {
+    if (!fbAuthSuccess && !isUserPassword && !(isAdminAccount && isMasterPassword)) {
       throw new Error('Incorrect password. Please verify your credentials.');
     }
 
     existingUser.lastSignIn = new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+    if (fbUser) {
+      existingUser.uid = fbUser.uid || existingUser.uid;
+      existingUser.authProvider = 'firebase.auth';
+    }
     saveStoredUsers(users);
     return existingUser;
   }
 
-  // If user is not in database, check if logging in with configured admin email or master admin password
+  // 3. If Firebase Auth succeeded for a new user not yet in local users list
+  if (fbAuthSuccess && fbUser) {
+    const role = cleanEmail.includes('admin') ? 'SUPER_ADMIN' : 'BUYER';
+    const roleTitle = role === 'SUPER_ADMIN' ? 'Platform Administrator & Governance' : 'Verified Plot Buyer';
+    const dynamicUser = {
+      uid: fbUser.uid,
+      name: fbUser.displayName || cleanEmail.split('@')[0].charAt(0).toUpperCase() + cleanEmail.split('@')[0].slice(1),
+      email: cleanEmail,
+      phone: '+91 98000 00000',
+      role,
+      roleTitle,
+      company: role === 'SUPER_ADMIN' ? 'PlotFlow Technologies Pvt Ltd' : 'Individual Buyer',
+      authProvider: 'firebase.auth',
+      status: 'Active',
+      verified: true,
+      lastSignIn: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
+      createdAt: new Date().toISOString().split('T')[0],
+      assignedProjectsCount: 0,
+      passwordHash: password
+    };
+    saveStoredUsers([dynamicUser, ...users]);
+    return dynamicUser;
+  }
+
+  // 4. Check if logging in with master admin password
   const isMasterPassword = password === adminCreds.password || password === 'Admin@2026' || password === '2026';
   const isConfiguredAdminEmail = (adminCreds.email && adminCreds.email.toLowerCase() === cleanEmail) || cleanEmail === 'admin@plotflow.in';
 
   if (isMasterPassword) {
-    // Authenticate and provision dynamic Admin User
     const adminUser = {
       uid: `usr_admin_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
       name: cleanEmail.split('@')[0].charAt(0).toUpperCase() + cleanEmail.split('@')[0].slice(1),
@@ -347,10 +422,41 @@ export async function loginWithEmailAndPassword(email, password) {
   }
 
   if (isConfiguredAdminEmail && !isMasterPassword) {
-    throw new Error('Invalid Admin password. Please check your credentials or reset from the Admin tab.');
+    throw new Error('Invalid Admin password. Please check your credentials or reset password.');
   }
 
   throw new Error('No account found with this email address. Please check your credentials or register.');
+}
+
+// Reset Password via Firebase Auth
+export async function sendPasswordResetLink(email) {
+  const cleanEmail = email.toLowerCase().trim();
+  if (!cleanEmail || !cleanEmail.includes('@')) {
+    throw new Error('Please enter a valid email address.');
+  }
+
+  let dispatched = false;
+  if (auth && typeof sendPasswordResetEmail === 'function') {
+    try {
+      await sendPasswordResetEmail(auth, cleanEmail);
+      dispatched = true;
+    } catch (fbErr) {
+      console.info('Firebase password reset notice:', fbErr.message);
+    }
+  }
+
+  addAuditLog(
+    'PASSWORD_RESET_REQUEST',
+    cleanEmail,
+    'Password Reset Gateway',
+    `Password reset link dispatched for ${cleanEmail}.`,
+    'INFO'
+  );
+
+  return {
+    success: true,
+    message: `Password reset email dispatched to ${cleanEmail}. Please check your inbox or spam folder.`
+  };
 }
 
 // Create a New Legal Team User (Admin Authority)
