@@ -616,16 +616,37 @@ export function createDeveloperByAdmin({
 export function createAdminStaffByAdmin({
   name,
   email,
-  password = 'Staff@2026',
+  password = 'Admin@2026',
   phone = '+91 99000 88776',
-  roleTitle = 'Platform Operations Manager'
+  role = 'ADMIN',
+  roleTitle = 'Platform Administrator'
 }) {
   const users = getStoredUsers();
   const cleanEmail = email.toLowerCase().trim();
+  const upperRole = String(role || 'ADMIN').trim().toUpperCase();
 
-  const existing = users.find(u => u.email.toLowerCase() === cleanEmail);
-  if (existing) {
-    throw new Error(`User with email "${cleanEmail}" already exists.`);
+  const existingIndex = users.findIndex(u => u.email.toLowerCase() === cleanEmail);
+  if (existingIndex >= 0) {
+    const existing = {
+      ...users[existingIndex],
+      role: upperRole,
+      roleTitle: roleTitle.trim() || (upperRole === 'SUPER_ADMIN' ? 'Platform Super Administrator' : 'Platform Administrator'),
+      status: 'Active',
+      verified: true
+    };
+    if (password) existing.passwordHash = password;
+    users[existingIndex] = existing;
+    saveStoredUsers(users);
+    syncUserRoleToFirestore(existing);
+
+    addAuditLog(
+      'ADMIN_STAFF_UPDATED',
+      'Super Admin',
+      existing.email,
+      `Updated user ${existing.name} (${existing.email}) to role ${existing.role}.`,
+      'SUCCESS'
+    );
+    return existing;
   }
 
   const newStaff = {
@@ -633,8 +654,8 @@ export function createAdminStaffByAdmin({
     name: name.trim(),
     email: cleanEmail,
     phone: phone.trim(),
-    role: 'ADMIN',
-    roleTitle: roleTitle.trim() || 'Platform Administrator',
+    role: upperRole,
+    roleTitle: roleTitle.trim() || (upperRole === 'SUPER_ADMIN' ? 'Platform Super Administrator' : 'Platform Administrator'),
     company: 'PlotFlow Technologies Pvt Ltd',
     authProvider: 'email.password',
     status: 'Active',
@@ -647,16 +668,100 @@ export function createAdminStaffByAdmin({
 
   const updated = [newStaff, ...users];
   saveStoredUsers(updated);
+  syncUserRoleToFirestore(newStaff);
 
   addAuditLog(
     'ADMIN_STAFF_CREATED',
     'Super Admin',
     newStaff.email,
-    `Created Platform Administrator account for ${newStaff.name}.`,
+    `Created ${newStaff.role} account for ${newStaff.name} (${newStaff.email}).`,
     'SUCCESS'
   );
 
   return newStaff;
+}
+
+// Update User Role by Admin (Grant Admin Access, Promote, or Reassign Role)
+export function updateUserRoleByAdmin(userId, newRole, newRoleTitle = null) {
+  const users = getStoredUsers();
+  let targetUser = null;
+  const upperRole = String(newRole).trim().toUpperCase();
+  const defaultTitle = 
+    upperRole === 'SUPER_ADMIN' ? 'Platform Super Administrator & Governance' :
+    upperRole === 'ADMIN' ? 'Platform Administrator' :
+    upperRole === 'LEGAL_AUDITOR' ? 'Legal Compliance Auditor' :
+    upperRole === 'DEVELOPER' ? 'Builder & Township Developer' :
+    'Verified Plot Buyer & Investor';
+
+  const updated = users.map(u => {
+    if (u.uid === userId || (u.email && u.email.toLowerCase() === String(userId).toLowerCase())) {
+      targetUser = {
+        ...u,
+        role: upperRole,
+        roleTitle: newRoleTitle || defaultTitle,
+        verified: true,
+        status: 'Active'
+      };
+      return targetUser;
+    }
+    return u;
+  });
+
+  saveStoredUsers(updated);
+
+  if (targetUser) {
+    syncUserRoleToFirestore(targetUser);
+    addAuditLog(
+      'USER_ROLE_UPDATED',
+      'Super Admin',
+      targetUser.email,
+      `Updated role for ${targetUser.name} to ${targetUser.role} (${targetUser.roleTitle}).`,
+      'SUCCESS'
+    );
+  }
+
+  return { success: true, user: targetUser, users: updated };
+}
+
+// Update User Details by Admin
+export function updateUserDetailsByAdmin(userId, details = {}) {
+  const users = getStoredUsers();
+  let targetUser = null;
+
+  const updated = users.map(u => {
+    if (u.uid === userId || (u.email && u.email.toLowerCase() === String(userId).toLowerCase())) {
+      targetUser = {
+        ...u,
+        ...details,
+        name: details.name ? details.name.trim() : u.name,
+        role: details.role ? String(details.role).trim().toUpperCase() : u.role,
+        roleTitle: details.roleTitle ? details.roleTitle.trim() : u.roleTitle,
+        phone: details.phone !== undefined ? details.phone.trim() : u.phone,
+        company: details.company !== undefined ? details.company.trim() : u.company,
+        specialization: details.specialization !== undefined ? details.specialization.trim() : u.specialization,
+        barCouncilNumber: details.barCouncilNumber !== undefined ? details.barCouncilNumber.trim() : u.barCouncilNumber,
+        reraId: details.reraId !== undefined ? details.reraId.trim() : u.reraId,
+        status: details.status || u.status || 'Active'
+      };
+      return targetUser;
+    }
+    return u;
+  });
+
+  saveStoredUsers(updated);
+
+  if (targetUser) {
+    syncUserRoleToFirestore(targetUser);
+    addAuditLog(
+      'USER_UPDATED',
+      'Super Admin',
+      targetUser.email,
+      `Updated details for ${targetUser.name} (${targetUser.role}).`,
+      'INFO'
+    );
+  }
+
+  return { success: true, user: targetUser, users: updated };
 }
 
 // Check if user is staff/internal team account

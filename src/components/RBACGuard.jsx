@@ -87,7 +87,7 @@ export default function RBACGuard({
           </div>
           <p className="text-xs text-slate-300 leading-relaxed">
             {isAdminPortal
-              ? `The Master Admin portal is strictly restricted to the verified platform administrator (${SUPER_ADMIN_EMAIL}). Anonymous visitors and non-admin users cannot access this panel.`
+              ? 'The Admin portal is restricted to authorized platform administrators and Super Admins. Please sign in with an administrator account to access this panel.'
               : evaluation.message}
           </p>
         </div>
@@ -131,7 +131,7 @@ export default function RBACGuard({
             <div className="flex flex-wrap gap-1.5 pt-1">
               <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[10px] font-bold font-mono bg-emerald-950/60 text-emerald-300 border border-emerald-800/60">
                 <CheckCircle2 className="w-2.5 h-2.5" />
-                <span>{isAdminPortal ? `Owner: ${SUPER_ADMIN_EMAIL}` : ROLE_LABELS[targetPortal] || 'Authorized Role'}</span>
+                <span>{isAdminPortal ? 'Required: ADMIN / SUPER_ADMIN' : ROLE_LABELS[targetPortal] || 'Authorized Role'}</span>
               </span>
             </div>
           </div>

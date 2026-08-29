@@ -100,11 +100,6 @@ export default function App() {
       const saved = sessionStorage.getItem('plotflow_active_user');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.role === 'SUPER_ADMIN' || parsed.role === 'ADMIN') {
-          if (String(parsed.email || '').toLowerCase() !== SUPER_ADMIN_EMAIL) {
-            return null;
-          }
-        }
         return parsed;
       }
     } catch (e) {

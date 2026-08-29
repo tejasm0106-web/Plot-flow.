@@ -97,8 +97,8 @@ export default function StaffGatewayModal({
 
         let adminUser = existingUser ? {
           ...existingUser,
-          role: 'SUPER_ADMIN',
-          roleTitle: existingUser.roleTitle || 'Master Platform Owner & Super Admin',
+          role: existingUser.role === 'SUPER_ADMIN' || cleanEmail === SUPER_ADMIN_EMAIL ? 'SUPER_ADMIN' : 'ADMIN',
+          roleTitle: existingUser.roleTitle || (cleanEmail === SUPER_ADMIN_EMAIL ? 'Master Platform Owner & Super Admin' : 'Platform Administrator'),
           status: 'Active',
           verified: true,
           lastSignIn: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
@@ -106,8 +106,8 @@ export default function StaffGatewayModal({
           uid: `usr_admin_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
           name: cleanEmail.split('@')[0].charAt(0).toUpperCase() + cleanEmail.split('@')[0].slice(1),
           email: cleanEmail,
-          role: 'SUPER_ADMIN',
-          roleTitle: 'Master Platform Owner & Super Admin',
+          role: cleanEmail === SUPER_ADMIN_EMAIL ? 'SUPER_ADMIN' : 'ADMIN',
+          roleTitle: cleanEmail === SUPER_ADMIN_EMAIL ? 'Master Platform Owner & Super Admin' : 'Platform Administrator',
           status: 'Active',
           verified: true,
           lastSignIn: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
