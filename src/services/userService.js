@@ -1,7 +1,12 @@
 // PlotFlow User, Authentication & Storage Service
 import { auth, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from './firebase';
 import { addAuditLog } from './storeService';
-import { syncUserRoleToFirestore } from './rbacService';
+import { syncUserRoleToFirestore, SUPER_ADMIN_EMAIL } from './rbacService';
+import { 
+  dispatchRealEmail, 
+  sendRealEmailOtp, 
+  verifyRealEmailOtp 
+} from './emailDispatchService';
 
 const USERS_STORAGE_KEY = 'plotflow_platform_users_v3';
 const ADMIN_CREDS_KEY = 'plotflow_admin_credentials_v3';
@@ -178,114 +183,203 @@ export function updateAdminCredentials(newPassword, securityPin = '2026', newEma
   return { updated, emailDispatchResult };
 }
 
-// Dispatches an administrative security mail
-export function dispatchAdminCredentialEmail(recipientEmail = 'admin@plotflow.in', password, securityPin, subjectType = 'UPDATED') {
+// Dispatches an administrative security mail with real network dispatch
+export function dispatchAdminCredentialEmail(recipientEmail = 'tejastej094@gmail.com', password, securityPin, subjectType = 'UPDATED') {
   const isReset = subjectType === 'RESET' || subjectType === 'OTP';
-  const emailPacket = {
-    id: `mail_${Date.now()}`,
-    recipient: recipientEmail,
-    subject: isReset 
-      ? 'PlotFlow Admin Portal Password Recovery & Master Key' 
-      : 'PlotFlow Master Platform Admin Credentials & Access Key',
-    timestamp: new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }),
-    isoTimestamp: new Date().toISOString(),
-    status: 'DELIVERED_TO_INBOX',
-    deliveryServer: 'smtp.plotflow.in (PlotFlow Cloud Security Gateway)',
-    credentials: {
-      accountName: 'Platform Administrator',
-      email: recipientEmail,
-      password: password || 'Admin@2026',
-      masterPin: securityPin || '2026',
-      role: 'SUPER_ADMIN (Master Privileges)',
-      directAccessUrl: window.location.origin
-    },
-    message: isReset 
-      ? `Hello Administrator,\n\nYour PlotFlow Admin portal password reset was successful:\n\n• Admin Email: ${recipientEmail}\n• New Master Password: ${password}\n• Security PIN: ${securityPin}\n• Status: Active & Secured\n\nYou can now log in to the Admin Governance Portal.`
-      : `Hello Administrator,\n\nYour PlotFlow Master Administrator credentials have been secured and updated:\n\n• Login Email: ${recipientEmail}\n• Master Password: ${password}\n• Security PIN: ${securityPin}\n• Platform Role: SUPER_ADMIN\n\nYou can use these credentials to log in on the web portal at any time.`
-  };
+  const cleanEmail = (recipientEmail || 'tejastej094@gmail.com').trim().toLowerCase();
+  const subject = isReset 
+    ? 'PlotFlow Admin Portal Password Recovery & Master Key' 
+    : 'PlotFlow Master Platform Admin Credentials & Access Key';
 
-  try {
-    const existingLogs = JSON.parse(localStorage.getItem(EMAIL_LOGS_KEY) || '[]');
-    existingLogs.unshift(emailPacket);
-    localStorage.setItem(EMAIL_LOGS_KEY, JSON.stringify(existingLogs.slice(0, 20)));
-  } catch (e) {
-    console.warn('Error storing email log:', e);
-  }
+  const htmlContent = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #020617; color: #f8fafc; padding: 24px; border-radius: 16px; border: 1px solid #1e293b; max-width: 540px; margin: 0 auto;">
+      <div style="background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%); padding: 20px; border-radius: 12px; text-align: center; border: 1px solid #4338ca; margin-bottom: 20px;">
+        <span style="background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border: 1px solid #6366f1; padding: 4px 12px; border-radius: 9999px; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block; margin-bottom: 6px;">
+          ADMIN SECURITY NOTICE
+        </span>
+        <h2 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800;">${subject}</h2>
+      </div>
+      <p style="font-size: 14px; color: #e2e8f0; margin-top: 0;">
+        Hello <strong>Administrator</strong> (${cleanEmail}),
+      </p>
+      <p style="color: #cbd5e1; font-size: 13px; line-height: 1.6;">
+        ${isReset 
+          ? 'Your PlotFlow Super Admin master password has been successfully reset. Please find your updated credentials below:' 
+          : 'Your PlotFlow Super Admin master credentials have been updated and secured:'}
+      </p>
+      <div style="background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 16px; margin: 16px 0;">
+        <div style="margin-bottom: 8px;"><strong style="color: #94a3b8; font-size: 12px;">Admin Login Email:</strong> <span style="color: #ffffff; font-weight: 700;">${cleanEmail}</span></div>
+        <div style="margin-bottom: 8px;"><strong style="color: #94a3b8; font-size: 12px;">Master Password:</strong> <code style="color: #38bdf8; font-family: monospace; font-weight: 700;">${password || 'Admin@2026'}</code></div>
+        <div><strong style="color: #94a3b8; font-size: 12px;">Master Security PIN:</strong> <code style="color: #a855f7; font-family: monospace; font-weight: 700;">${securityPin || '2026'}</code></div>
+      </div>
+      <p style="color: #94a3b8; font-size: 11px; margin-top: 16px; text-align: center;">
+        PlotFlow Enterprise Plotted Development Platform • Cryptographically Sealed
+      </p>
+    </div>
+  `;
 
-  return emailPacket;
+  const textContent = `PlotFlow Admin Credentials:\nEmail: ${cleanEmail}\nPassword: ${password}\nPIN: ${securityPin}\nStatus: Active`;
+
+  // Dispatch real network email
+  dispatchRealEmail({
+    toEmail: cleanEmail,
+    toName: 'Platform Administrator',
+    subject,
+    htmlContent,
+    textContent,
+    category: 'ADMIN_CREDENTIALS',
+    metadata: { role: 'SUPER_ADMIN' }
+  }).catch(err => console.info('Admin credentials email dispatch note:', err));
+
+  return { success: true, recipient: cleanEmail };
 }
 
-// Generates and stores an Admin Password Reset OTP
-const ADMIN_RESET_OTP_KEY = 'plotflow_admin_reset_otp';
-
-export function requestAdminPasswordResetOtp(email) {
+// Request real 6-digit OTP code sent directly to Admin's email
+export async function requestAdminPasswordResetOtp(email) {
   const cleanEmail = (email || '').toLowerCase().trim();
   const adminCreds = getAdminCredentials();
-  const targetEmail = cleanEmail || adminCreds.email || 'admin@plotflow.in';
-  
-  // Generate random 6-digit OTP
-  const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-  const payload = {
-    email: targetEmail,
-    otpCode,
-    expiresAt: Date.now() + 15 * 60 * 1000, // 15 mins
-    generatedAt: new Date().toISOString()
-  };
+  const targetEmail = cleanEmail || adminCreds.email || 'tejastej094@gmail.com';
 
-  try {
-    sessionStorage.setItem(ADMIN_RESET_OTP_KEY, JSON.stringify(payload));
-  } catch (e) {
-    // fallback
-  }
-
-  // Create dispatch packet in email logs
-  const otpMailPacket = {
-    id: `otp_mail_${Date.now()}`,
-    recipient: targetEmail,
-    subject: `🔐 [${otpCode}] Your PlotFlow Admin Portal Password Reset Code`,
-    timestamp: new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }),
-    isoTimestamp: new Date().toISOString(),
-    status: 'DELIVERED_TO_INBOX',
-    deliveryServer: 'security.plotflow.in (Identity Verification)',
-    credentials: {
-      accountName: 'Platform Administrator',
-      email: targetEmail,
-      otpCode,
-      validMinutes: 15
-    },
-    message: `Your one-time 6-digit security recovery code for PlotFlow Admin Portal is: ${otpCode}\n\nThis verification code expires in 15 minutes. If you did not request this, please verify your security settings.`
-  };
-
-  try {
-    const existingLogs = JSON.parse(localStorage.getItem(EMAIL_LOGS_KEY) || '[]');
-    existingLogs.unshift(otpMailPacket);
-    localStorage.setItem(EMAIL_LOGS_KEY, JSON.stringify(existingLogs.slice(0, 20)));
-  } catch (e) {
-    // ignore
-  }
-
-  addAuditLog(
-    'ADMIN_RESET_OTP_REQUESTED',
-    targetEmail,
-    'Admin Portal Security Gateway',
-    `6-digit password reset OTP generated for ${targetEmail}.`,
-    'INFO'
-  );
+  const result = await sendRealEmailOtp({
+    toEmail: targetEmail,
+    toName: 'Platform Administrator',
+    purpose: 'PASSWORD_RESET',
+    portalName: 'Super Admin Portal'
+  });
 
   return {
     success: true,
     email: targetEmail,
-    otpCode,
-    expiresIn: '15 minutes',
-    simulatedMail: otpMailPacket
+    expiresIn: '10 minutes',
+    message: result.message
   };
 }
 
-// Reset Admin Password using PIN or OTP
+// Request real 6-digit OTP code for any Portal Login (Buyer / Developer / Admin / Legal)
+export async function requestLoginOtp(email, portalType = 'user') {
+  const cleanEmail = (email || '').toLowerCase().trim();
+  if (!cleanEmail || !cleanEmail.includes('@')) {
+    throw new Error('Please enter a valid email address.');
+  }
+
+  const users = getStoredUsers();
+  const existingUser = users.find(u => (u.email || '').toLowerCase() === cleanEmail);
+  const userName = existingUser ? existingUser.name : (cleanEmail.split('@')[0]);
+
+  const purpose = portalType === 'admin' ? 'ADMIN_LOGIN' : (portalType === 'legal' ? 'LEGAL_LOGIN' : 'LOGIN');
+  const portalName = portalType === 'admin' ? 'Super Admin Portal' : (portalType === 'legal' ? 'Legal Auditor Portal' : 'PlotFlow User Portal');
+
+  const result = await sendRealEmailOtp({
+    toEmail: cleanEmail,
+    toName: userName,
+    purpose,
+    portalName
+  });
+
+  return {
+    success: true,
+    email: cleanEmail,
+    portalType,
+    expiresIn: '10 minutes',
+    message: result.message
+  };
+}
+
+// Authenticate User / Admin with Real Email OTP
+export async function loginWithOtp({ email, otpCode, portalType = 'user' }) {
+  const cleanEmail = (email || '').toLowerCase().trim();
+  if (!cleanEmail) {
+    throw new Error('Email address is required.');
+  }
+
+  const purpose = portalType === 'admin' ? 'ADMIN_LOGIN' : (portalType === 'legal' ? 'LEGAL_LOGIN' : 'LOGIN');
+
+  // Verify real OTP code
+  verifyRealEmailOtp({
+    email: cleanEmail,
+    otpCode,
+    purpose
+  });
+
+  const users = getStoredUsers();
+  const existingUser = users.find(u => (u.email || '').toLowerCase() === cleanEmail);
+
+  // Cross-portal RBAC security verification
+  if (portalType === 'admin') {
+    const isSuperAdminEmail = cleanEmail === SUPER_ADMIN_EMAIL || cleanEmail === 'admin@plotflow.in';
+    const hasAdminRole = existingUser && (existingUser.role === 'SUPER_ADMIN' || existingUser.role === 'ADMIN');
+    
+    if (!isSuperAdminEmail && !hasAdminRole) {
+      throw new Error(`Access Denied: Account "${cleanEmail}" does not have Administrator privileges. Please login via the buyer or staff portal.`);
+    }
+  }
+
+  if (portalType === 'legal') {
+    const isSuperAdminEmail = cleanEmail === SUPER_ADMIN_EMAIL;
+    const hasLegalRole = existingUser && (existingUser.role === 'LEGAL_AUDITOR' || existingUser.role === 'SUPER_ADMIN');
+
+    if (!isSuperAdminEmail && !hasLegalRole) {
+      throw new Error(`Access Denied: Account "${cleanEmail}" does not have Legal Auditor clearance.`);
+    }
+  }
+
+  if (existingUser) {
+    if (existingUser.status === 'Deactivated' || existingUser.status === 'Suspended') {
+      throw new Error(`Account "${cleanEmail}" is currently deactivated. Please contact support.`);
+    }
+
+    existingUser.lastSignIn = new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+    existingUser.verified = true;
+    saveStoredUsers(users);
+
+    addAuditLog(
+      'USER_LOGIN_OTP',
+      cleanEmail,
+      `${existingUser.role} Login`,
+      `User ${existingUser.name} signed in successfully using real email OTP verification.`,
+      'SUCCESS'
+    );
+
+    return existingUser;
+  }
+
+  // If new user signing in via OTP for first time on User Portal
+  const isSuper = cleanEmail === SUPER_ADMIN_EMAIL;
+  const role = portalType === 'admin' || isSuper ? 'SUPER_ADMIN' : 'BUYER';
+  const newUser = {
+    uid: `usr_otp_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
+    name: cleanEmail.split('@')[0].charAt(0).toUpperCase() + cleanEmail.split('@')[0].slice(1),
+    email: cleanEmail,
+    phone: '+91 98000 00000',
+    role,
+    roleTitle: role === 'SUPER_ADMIN' ? 'Master Platform Owner & Super Admin' : 'Verified Plot Buyer',
+    company: role === 'SUPER_ADMIN' ? 'PlotFlow Technologies Pvt Ltd' : 'Individual Buyer',
+    authProvider: 'email.otp',
+    status: 'Active',
+    verified: true,
+    lastSignIn: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
+    createdAt: new Date().toISOString().split('T')[0],
+    assignedProjectsCount: 0
+  };
+
+  saveStoredUsers([newUser, ...users]);
+
+  addAuditLog(
+    'USER_REGISTERED_OTP',
+    cleanEmail,
+    `${newUser.role} Registration`,
+    `New ${newUser.role} registered and verified via real email OTP.`,
+    'INFO'
+  );
+
+  return newUser;
+}
+
+// Reset Admin Password using PIN or strictly verified Real Email OTP
 export function resetAdminPasswordWithPinOrOtp({ email, securityPin, otpCode, newPassword }) {
   const cleanEmail = (email || '').toLowerCase().trim();
   const adminCreds = getAdminCredentials();
-  const targetEmail = cleanEmail || adminCreds.email || 'admin@plotflow.in';
+  const targetEmail = cleanEmail || adminCreds.email || 'tejastej094@gmail.com';
 
   if (!newPassword || newPassword.length < 6) {
     throw new Error('New password must be at least 6 characters long.');
@@ -297,45 +391,34 @@ export function resetAdminPasswordWithPinOrOtp({ email, securityPin, otpCode, ne
     securityPin === '2026'
   );
 
-  // Check OTP validation
+  // Check strict real OTP validation
   let isOtpValid = false;
-  try {
-    const savedOtpRaw = sessionStorage.getItem(ADMIN_RESET_OTP_KEY);
-    if (savedOtpRaw) {
-      const savedOtp = JSON.parse(savedOtpRaw);
-      if (
-        savedOtp.otpCode === (otpCode || '').trim() && 
-        Date.now() <= savedOtp.expiresAt &&
-        (savedOtp.email.toLowerCase() === targetEmail || !cleanEmail)
-      ) {
+  if (otpCode) {
+    try {
+      const verifyResult = verifyRealEmailOtp({
+        email: targetEmail,
+        otpCode,
+        purpose: 'PASSWORD_RESET'
+      });
+      if (verifyResult && verifyResult.valid) {
         isOtpValid = true;
       }
+    } catch (otpErr) {
+      if (!isPinValid) {
+        throw otpErr; // Rethrow OTP error if PIN wasn't provided or valid
+      }
     }
-  } catch (e) {
-    // ignore
-  }
-
-  // Also allow master fallback OTP '2026' or '888888' if needed
-  if (otpCode && (otpCode === '2026' || otpCode === '888888')) {
-    isOtpValid = true;
   }
 
   if (!isPinValid && !isOtpValid) {
-    throw new Error('Verification failed. Please enter the correct 4-digit Master Security PIN (default: 2026) or valid 6-digit Email OTP.');
+    throw new Error('Verification failed. Please enter the valid 6-digit OTP sent to your email or your 4-digit Master PIN.');
   }
 
   // Update Admin Credentials
   const updatedPin = isPinValid ? securityPin : (adminCreds.securityPin || '2026');
   const result = updateAdminCredentials(newPassword, updatedPin, targetEmail);
 
-  // Clear OTP
-  try {
-    sessionStorage.removeItem(ADMIN_RESET_OTP_KEY);
-  } catch (e) {
-    // ignore
-  }
-
-  // Dispatch reset confirmation email
+  // Dispatch reset confirmation email over network
   dispatchAdminCredentialEmail(targetEmail, newPassword, updatedPin, 'RESET');
 
   // Find updated admin user object
@@ -355,7 +438,7 @@ export function resetAdminPasswordWithPinOrOtp({ email, securityPin, otpCode, ne
     'ADMIN_PASSWORD_RESET_SUCCESS',
     targetEmail,
     'Admin Portal Authentication',
-    `Admin master password successfully reset and authenticated via ${isPinValid ? 'Security PIN' : 'Email OTP'}.`,
+    `Admin master password successfully reset and authenticated via ${isPinValid ? 'Security PIN' : 'Real Email OTP'}.`,
     'SUCCESS'
   );
 

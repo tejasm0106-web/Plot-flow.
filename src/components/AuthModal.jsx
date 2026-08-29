@@ -15,7 +15,9 @@ import {
   KeyRound,
   Sparkles,
   ArrowLeft,
-  ShieldCheck
+  ShieldCheck,
+  Send,
+  Inbox
 } from 'lucide-react';
 import { 
   loginWithEmailAndPassword, 
@@ -24,7 +26,9 @@ import {
   getStoredUsers,
   resetAdminPasswordWithPinOrOtp,
   getAdminCredentials,
-  requestAdminPasswordResetOtp
+  requestAdminPasswordResetOtp,
+  requestLoginOtp,
+  loginWithOtp
 } from '../services/userService';
 import { auth, GoogleAuthProvider, signInWithPopup } from '../services/firebase';
 
@@ -36,6 +40,11 @@ export default function AuthModal({
   // Navigation Mode: 'login' | 'register' | 'forgot-password'
   const [activeMode, setActiveMode] = useState('login');
   
+  // Login Sub-mode: 'password' | 'email-otp'
+  const [loginMethod, setLoginMethod] = useState('password');
+  const [loginOtpCode, setLoginOtpCode] = useState('');
+  const [loginOtpSent, setLoginOtpSent] = useState(false);
+
   // Registration Role: 'BUYER' | 'DEVELOPER' | 'LEGAL_AUDITOR'
   const [registerRole, setRegisterRole] = useState('BUYER');
 
@@ -51,9 +60,8 @@ export default function AuthModal({
   const [adminResetPin, setAdminResetPin] = useState('');
   const [adminNewPassword, setAdminNewPassword] = useState('');
   const [adminConfirmNewPassword, setAdminConfirmNewPassword] = useState('');
-  const [adminResetMethod, setAdminResetMethod] = useState('pin'); // 'pin' | 'otp'
+  const [adminResetMethod, setAdminResetMethod] = useState('otp'); // 'otp' | 'pin'
   const [adminOtpCode, setAdminOtpCode] = useState('');
-  const [adminGeneratedOtp, setAdminGeneratedOtp] = useState('');
   const [adminOtpDispatched, setAdminOtpDispatched] = useState(false);
   const [showAdminPassword, setShowAdminPassword] = useState(false);
 
@@ -80,29 +88,82 @@ export default function AuthModal({
       setError('');
       setSuccessMsg('');
       setResetSent(false);
+      setLoginOtpCode('');
+      setLoginOtpSent(false);
+      setAdminOtpCode('');
+      setAdminOtpDispatched(false);
+      setAdminResetPin('');
+      setAdminNewPassword('');
+      setAdminConfirmNewPassword('');
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  // Handle Standard Sign In with Firebase Auth
-  const handleSignIn = async (e) => {
-    e.preventDefault();
+  // Handle Requesting OTP for Login
+  const handleRequestLoginOtp = async (e) => {
+    e?.preventDefault();
     setError('');
     setSuccessMsg('');
 
-    if (!loginEmail.trim()) {
-      setError('Please enter your email address.');
-      return;
-    }
-    if (!loginPassword) {
-      setError('Please enter your password.');
+    const targetEmail = loginEmail.trim().toLowerCase();
+    if (!targetEmail || !targetEmail.includes('@')) {
+      setError('Please enter a valid email address to receive your OTP.');
       return;
     }
 
     setLoading(true);
     try {
-      const user = await loginWithEmailAndPassword(loginEmail, loginPassword);
+      await requestLoginOtp(targetEmail, 'user');
+      setLoginOtpSent(true);
+      setSuccessMsg(`✓ 6-Digit login verification code has been dispatched to ${targetEmail}. Please check your email inbox.`);
+    } catch (err) {
+      setError(err.message || 'Failed to dispatch verification code.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle Standard Sign In with Firebase Auth / Password or Real Email OTP
+  const handleSignIn = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+
+    const targetEmail = loginEmail.trim().toLowerCase();
+
+    if (!targetEmail) {
+      setError('Please enter your email address.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (loginMethod === 'email-otp') {
+        if (!loginOtpCode || loginOtpCode.length !== 6) {
+          throw new Error('Please enter the 6-digit code sent to your email.');
+        }
+
+        const user = await loginWithOtp({
+          email: targetEmail,
+          otpCode: loginOtpCode,
+          portalType: 'user'
+        });
+
+        setSuccessMsg(`Welcome back, ${user.name}! Verified via email OTP.`);
+        setTimeout(() => {
+          if (onLoginSuccess) onLoginSuccess(user);
+          onClose();
+        }, 500);
+        return;
+      }
+
+      // Password Login
+      if (!loginPassword) {
+        throw new Error('Please enter your password.');
+      }
+
+      const user = await loginWithEmailAndPassword(targetEmail, loginPassword);
       setSuccessMsg(`Welcome back, ${user.name}! (${user.roleTitle || user.role})`);
       setTimeout(() => {
         if (onLoginSuccess) onLoginSuccess(user);
@@ -156,7 +217,7 @@ export default function AuthModal({
         city: regForm.city
       });
 
-      setSuccessMsg(`Account created successfully with Firebase Auth! Logged in as ${newUser.name}.`);
+      setSuccessMsg(`Account created successfully! Logged in as ${newUser.name}.`);
       setTimeout(() => {
         if (onLoginSuccess) onLoginSuccess(newUser);
         onClose();
@@ -192,20 +253,21 @@ export default function AuthModal({
   };
 
   // Handle Dispatching OTP Code for Admin Reset in AuthModal
-  const handleRequestAdminOtp = (e) => {
+  const handleRequestAdminOtp = async (e) => {
     e?.preventDefault();
     setError('');
     setSuccessMsg('');
 
     const target = (resetEmail || 'tejastej094@gmail.com').trim().toLowerCase();
+    setLoading(true);
     try {
-      const res = requestAdminPasswordResetOtp(target);
-      setAdminGeneratedOtp(res.otpCode);
-      setAdminOtpCode(res.otpCode); // Pre-fill for instant test convenience
+      const res = await requestAdminPasswordResetOtp(target);
       setAdminOtpDispatched(true);
-      setSuccessMsg(`Recovery code [${res.otpCode}] dispatched to ${target}. (Pre-filled for rapid validation).`);
+      setSuccessMsg(`✓ 6-Digit security recovery code has been dispatched to ${target}. Please check your email.`);
     } catch (err) {
       setError(err.message || 'Failed to dispatch recovery code.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -400,7 +462,47 @@ export default function AuthModal({
           {/* ================= MODE 1: SIGN IN ================= */}
           {activeMode === 'login' && (
             <div className="space-y-4">
-              {/* Standard Email & Password Form */}
+              {/* Login Method Toggle: Password vs Instant Real Email OTP */}
+              <div className="grid grid-cols-2 gap-2 p-1 bg-slate-900 border border-slate-800 rounded-2xl">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoginMethod('password');
+                    setError('');
+                    setSuccessMsg('');
+                  }}
+                  className={`py-2 text-xs font-bold rounded-xl transition flex items-center justify-center space-x-1.5 ${
+                    loginMethod === 'password'
+                      ? 'bg-emerald-600 text-white shadow'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Password Login</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoginMethod('email-otp');
+                    setError('');
+                    setSuccessMsg('');
+                    if (!loginOtpSent && loginEmail) {
+                      handleRequestLoginOtp();
+                    }
+                  }}
+                  className={`py-2 text-xs font-bold rounded-xl transition flex items-center justify-center space-x-1.5 ${
+                    loginMethod === 'email-otp'
+                      ? 'bg-emerald-600 text-white shadow'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>Real Email OTP</span>
+                </button>
+              </div>
+
+              {/* Standard Email & Password / OTP Form */}
               <form onSubmit={handleSignIn} className="space-y-3 text-xs">
                 <div>
                   <label className="text-slate-300 font-semibold block mb-1">
@@ -419,36 +521,74 @@ export default function AuthModal({
                   </div>
                 </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-slate-300 font-semibold">Password *</label>
-                    <button
-                      type="button"
-                      onClick={() => { setActiveMode('forgot-password'); setResetEmail(loginEmail); setError(''); setSuccessMsg(''); }}
-                      className="text-[11px] text-emerald-400 hover:text-emerald-300 font-medium transition"
-                    >
-                      Forgot password?
-                    </button>
+                {/* Password input */}
+                {loginMethod === 'password' && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-slate-300 font-semibold">Password *</label>
+                      <button
+                        type="button"
+                        onClick={() => { setActiveMode('forgot-password'); setResetEmail(loginEmail); setError(''); setSuccessMsg(''); }}
+                        className="text-[11px] text-emerald-400 hover:text-emerald-300 font-medium transition"
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        required
+                        placeholder="Enter your password"
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-10 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 text-xs transition"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300"
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
-                  <div className="relative">
-                    <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                )}
+
+                {/* Real Email OTP input */}
+                {loginMethod === 'email-otp' && (
+                  <div className="p-3.5 bg-slate-900/70 border border-slate-800 rounded-2xl space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-emerald-300 flex items-center space-x-1.5">
+                        <Inbox className="w-3.5 h-3.5" />
+                        <span>6-Digit Verification Code *</span>
+                      </label>
+                      <button
+                        type="button"
+                        disabled={loading}
+                        onClick={handleRequestLoginOtp}
+                        className="text-[11px] font-bold text-emerald-400 hover:text-emerald-300 flex items-center space-x-1"
+                      >
+                        <Send className="w-3 h-3" />
+                        <span>{loginOtpSent ? 'Resend Code' : 'Send Code to Email'}</span>
+                      </button>
+                    </div>
+
                     <input
-                      type={showPassword ? 'text' : 'password'}
+                      type="text"
                       required
-                      placeholder="Enter your password"
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-10 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 text-xs transition"
+                      maxLength={6}
+                      value={loginOtpCode}
+                      onChange={(e) => setLoginOtpCode(e.target.value)}
+                      placeholder="Enter 6-digit code from email"
+                      className="w-full bg-slate-950 border border-emerald-500/40 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-400 font-mono tracking-widest text-center font-bold"
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
+
+                    <p className="text-[10px] text-slate-400">
+                      An authentic one-time code is sent to your email inbox. Please check inbox and spam.
+                    </p>
                   </div>
-                </div>
+                )}
 
                 <button
                   type="submit"
@@ -456,11 +596,11 @@ export default function AuthModal({
                   className="w-full py-3 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center space-x-2 mt-2 bg-emerald-600 hover:bg-emerald-500 shadow-emerald-950/50"
                 >
                   {loading ? (
-                    <span>Authenticating with Firebase...</span>
+                    <span>Verifying Credentials...</span>
                   ) : (
                     <>
                       <LogIn className="w-4 h-4" />
-                      <span>Sign In to Account</span>
+                      <span>{loginMethod === 'email-otp' ? 'Verify Code & Sign In' : 'Sign In to Account'}</span>
                     </>
                   )}
                 </button>
@@ -878,27 +1018,33 @@ export default function AuthModal({
                         />
                       </div>
                     ) : (
-                      <div className="space-y-1.5">
+                      <div className="space-y-2 p-3 bg-slate-900/80 border border-slate-800 rounded-xl">
                         <div className="flex items-center justify-between">
-                          <label className="text-slate-300 font-semibold block">
+                          <label className="text-slate-300 font-semibold block text-xs">
                             6-Digit Verification OTP *
                           </label>
                           <button
                             type="button"
+                            disabled={loading}
                             onClick={handleRequestAdminOtp}
-                            className="text-[11px] font-bold text-indigo-400 hover:text-indigo-300"
+                            className="text-[11px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center space-x-1"
                           >
-                            Resend Code
+                            <Send className="w-3 h-3" />
+                            <span>{adminOtpDispatched ? 'Resend Code' : 'Send Code to Email'}</span>
                           </button>
                         </div>
                         <input
                           type="text"
                           required
-                          placeholder="6-digit OTP code"
+                          maxLength={6}
+                          placeholder="Enter 6-digit code received in email"
                           value={adminOtpCode}
                           onChange={(e) => setAdminOtpCode(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white font-mono placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                          className="w-full bg-slate-950 border border-indigo-500/40 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono placeholder-slate-600 focus:outline-none focus:border-indigo-400 tracking-widest text-center font-bold"
                         />
+                        <p className="text-[10px] text-slate-400">
+                          A 6-digit code is dispatched to the admin email. Please check your inbox and spam folder.
+                        </p>
                       </div>
                     )}
 
