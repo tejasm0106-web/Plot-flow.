@@ -29,7 +29,9 @@ import {
   saveStoredTownships, 
   getSiteSettings,
   getStoredAuditLogs,
-  broadcastSyncEvent
+  broadcastSyncEvent,
+  subscribeToTownshipsRealtime,
+  subscribeToSettingsRealtime
 } from './services/storeService';
 import { 
   isSuperAdmin, 
@@ -79,23 +81,21 @@ export default function AdminApp({ onSwitchToBuyerWeb }) {
     }
   }, [currentUser]);
 
-  // Real-time listener for multi-tab updates & live sync
+  // Real-time listener for Firestore & multi-tab updates
   useEffect(() => {
-    const handleTownshipsUpdate = (e) => {
-      setTownships(e.detail || getStoredTownships());
+    const unsubTownships = subscribeToTownshipsRealtime((updatedList) => {
+      setTownships(updatedList);
       triggerSyncPulse();
-    };
-    const handleSettingsUpdate = (e) => {
-      setSiteSettings(e.detail || getSiteSettings());
-      triggerSyncPulse();
-    };
+    });
 
-    window.addEventListener('plotflow_townships_updated', handleTownshipsUpdate);
-    window.addEventListener('plotflow_settings_updated', handleSettingsUpdate);
+    const unsubSettings = subscribeToSettingsRealtime((updatedSettings) => {
+      setSiteSettings(updatedSettings);
+      triggerSyncPulse();
+    });
 
     return () => {
-      window.removeEventListener('plotflow_townships_updated', handleTownshipsUpdate);
-      window.removeEventListener('plotflow_settings_updated', handleSettingsUpdate);
+      if (typeof unsubTownships === 'function') unsubTownships();
+      if (typeof unsubSettings === 'function') unsubSettings();
     };
   }, []);
 

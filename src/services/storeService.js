@@ -1,4 +1,4 @@
-// PlotFlow Unified State Store & LocalStorage Persistence Service with Real-Time Cross-Web Sync
+// PlotFlow Unified State Store & LocalStorage Persistence Service with Real-Time Firestore & Cross-Web Sync
 import { 
   INITIAL_PROJECTS, 
   INITIAL_LEGAL_DOCUMENTS, 
@@ -7,6 +7,16 @@ import {
   INITIAL_AUDIT_LOGS,
   DEFAULT_HOMEPAGE_SECTIONS
 } from '../data/mockData';
+
+import { 
+  db, 
+  doc, 
+  getDoc, 
+  setDoc, 
+  onSnapshot, 
+  collection, 
+  serverTimestamp 
+} from './firebase';
 
 export const STORAGE_KEYS = {
   SETTINGS: 'plotflow_site_settings_v3',
@@ -74,6 +84,185 @@ export function broadcastSyncEvent(eventName, detail) {
   }
 }
 
+/* ========================================================================== */
+/* FIRESTORE REAL-TIME CLOUD PERSISTENCE & REAL-TIME LISTENERS                 */
+/* ========================================================================== */
+
+// Helper to push document update to Firestore asynchronously
+async function syncDocToFirestore(docId, data) {
+  if (!db) return;
+  try {
+    const docRef = doc(db, 'platform_data', docId);
+    await setDoc(docRef, {
+      payload: data,
+      lastModified: serverTimestamp ? serverTimestamp() : new Date().toISOString(),
+      updatedBy: 'PlotFlow Realtime Orchestrator'
+    }, { merge: true });
+  } catch (error) {
+    // Graceful fallback to local persistence if offline or unprovisioned
+    console.debug(`Firestore sync notice for [${docId}]:`, error?.message || error);
+  }
+}
+
+/**
+ * Real-time listener for Townships collection in Firestore.
+ * Updates local cache and emits event across all active components.
+ */
+export function subscribeToTownshipsRealtime(callback) {
+  if (!db) {
+    const handleLocal = (e) => callback(e.detail || getStoredTownships());
+    window.addEventListener('plotflow_townships_updated', handleLocal);
+    return () => window.removeEventListener('plotflow_townships_updated', handleLocal);
+  }
+
+  try {
+    const docRef = doc(db, 'platform_data', 'townships');
+    const unsubscribe = onSnapshot(docRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data?.payload && Array.isArray(data.payload)) {
+          localStorage.setItem(STORAGE_KEYS.TOWNSHIPS, JSON.stringify(data.payload));
+          callback(data.payload);
+          broadcastSyncEvent('plotflow_townships_updated', data.payload);
+        }
+      }
+    }, (err) => {
+      console.debug('Townships onSnapshot notice (using local store):', err?.message || err);
+    });
+
+    const handleLocal = (e) => callback(e.detail || getStoredTownships());
+    window.addEventListener('plotflow_townships_updated', handleLocal);
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+      window.removeEventListener('plotflow_townships_updated', handleLocal);
+    };
+  } catch (e) {
+    console.debug('subscribeToTownshipsRealtime fallback:', e);
+    const handleLocal = (e) => callback(e.detail || getStoredTownships());
+    window.addEventListener('plotflow_townships_updated', handleLocal);
+    return () => window.removeEventListener('plotflow_townships_updated', handleLocal);
+  }
+}
+
+/**
+ * Real-time listener for Site Settings in Firestore.
+ */
+export function subscribeToSettingsRealtime(callback) {
+  if (!db) {
+    const handleLocal = (e) => callback(e.detail || getSiteSettings());
+    window.addEventListener('plotflow_settings_updated', handleLocal);
+    return () => window.removeEventListener('plotflow_settings_updated', handleLocal);
+  }
+
+  try {
+    const docRef = doc(db, 'platform_data', 'settings');
+    const unsubscribe = onSnapshot(docRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data?.payload) {
+          const merged = { ...INITIAL_SITE_SETTINGS, ...data.payload };
+          localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(merged));
+          callback(merged);
+          broadcastSyncEvent('plotflow_settings_updated', merged);
+        }
+      }
+    }, (err) => {
+      console.debug('Settings onSnapshot notice:', err?.message || err);
+    });
+
+    const handleLocal = (e) => callback(e.detail || getSiteSettings());
+    window.addEventListener('plotflow_settings_updated', handleLocal);
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+      window.removeEventListener('plotflow_settings_updated', handleLocal);
+    };
+  } catch (e) {
+    const handleLocal = (e) => callback(e.detail || getSiteSettings());
+    window.addEventListener('plotflow_settings_updated', handleLocal);
+    return () => window.removeEventListener('plotflow_settings_updated', handleLocal);
+  }
+}
+
+/**
+ * Real-time listener for Legal Documents in Firestore.
+ */
+export function subscribeToDocumentsRealtime(callback) {
+  if (!db) {
+    const handleLocal = (e) => callback(e.detail || getStoredDocuments());
+    window.addEventListener('plotflow_documents_updated', handleLocal);
+    return () => window.removeEventListener('plotflow_documents_updated', handleLocal);
+  }
+
+  try {
+    const docRef = doc(db, 'platform_data', 'documents');
+    const unsubscribe = onSnapshot(docRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data?.payload && Array.isArray(data.payload)) {
+          localStorage.setItem(STORAGE_KEYS.DOCUMENTS, JSON.stringify(data.payload));
+          callback(data.payload);
+          broadcastSyncEvent('plotflow_documents_updated', data.payload);
+        }
+      }
+    }, (err) => {
+      console.debug('Documents onSnapshot notice:', err?.message || err);
+    });
+
+    const handleLocal = (e) => callback(e.detail || getStoredDocuments());
+    window.addEventListener('plotflow_documents_updated', handleLocal);
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+      window.removeEventListener('plotflow_documents_updated', handleLocal);
+    };
+  } catch (e) {
+    const handleLocal = (e) => callback(e.detail || getStoredDocuments());
+    window.addEventListener('plotflow_documents_updated', handleLocal);
+    return () => window.removeEventListener('plotflow_documents_updated', handleLocal);
+  }
+}
+
+/**
+ * Real-time listener for Leads & CRM inquiries in Firestore.
+ */
+export function subscribeToLeadsRealtime(callback) {
+  if (!db) {
+    const handleLocal = (e) => callback(e.detail || getStoredLeads());
+    window.addEventListener('plotflow_leads_updated', handleLocal);
+    return () => window.removeEventListener('plotflow_leads_updated', handleLocal);
+  }
+
+  try {
+    const docRef = doc(db, 'platform_data', 'leads');
+    const unsubscribe = onSnapshot(docRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data?.payload && Array.isArray(data.payload)) {
+          localStorage.setItem(STORAGE_KEYS.LEADS, JSON.stringify(data.payload));
+          callback(data.payload);
+          broadcastSyncEvent('plotflow_leads_updated', data.payload);
+        }
+      }
+    }, (err) => {
+      console.debug('Leads onSnapshot notice:', err?.message || err);
+    });
+
+    const handleLocal = (e) => callback(e.detail || getStoredLeads());
+    window.addEventListener('plotflow_leads_updated', handleLocal);
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+      window.removeEventListener('plotflow_leads_updated', handleLocal);
+    };
+  } catch (e) {
+    const handleLocal = (e) => callback(e.detail || getStoredLeads());
+    window.addEventListener('plotflow_leads_updated', handleLocal);
+    return () => window.removeEventListener('plotflow_leads_updated', handleLocal);
+  }
+}
+
 // Site Settings
 export function getSiteSettings() {
   try {
@@ -92,6 +281,7 @@ export function saveSiteSettings(settings) {
   try {
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
     broadcastSyncEvent('plotflow_settings_updated', settings);
+    syncDocToFirestore('settings', settings);
   } catch (e) {
     console.warn('Error saving site settings:', e);
   }
@@ -112,6 +302,7 @@ export function saveHomepageSections(sections) {
   try {
     localStorage.setItem(STORAGE_KEYS.HOMEPAGE_SECTIONS, JSON.stringify(sections));
     broadcastSyncEvent('plotflow_sections_updated', sections);
+    syncDocToFirestore('sections', sections);
   } catch (e) {
     console.warn('Error saving homepage sections:', e);
   }
@@ -136,6 +327,7 @@ export function saveStoredTownships(townships) {
   try {
     localStorage.setItem(STORAGE_KEYS.TOWNSHIPS, JSON.stringify(townships));
     broadcastSyncEvent('plotflow_townships_updated', townships);
+    syncDocToFirestore('townships', townships);
   } catch (e) {
     console.warn('Error saving townships:', e);
   }
@@ -160,6 +352,7 @@ export function saveStoredDocuments(documents) {
   try {
     localStorage.setItem(STORAGE_KEYS.DOCUMENTS, JSON.stringify(documents));
     broadcastSyncEvent('plotflow_documents_updated', documents);
+    syncDocToFirestore('documents', documents);
   } catch (e) {
     console.warn('Error saving documents:', e);
   }
@@ -184,6 +377,7 @@ export function saveStoredLeads(leads) {
   try {
     localStorage.setItem(STORAGE_KEYS.LEADS, JSON.stringify(leads));
     broadcastSyncEvent('plotflow_leads_updated', leads);
+    syncDocToFirestore('leads', leads);
   } catch (e) {
     console.warn('Error saving leads:', e);
   }
@@ -244,6 +438,7 @@ export function saveStoredAuditLogs(logs) {
   try {
     localStorage.setItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify(logs.slice(0, 100)));
     broadcastSyncEvent('plotflow_audit_logs_updated', logs.slice(0, 100));
+    syncDocToFirestore('audit_logs', logs.slice(0, 100));
   } catch (e) {
     console.warn('Error saving audit logs:', e);
   }
@@ -316,6 +511,12 @@ export function resetPlatformToDefaults() {
   broadcastSyncEvent('plotflow_audit_logs_updated', INITIAL_AUDIT_LOGS);
   broadcastSyncEvent('plotflow_shortlist_updated', ['ts_01', 'ts_02']);
 
+  syncDocToFirestore('settings', INITIAL_SITE_SETTINGS);
+  syncDocToFirestore('townships', INITIAL_PROJECTS);
+  syncDocToFirestore('documents', INITIAL_LEGAL_DOCUMENTS);
+  syncDocToFirestore('leads', INITIAL_LEADS);
+
   addAuditLog('PLATFORM_RESET_DEFAULTS', 'Master Super Admin', 'Full Workspace Data', 'Reset all settings, townships, plots, documents, and leads to verified starter data.', 'WARNING');
   return true;
 }
+

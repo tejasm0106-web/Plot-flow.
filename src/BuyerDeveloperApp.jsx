@@ -38,7 +38,9 @@ import {
   getSiteSettings, 
   getShortlist, 
   toggleShortlistInStore,
-  getHomepageSections
+  getHomepageSections,
+  subscribeToTownshipsRealtime,
+  subscribeToSettingsRealtime
 } from './services/storeService';
 import { getStoredUsers } from './services/userService';
 import { 
@@ -158,16 +160,18 @@ export default function BuyerDeveloperApp({ onSwitchToAdminWeb, initialView = 'l
     }
   }, [currentUser?.uid, currentUser?.id, currentUser?.email]);
 
-  // REAL-TIME SYNC: Listen for changes made in the Admin Web (Cross-tab and cross-window)
+  // REAL-TIME SYNC: Listen for changes made in the Admin Web (Firestore + Cross-tab and cross-window)
   useEffect(() => {
-    const handleTownshipsUpdate = (e) => {
-      setTownships(e.detail || getStoredTownships());
+    const unsubTownships = subscribeToTownshipsRealtime((updatedTownships) => {
+      setTownships(updatedTownships);
       flashSyncIndicator();
-    };
-    const handleSettingsUpdate = (e) => {
-      setSiteSettings(e.detail || getSiteSettings());
+    });
+
+    const unsubSettings = subscribeToSettingsRealtime((updatedSettings) => {
+      setSiteSettings(updatedSettings);
       flashSyncIndicator();
-    };
+    });
+
     const handleSectionsUpdate = (e) => {
       setHomepageSections(e.detail || getHomepageSections());
       flashSyncIndicator();
@@ -176,14 +180,12 @@ export default function BuyerDeveloperApp({ onSwitchToAdminWeb, initialView = 'l
       setShortlistedTownshipIds(e.detail || getShortlist());
     };
 
-    window.addEventListener('plotflow_townships_updated', handleTownshipsUpdate);
-    window.addEventListener('plotflow_settings_updated', handleSettingsUpdate);
     window.addEventListener('plotflow_sections_updated', handleSectionsUpdate);
     window.addEventListener('plotflow_shortlist_updated', handleShortlistUpdate);
 
     return () => {
-      window.removeEventListener('plotflow_townships_updated', handleTownshipsUpdate);
-      window.removeEventListener('plotflow_settings_updated', handleSettingsUpdate);
+      if (typeof unsubTownships === 'function') unsubTownships();
+      if (typeof unsubSettings === 'function') unsubSettings();
       window.removeEventListener('plotflow_sections_updated', handleSectionsUpdate);
       window.removeEventListener('plotflow_shortlist_updated', handleShortlistUpdate);
     };
