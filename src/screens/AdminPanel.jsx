@@ -935,6 +935,16 @@ export default function AdminPanel({
       )}
 
       {/* ==================================================== */}
+      {/* TAB: AI WORKFORCE HQ & TEAMS VIDEO BOARDROOM */}
+      {/* ==================================================== */}
+      {activeTab === 'ai_workforce' && (
+        <AiWorkforceHQ 
+          currentUser={currentUser}
+          onNavigateToAdminTab={(tab) => setActiveTab(tab)}
+        />
+      )}
+
+      {/* ==================================================== */}
       {/* TAB 2: TOWNSHIPS MANAGEMENT */}
       {/* ==================================================== */}
       {activeTab === 'townships' && (

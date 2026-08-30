@@ -34,7 +34,8 @@ import {
   Compass,
   Check,
   ShieldAlert,
-  Calendar
+  Calendar,
+  Video
 } from 'lucide-react';
 
 import { 
@@ -266,6 +267,14 @@ export default function AiWorkforceHQ({ currentUser, onNavigateToAdminTab }) {
           {/* Quick Stats Pill Badges */}
           <div className="flex flex-wrap items-center gap-3">
             <button
+              onClick={() => setSubTab('meetings')}
+              className="px-4 py-3 rounded-2xl bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 transition flex items-center space-x-2 text-xs font-black shadow-lg"
+            >
+              <Video className="w-4 h-4 text-indigo-400" />
+              <span>Live Video Conference (Teams)</span>
+            </button>
+
+            <button
               onClick={() => {
                 setSubTab('tasks');
                 setTaskStatusFilter('WAITING FOR APPROVAL');
@@ -389,7 +398,7 @@ export default function AiWorkforceHQ({ currentUser, onNavigateToAdminTab }) {
           { id: 'command_center', label: 'AI HQ Dashboard', icon: TrendingUp },
           { id: 'employees', label: `AI Employees & Org Chart (${agents.length})`, icon: Users },
           { id: 'collaboration', label: 'Multi-Agent Timeline', icon: Sparkles },
-          { id: 'meetings', label: 'Executive Boardroom', icon: Building2 },
+          { id: 'meetings', label: 'Live Video Boardroom (Teams)', icon: Video },
           { id: 'tasks', label: `Tasks & Approvals (${pendingApprovalsCount})`, icon: CheckCircle2, badge: pendingApprovalsCount },
           { id: 'reports', label: `Executive Reports (${reports.length})`, icon: FileText },
           { id: 'memory', label: `Company Memory (${memories.length})`, icon: Lightbulb },
@@ -865,10 +874,11 @@ export default function AiWorkforceHQ({ currentUser, onNavigateToAdminTab }) {
       )}
 
       {/* ==================================================== */}
-      {/* SUBTAB 4: SIMULATED BOARDROOM MEETINGS */}
+      {/* SUBTAB 4: SIMULATED & LIVE VIDEO BOARDROOM MEETINGS */}
       {/* ==================================================== */}
       {subTab === 'meetings' && (
         <AiMeetingRoom 
+          currentUser={currentUser}
           onOpenTaskModal={() => {
             setSubTab('tasks');
             setShowCreateTaskModal(true);
@@ -1226,7 +1236,11 @@ export default function AiWorkforceHQ({ currentUser, onNavigateToAdminTab }) {
       {selectedAgentForChat && (
         <AiAgentChatModal
           agent={selectedAgentForChat}
+          currentUser={currentUser}
           onClose={() => setSelectedAgentForChat(null)}
+          onLaunchMeeting={(topic) => {
+            setSubTab('meetings');
+          }}
         />
       )}
 
