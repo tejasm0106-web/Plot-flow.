@@ -1,4 +1,4 @@
-// PlotFlow Unified State Store & LocalStorage Persistence Service
+// PlotFlow Unified State Store & LocalStorage Persistence Service with Real-Time Cross-Web Sync
 import { 
   INITIAL_PROJECTS, 
   INITIAL_LEGAL_DOCUMENTS, 
@@ -8,7 +8,7 @@ import {
   DEFAULT_HOMEPAGE_SECTIONS
 } from '../data/mockData';
 
-const STORAGE_KEYS = {
+export const STORAGE_KEYS = {
   SETTINGS: 'plotflow_site_settings_v3',
   HOMEPAGE_SECTIONS: 'plotflow_homepage_sections_v3',
   TOWNSHIPS: 'plotflow_townships_v3',
@@ -17,6 +17,62 @@ const STORAGE_KEYS = {
   AUDIT_LOGS: 'plotflow_audit_logs_v3',
   SHORTLIST: 'plotflow_shortlist_v3'
 };
+
+// Cross-Window / Cross-Tab Master Synchronization Channel
+let broadcastChannel = null;
+if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+  try {
+    broadcastChannel = new BroadcastChannel('plotflow_master_sync_channel_v3');
+    broadcastChannel.onmessage = (event) => {
+      const { eventName, detail } = event.data || {};
+      if (eventName && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent(eventName, { detail }));
+      }
+    };
+  } catch (e) {
+    console.warn('BroadcastChannel sync init warning:', e);
+  }
+}
+
+// Storage event listener for multi-tab fallback
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (!e.key || !e.newValue) return;
+    try {
+      const parsed = JSON.parse(e.newValue);
+      if (e.key === STORAGE_KEYS.TOWNSHIPS) {
+        window.dispatchEvent(new CustomEvent('plotflow_townships_updated', { detail: parsed }));
+      } else if (e.key === STORAGE_KEYS.SETTINGS) {
+        window.dispatchEvent(new CustomEvent('plotflow_settings_updated', { detail: parsed }));
+      } else if (e.key === STORAGE_KEYS.HOMEPAGE_SECTIONS) {
+        window.dispatchEvent(new CustomEvent('plotflow_sections_updated', { detail: parsed }));
+      } else if (e.key === STORAGE_KEYS.DOCUMENTS) {
+        window.dispatchEvent(new CustomEvent('plotflow_documents_updated', { detail: parsed }));
+      } else if (e.key === STORAGE_KEYS.LEADS) {
+        window.dispatchEvent(new CustomEvent('plotflow_leads_updated', { detail: parsed }));
+      } else if (e.key === STORAGE_KEYS.AUDIT_LOGS) {
+        window.dispatchEvent(new CustomEvent('plotflow_audit_logs_updated', { detail: parsed }));
+      } else if (e.key === STORAGE_KEYS.SHORTLIST) {
+        window.dispatchEvent(new CustomEvent('plotflow_shortlist_updated', { detail: parsed }));
+      }
+    } catch (err) {
+      // ignore parsing errors
+    }
+  });
+}
+
+export function broadcastSyncEvent(eventName, detail) {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(eventName, { detail }));
+    if (broadcastChannel) {
+      try {
+        broadcastChannel.postMessage({ eventName, detail, timestamp: Date.now() });
+      } catch (err) {
+        console.warn('Broadcast failed:', err);
+      }
+    }
+  }
+}
 
 // Site Settings
 export function getSiteSettings() {
@@ -35,7 +91,7 @@ export function getSiteSettings() {
 export function saveSiteSettings(settings) {
   try {
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
-    window.dispatchEvent(new CustomEvent('plotflow_settings_updated', { detail: settings }));
+    broadcastSyncEvent('plotflow_settings_updated', settings);
   } catch (e) {
     console.warn('Error saving site settings:', e);
   }
@@ -55,7 +111,7 @@ export function getHomepageSections() {
 export function saveHomepageSections(sections) {
   try {
     localStorage.setItem(STORAGE_KEYS.HOMEPAGE_SECTIONS, JSON.stringify(sections));
-    window.dispatchEvent(new CustomEvent('plotflow_sections_updated', { detail: sections }));
+    broadcastSyncEvent('plotflow_sections_updated', sections);
   } catch (e) {
     console.warn('Error saving homepage sections:', e);
   }
@@ -79,7 +135,7 @@ export function getStoredTownships() {
 export function saveStoredTownships(townships) {
   try {
     localStorage.setItem(STORAGE_KEYS.TOWNSHIPS, JSON.stringify(townships));
-    window.dispatchEvent(new CustomEvent('plotflow_townships_updated', { detail: townships }));
+    broadcastSyncEvent('plotflow_townships_updated', townships);
   } catch (e) {
     console.warn('Error saving townships:', e);
   }
@@ -103,7 +159,7 @@ export function getStoredDocuments() {
 export function saveStoredDocuments(documents) {
   try {
     localStorage.setItem(STORAGE_KEYS.DOCUMENTS, JSON.stringify(documents));
-    window.dispatchEvent(new CustomEvent('plotflow_documents_updated', { detail: documents }));
+    broadcastSyncEvent('plotflow_documents_updated', documents);
   } catch (e) {
     console.warn('Error saving documents:', e);
   }
@@ -127,7 +183,7 @@ export function getStoredLeads() {
 export function saveStoredLeads(leads) {
   try {
     localStorage.setItem(STORAGE_KEYS.LEADS, JSON.stringify(leads));
-    window.dispatchEvent(new CustomEvent('plotflow_leads_updated', { detail: leads }));
+    broadcastSyncEvent('plotflow_leads_updated', leads);
   } catch (e) {
     console.warn('Error saving leads:', e);
   }
@@ -187,6 +243,7 @@ export function getStoredAuditLogs() {
 export function saveStoredAuditLogs(logs) {
   try {
     localStorage.setItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify(logs.slice(0, 100)));
+    broadcastSyncEvent('plotflow_audit_logs_updated', logs.slice(0, 100));
   } catch (e) {
     console.warn('Error saving audit logs:', e);
   }
@@ -226,7 +283,7 @@ export function getShortlist() {
 export function saveShortlist(shortlist) {
   try {
     localStorage.setItem(STORAGE_KEYS.SHORTLIST, JSON.stringify(shortlist));
-    window.dispatchEvent(new CustomEvent('plotflow_shortlist_updated', { detail: shortlist }));
+    broadcastSyncEvent('plotflow_shortlist_updated', shortlist);
   } catch (e) {
     console.warn('Error saving shortlist:', e);
   }
@@ -251,6 +308,14 @@ export function resetPlatformToDefaults() {
   localStorage.setItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify(INITIAL_AUDIT_LOGS));
   localStorage.setItem(STORAGE_KEYS.SHORTLIST, JSON.stringify(['ts_01', 'ts_02']));
   
+  broadcastSyncEvent('plotflow_settings_updated', INITIAL_SITE_SETTINGS);
+  broadcastSyncEvent('plotflow_sections_updated', DEFAULT_HOMEPAGE_SECTIONS);
+  broadcastSyncEvent('plotflow_townships_updated', INITIAL_PROJECTS);
+  broadcastSyncEvent('plotflow_documents_updated', INITIAL_LEGAL_DOCUMENTS);
+  broadcastSyncEvent('plotflow_leads_updated', INITIAL_LEADS);
+  broadcastSyncEvent('plotflow_audit_logs_updated', INITIAL_AUDIT_LOGS);
+  broadcastSyncEvent('plotflow_shortlist_updated', ['ts_01', 'ts_02']);
+
   addAuditLog('PLATFORM_RESET_DEFAULTS', 'Master Super Admin', 'Full Workspace Data', 'Reset all settings, townships, plots, documents, and leads to verified starter data.', 'WARNING');
   return true;
 }
