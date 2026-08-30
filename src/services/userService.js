@@ -7,18 +7,39 @@ import {
   sendRealEmailOtp, 
   verifyRealEmailOtp 
 } from './emailDispatchService';
+import {
+  MASTER_ADMIN_PHONE,
+  MASTER_ADMIN_PHONE_RAW,
+  sendRealSmsOtp,
+  verifyRealSmsOtp,
+  findUserByPhoneOrEmail,
+  maskPhone,
+  normalizePhone,
+  getSmsDispatchLogs
+} from './smsDispatchService';
+
+export {
+  MASTER_ADMIN_PHONE,
+  MASTER_ADMIN_PHONE_RAW,
+  sendRealSmsOtp,
+  verifyRealSmsOtp,
+  findUserByPhoneOrEmail,
+  maskPhone,
+  normalizePhone,
+  getSmsDispatchLogs
+};
 
 const USERS_STORAGE_KEY = 'plotflow_platform_users_v3';
 const ADMIN_CREDS_KEY = 'plotflow_admin_credentials_v3';
 const EMAIL_LOGS_KEY = 'plotflow_email_dispatch_logs_v3';
 
-// Default Verified Accounts
+// Default Verified Accounts with Admin Phone 9916660655
 export const DEFAULT_PLATFORM_USERS = [
   {
     uid: 'usr_admin_master',
     name: 'Tejas',
     email: 'tejastej094@gmail.com',
-    phone: '+91 99000 11223',
+    phone: '+91 9916660655',
     role: 'SUPER_ADMIN',
     roleTitle: 'Master Platform Owner & Super Admin',
     company: 'PlotFlow Technologies Pvt Ltd',
@@ -85,6 +106,7 @@ export const DEFAULT_PLATFORM_USERS = [
 export const DEFAULT_ADMIN_CREDS = {
   email: 'tejastej094@gmail.com',
   name: 'Tejas',
+  phone: '+91 9916660655',
   password: 'Admin@2026',
   securityPin: '2026',
   role: 'SUPER_ADMIN',
@@ -375,8 +397,109 @@ export async function loginWithOtp({ email, otpCode, portalType = 'user' }) {
   return newUser;
 }
 
-// Reset Admin Password using PIN or strictly verified Real Email OTP
-export function resetAdminPasswordWithPinOrOtp({ email, securityPin, otpCode, newPassword }) {
+// Request real 6-digit SMS OTP code for Password Reset for ANY User or Admin
+export async function requestPasswordResetSmsOtp(phoneOrEmail) {
+  const result = await sendRealSmsOtp({
+    phoneOrEmail,
+    purpose: 'PASSWORD_RESET',
+    portalName: 'PlotFlow User Security'
+  });
+  return result;
+}
+
+export const requestUserSmsOtp = requestPasswordResetSmsOtp;
+
+// Request real 6-digit SMS OTP code specifically for Admin Security / Disaster Recovery
+export async function requestAdminRecoverySmsOtp(phoneOrEmail = MASTER_ADMIN_PHONE) {
+  const result = await sendRealSmsOtp({
+    phoneOrEmail: phoneOrEmail || MASTER_ADMIN_PHONE,
+    purpose: 'ADMIN_RECOVERY',
+    portalName: 'Super Admin Gateway'
+  });
+  return result;
+}
+
+// Unified SMS-based Password Reset for all users (Buyer, Developer, Legal, Admin)
+export async function resetUserPasswordWithSmsOtp({
+  phoneOrEmail,
+  otpCode,
+  newPassword,
+  isDefaultAdminReset = false
+}) {
+  const cleanInput = (phoneOrEmail || '').trim();
+  if (!cleanInput) {
+    throw new Error('Please provide your registered mobile number or email address.');
+  }
+
+  // 1. Verify 6-digit SMS OTP
+  const verifyRes = verifyRealSmsOtp({
+    phoneOrEmail: cleanInput,
+    otpCode,
+    purpose: isDefaultAdminReset ? 'ADMIN_RECOVERY' : 'PASSWORD_RESET'
+  });
+
+  const effectivePassword = isDefaultAdminReset ? (newPassword || 'Admin@2026') : newPassword;
+
+  if (!effectivePassword || effectivePassword.length < 6) {
+    throw new Error('New password must be at least 6 characters long.');
+  }
+
+  // 2. Identify target user
+  const users = getStoredUsers();
+  const matchedUser = findUserByPhoneOrEmail(cleanInput);
+  const targetEmail = matchedUser?.email || (cleanInput.includes('@') ? cleanInput.toLowerCase() : 'tejastej094@gmail.com');
+  const isAdminTarget = matchedUser?.role === 'SUPER_ADMIN' || matchedUser?.isAdmin || targetEmail === SUPER_ADMIN_EMAIL || cleanInput.includes('9916660655');
+
+  if (isDefaultAdminReset && !isAdminTarget) {
+    throw new Error('Access Denied: Only Master Super Administrator accounts can trigger default security recovery.');
+  }
+
+  // 3. Update database
+  let targetUserObj = null;
+  const updatedUsers = users.map(u => {
+    const isThisUser = (u.email && u.email.toLowerCase() === targetEmail.toLowerCase()) || 
+                       (matchedUser && u.uid === matchedUser.uid) ||
+                       (isAdminTarget && (u.role === 'SUPER_ADMIN' || u.email.toLowerCase() === SUPER_ADMIN_EMAIL));
+    if (isThisUser) {
+      targetUserObj = {
+        ...u,
+        phone: isAdminTarget ? MASTER_ADMIN_PHONE : (u.phone || matchedUser?.phone),
+        passwordHash: effectivePassword,
+        verified: true,
+        status: 'Active',
+        lastSignIn: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
+      };
+      return targetUserObj;
+    }
+    return u;
+  });
+
+  saveStoredUsers(updatedUsers);
+
+  // If Admin account, sync Admin credentials
+  if (isAdminTarget) {
+    updateAdminCredentials(effectivePassword, '2026', targetEmail);
+  }
+
+  addAuditLog(
+    'PASSWORD_RESET_SMS_SUCCESS',
+    matchedUser?.phone || cleanInput,
+    targetUserObj?.role || 'User Account',
+    `Password successfully reset via verified SMS OTP to ${maskPhone(matchedUser?.phone || cleanInput)}.`,
+    'SUCCESS'
+  );
+
+  return {
+    success: true,
+    user: targetUserObj || matchedUser,
+    message: isDefaultAdminReset 
+      ? 'Master Admin security restored to default credentials successfully after verified SMS OTP authorization.' 
+      : 'Your password has been successfully updated! You can now log in.'
+  };
+}
+
+// Reset Admin Password using SMS OTP, PIN, or Email OTP
+export function resetAdminPasswordWithPinOrOtp({ email, phone, securityPin, otpCode, smsOtpCode, newPassword }) {
   const cleanEmail = (email || '').toLowerCase().trim();
   const adminCreds = getAdminCredentials();
   const targetEmail = cleanEmail || adminCreds.email || 'tejastej094@gmail.com';
@@ -385,48 +508,53 @@ export function resetAdminPasswordWithPinOrOtp({ email, securityPin, otpCode, ne
     throw new Error('New password must be at least 6 characters long.');
   }
 
+  // Check SMS OTP validation (Primary)
+  let isSmsOtpValid = false;
+  const codeToCheck = smsOtpCode || otpCode;
+  if (codeToCheck) {
+    try {
+      const smsVerify = verifyRealSmsOtp({
+        phoneOrEmail: phone || MASTER_ADMIN_PHONE,
+        otpCode: codeToCheck,
+        purpose: 'ADMIN_RECOVERY'
+      });
+      if (smsVerify?.valid) isSmsOtpValid = true;
+    } catch (smsErr) {
+      // try fallback to PASSWORD_RESET purpose
+      try {
+        const smsVerify2 = verifyRealSmsOtp({
+          phoneOrEmail: phone || MASTER_ADMIN_PHONE,
+          otpCode: codeToCheck,
+          purpose: 'PASSWORD_RESET'
+        });
+        if (smsVerify2?.valid) isSmsOtpValid = true;
+      } catch (e) {
+        // continue to PIN check
+      }
+    }
+  }
+
   // Check PIN validation
   const isPinValid = securityPin && (
     securityPin === (adminCreds.securityPin || '2026') || 
     securityPin === '2026'
   );
 
-  // Check strict real OTP validation
-  let isOtpValid = false;
-  if (otpCode) {
-    try {
-      const verifyResult = verifyRealEmailOtp({
-        email: targetEmail,
-        otpCode,
-        purpose: 'PASSWORD_RESET'
-      });
-      if (verifyResult && verifyResult.valid) {
-        isOtpValid = true;
-      }
-    } catch (otpErr) {
-      if (!isPinValid) {
-        throw otpErr; // Rethrow OTP error if PIN wasn't provided or valid
-      }
-    }
-  }
-
-  if (!isPinValid && !isOtpValid) {
-    throw new Error('Verification failed. Please enter the valid 6-digit OTP sent to your email or your 4-digit Master PIN.');
+  if (!isSmsOtpValid && !isPinValid) {
+    throw new Error('Verification failed. Please enter the valid 6-digit SMS OTP sent to ' + MASTER_ADMIN_PHONE + ' or your 4-digit Master PIN.');
   }
 
   // Update Admin Credentials
   const updatedPin = isPinValid ? securityPin : (adminCreds.securityPin || '2026');
   const result = updateAdminCredentials(newPassword, updatedPin, targetEmail);
 
-  // Dispatch reset confirmation email over network
-  dispatchAdminCredentialEmail(targetEmail, newPassword, updatedPin, 'RESET');
-
   // Find updated admin user object
   const users = getStoredUsers();
   const adminUser = users.find(u => (u.email || '').toLowerCase() === targetEmail) || {
     uid: `usr_admin_${targetEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
-    name: targetEmail.split('@')[0].charAt(0).toUpperCase() + targetEmail.split('@')[0].slice(1),
+    name: 'Tejas',
     email: targetEmail,
+    phone: MASTER_ADMIN_PHONE,
     role: 'SUPER_ADMIN',
     roleTitle: 'Master Platform Owner & Super Admin',
     status: 'Active',
@@ -438,7 +566,7 @@ export function resetAdminPasswordWithPinOrOtp({ email, securityPin, otpCode, ne
     'ADMIN_PASSWORD_RESET_SUCCESS',
     targetEmail,
     'Admin Portal Authentication',
-    `Admin master password successfully reset and authenticated via ${isPinValid ? 'Security PIN' : 'Real Email OTP'}.`,
+    `Admin master password successfully reset and authenticated via ${isSmsOtpValid ? 'SMS OTP to ' + MASTER_ADMIN_PHONE : 'Security PIN'}.`,
     'SUCCESS'
   );
 
@@ -449,14 +577,25 @@ export function resetAdminPasswordWithPinOrOtp({ email, securityPin, otpCode, ne
   };
 }
 
-// Emergency Restore Master Default Credentials
-export function restoreDefaultAdminCredentials() {
+// Emergency Restore Master Default Credentials - STRICTLY REQUIRES VERIFIED SMS OTP TO 9916660655
+export function restoreDefaultAdminCredentials({ otpCode } = {}) {
+  if (!otpCode) {
+    throw new Error('Security Authorization Required: You must verify the 6-digit SMS OTP sent to ' + MASTER_ADMIN_PHONE + ' before restoring default credentials.');
+  }
+
+  // Verify SMS OTP sent to Master Admin phone 9916660655
+  verifyRealSmsOtp({
+    phoneOrEmail: MASTER_ADMIN_PHONE,
+    otpCode,
+    purpose: 'ADMIN_RECOVERY'
+  });
+
   const result = updateAdminCredentials('Admin@2026', '2026', 'tejastej094@gmail.com');
   addAuditLog(
     'ADMIN_DEFAULT_RESTORED',
     'tejastej094@gmail.com',
     'Admin Portal Security',
-    'Emergency recovery: Master Admin credentials restored to default (Admin@2026 / PIN: 2026).',
+    `Emergency recovery authorized via verified SMS OTP to ${MASTER_ADMIN_PHONE}. Master Admin credentials restored to default.`,
     'WARNING'
   );
   return result;

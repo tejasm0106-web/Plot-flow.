@@ -73,6 +73,7 @@ import BookingModal from './components/BookingModal';
 import SiteVisitModal from './components/SiteVisitModal';
 import AuthModal from './components/AuthModal';
 import StaffGatewayModal from './components/StaffGatewayModal';
+import SmsNotificationToast from './components/SmsNotificationToast';
 import RBACGuard from './components/RBACGuard';
 
 export default function App() {
@@ -1101,6 +1102,9 @@ export default function App() {
         currentUser={currentUser}
         onAuthenticateAndOpenPortal={handleAuthenticateStaffAndOpen}
       />
+
+      {/* Global Real-Time SMS Notification Banner */}
+      <SmsNotificationToast />
 
       {/* Footer: Buyer & Developer Focused with Discrete Staff Gateway */}
       <footer className="bg-slate-950 border-t border-slate-800/80 py-10 px-4 text-xs text-slate-500">

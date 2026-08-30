@@ -27,8 +27,13 @@ import {
   resetAdminPasswordWithPinOrOtp,
   getAdminCredentials,
   requestAdminPasswordResetOtp,
+  requestAdminRecoverySmsOtp,
+  requestUserSmsOtp,
+  resetUserPasswordWithSmsOtp,
   requestLoginOtp,
-  loginWithOtp
+  loginWithOtp,
+  MASTER_ADMIN_PHONE,
+  maskPhone
 } from '../services/userService';
 import { auth, GoogleAuthProvider, signInWithPopup } from '../services/firebase';
 
@@ -56,11 +61,22 @@ export default function AuthModal({
   // Forgot Password State
   const [resetEmail, setResetEmail] = useState('');
   const [resetSent, setResetSent] = useState(false);
-  const [forgotTab, setForgotTab] = useState('email-link'); // 'email-link' | 'admin-instant'
+  const [forgotTab, setForgotTab] = useState('sms-otp'); // 'sms-otp' | 'email-link' | 'admin-instant'
+  
+  // User SMS OTP Reset State
+  const [userResetPhoneOrEmail, setUserResetPhoneOrEmail] = useState('');
+  const [userResetOtpCode, setUserResetOtpCode] = useState('');
+  const [userResetNewPassword, setUserResetNewPassword] = useState('');
+  const [userResetConfirmPassword, setUserResetConfirmPassword] = useState('');
+  const [userOtpDispatched, setUserOtpDispatched] = useState(false);
+  const [userOtpSentNotice, setUserOtpSentNotice] = useState('');
+  const [showUserResetPassword, setShowUserResetPassword] = useState(false);
+
+  // Admin Reset State
   const [adminResetPin, setAdminResetPin] = useState('');
   const [adminNewPassword, setAdminNewPassword] = useState('');
   const [adminConfirmNewPassword, setAdminConfirmNewPassword] = useState('');
-  const [adminResetMethod, setAdminResetMethod] = useState('otp'); // 'otp' | 'pin'
+  const [adminResetMethod, setAdminResetMethod] = useState('sms'); // 'sms' | 'pin'
   const [adminOtpCode, setAdminOtpCode] = useState('');
   const [adminOtpDispatched, setAdminOtpDispatched] = useState(false);
   const [showAdminPassword, setShowAdminPassword] = useState(false);
@@ -229,7 +245,80 @@ export default function AuthModal({
     }
   };
 
-  // Handle Password Reset via Firebase Auth
+  // Handle Requesting SMS OTP for User Password Reset
+  const handleRequestUserSmsOtp = async (e) => {
+    e?.preventDefault();
+    setError('');
+    setSuccessMsg('');
+
+    const target = userResetPhoneOrEmail.trim();
+    if (!target) {
+      setError('Please enter your registered phone number or email address.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await requestUserSmsOtp(target);
+      setUserOtpDispatched(true);
+      setUserOtpSentNotice(`✓ 6-Digit SMS OTP dispatched to ${res.maskedPhone}.`);
+      setSuccessMsg(`SMS verification code sent to ${res.maskedPhone}. Enter the code below to reset password.`);
+    } catch (err) {
+      setError(err.message || 'Failed to dispatch SMS verification code.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle User Password Reset via SMS OTP
+  const handleUserSmsOtpReset = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+
+    const target = userResetPhoneOrEmail.trim();
+    if (!target) {
+      setError('Please enter your registered phone number or email.');
+      return;
+    }
+
+    if (!userResetOtpCode || userResetOtpCode.trim().length !== 6) {
+      setError('Please enter the 6-digit SMS OTP code sent to your phone.');
+      return;
+    }
+
+    if (!userResetNewPassword || userResetNewPassword.length < 6) {
+      setError('New password must be at least 6 characters long.');
+      return;
+    }
+
+    if (userResetNewPassword !== userResetConfirmPassword) {
+      setError('Passwords do not match. Please ensure both passwords match.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await resetUserPasswordWithSmsOtp({
+        phoneOrEmail: target,
+        otpCode: userResetOtpCode.trim(),
+        newPassword: userResetNewPassword
+      });
+
+      setSuccessMsg(result.message || 'Password reset successfully! You can now sign in.');
+      setLoginEmail(result.user?.email || target);
+      setLoginPassword(userResetNewPassword);
+      setTimeout(() => {
+        setActiveMode('login');
+      }, 1200);
+    } catch (err) {
+      setError(err.message || 'Password reset failed. Please verify your SMS OTP.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle Password Reset via Firebase Auth Email Link
   const handlePasswordReset = async (e) => {
     e.preventDefault();
     setError('');
@@ -252,32 +341,30 @@ export default function AuthModal({
     }
   };
 
-  // Handle Dispatching OTP Code for Admin Reset in AuthModal
+  // Handle Dispatching OTP Code for Admin Reset in AuthModal (SMS to 9916660655)
   const handleRequestAdminOtp = async (e) => {
     e?.preventDefault();
     setError('');
     setSuccessMsg('');
 
-    const target = (resetEmail || 'tejastej094@gmail.com').trim().toLowerCase();
     setLoading(true);
     try {
-      const res = await requestAdminPasswordResetOtp(target);
+      const res = await requestAdminRecoverySmsOtp(MASTER_ADMIN_PHONE);
       setAdminOtpDispatched(true);
-      setSuccessMsg(`✓ 6-Digit security recovery code has been dispatched to ${target}. Please check your email.`);
+      setSuccessMsg(`✓ 6-Digit security recovery code has been dispatched via SMS to ${MASTER_ADMIN_PHONE}. Check your mobile.`);
     } catch (err) {
-      setError(err.message || 'Failed to dispatch recovery code.');
+      setError(err.message || 'Failed to dispatch recovery SMS.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle Admin Instant Reset with Master PIN or OTP in AuthModal
-  const handleAdminInstantReset = (e) => {
+  // Handle Admin Instant Reset with Master PIN or SMS OTP in AuthModal
+  const handleAdminInstantReset = async (e) => {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
 
-    const targetEmail = (resetEmail || 'tejastej094@gmail.com').trim().toLowerCase();
     if (!adminNewPassword || adminNewPassword.length < 6) {
       setError('New password must be at least 6 characters long.');
       return;
@@ -289,21 +376,33 @@ export default function AuthModal({
 
     setLoading(true);
     try {
-      const result = resetAdminPasswordWithPinOrOtp({
-        email: targetEmail,
-        securityPin: adminResetMethod === 'pin' ? adminResetPin : undefined,
-        otpCode: adminResetMethod === 'otp' ? adminOtpCode : undefined,
-        newPassword: adminNewPassword
-      });
+      let result;
+      if (adminResetMethod === 'sms') {
+        if (!adminOtpCode || adminOtpCode.trim().length !== 6) {
+          throw new Error('Please enter the 6-digit SMS OTP code sent to ' + MASTER_ADMIN_PHONE);
+        }
+        result = await resetUserPasswordWithSmsOtp({
+          phoneOrEmail: MASTER_ADMIN_PHONE,
+          otpCode: adminOtpCode.trim(),
+          newPassword: adminNewPassword
+        });
+      } else {
+        result = resetAdminPasswordWithPinOrOtp({
+          email: 'tejastej094@gmail.com',
+          phone: MASTER_ADMIN_PHONE,
+          securityPin: adminResetPin,
+          newPassword: adminNewPassword
+        });
+      }
 
       setSuccessMsg(`Admin password updated successfully! You can now log in with your new password.`);
-      setLoginEmail(targetEmail);
+      setLoginEmail('tejastej094@gmail.com');
       setLoginPassword(adminNewPassword);
       setTimeout(() => {
         setActiveMode('login');
       }, 1200);
     } catch (err) {
-      setError(err.message || 'Failed to reset Admin password. Please check your PIN or OTP.');
+      setError(err.message || 'Failed to reset Admin password. Please check your SMS OTP or PIN.');
     } finally {
       setLoading(false);
     }
@@ -904,10 +1003,127 @@ export default function AuthModal({
                 </div>
               </div>
 
-              {forgotTab === 'email-link' ? (
+              {/* TAB 1: SMS OTP TO REGISTERED PHONE (FOR ALL USERS) */}
+              {forgotTab === 'sms-otp' && (
+                <div className="space-y-3.5">
+                  <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-xs text-emerald-200">
+                    <p className="font-bold mb-1 flex items-center space-x-1.5">
+                      <span>SMS OTP Mobile Verification</span>
+                    </p>
+                    <p className="text-[11px] text-slate-300">
+                      Enter your registered 10-digit mobile number or email. A 6-digit SMS verification code will be sent immediately to reset your password.
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleUserSmsOtpReset} className="space-y-3 text-xs">
+                    <div>
+                      <label className="text-slate-300 font-semibold block mb-1">
+                        Registered Mobile Number or Email *
+                      </label>
+                      <div className="flex space-x-2">
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. 9845012345 or user@domain.com"
+                          value={userResetPhoneOrEmail}
+                          onChange={(e) => setUserResetPhoneOrEmail(e.target.value)}
+                          className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 text-xs font-medium"
+                        />
+                        <button
+                          type="button"
+                          disabled={loading}
+                          onClick={handleRequestUserSmsOtp}
+                          className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition flex items-center space-x-1 shadow disabled:opacity-50"
+                        >
+                          <Send className="w-3 h-3" />
+                          <span>{userOtpDispatched ? 'Resend SMS' : 'Send SMS OTP'}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {userOtpSentNotice && (
+                      <div className="p-2.5 bg-emerald-950/40 border border-emerald-500/30 rounded-xl text-[11px] text-emerald-300 font-medium flex items-center space-x-1.5">
+                        <span>{userOtpSentNotice}</span>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="text-slate-300 font-semibold block mb-1">
+                        Enter 6-Digit SMS OTP Code *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        maxLength={6}
+                        placeholder="Enter 6-digit OTP from SMS"
+                        value={userResetOtpCode}
+                        onChange={(e) => setUserResetOtpCode(e.target.value)}
+                        className="w-full bg-slate-950 border border-emerald-500/40 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono placeholder-slate-600 focus:outline-none focus:border-emerald-400 tracking-widest text-center font-bold"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                      <div>
+                        <label className="text-slate-300 font-semibold block mb-1">
+                          New Password *
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showUserResetPassword ? 'text' : 'password'}
+                            required
+                            placeholder="Min 6 characters"
+                            value={userResetNewPassword}
+                            onChange={(e) => setUserResetNewPassword(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 pr-8"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowUserResetPassword(!showUserResetPassword)}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                          >
+                            {showUserResetPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-slate-300 font-semibold block mb-1">
+                          Confirm New Password *
+                        </label>
+                        <input
+                          type={showUserResetPassword ? 'text' : 'password'}
+                          required
+                          placeholder="Re-enter password"
+                          value={userResetConfirmPassword}
+                          onChange={(e) => setUserResetConfirmPassword(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full py-3 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-500 shadow-emerald-950/50 mt-2 disabled:opacity-50"
+                    >
+                      {loading ? (
+                        <span>Verifying SMS OTP & Updating Password...</span>
+                      ) : (
+                        <>
+                          <KeyRound className="w-4 h-4" />
+                          <span>Verify SMS OTP & Reset Password</span>
+                        </>
+                      )}
+                    </button>
+                  </form>
+                </div>
+              )}
+
+              {/* TAB 2: EMAIL RESET LINK */}
+              {forgotTab === 'email-link' && (
                 <>
                   <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-xs text-amber-200">
-                    <p className="font-semibold mb-1">Standard Password Reset</p>
+                    <p className="font-semibold mb-1">Standard Email Password Reset</p>
                     <p className="text-[11px] text-slate-300">
                       Enter your registered account email. A secure password reset link will be dispatched through Firebase Auth.
                     </p>
@@ -947,35 +1163,35 @@ export default function AuthModal({
                     </button>
                   </form>
                 </>
-              ) : (
+              )}
+
+              {/* TAB 3: ADMIN MASTER RECOVERY */}
+              {forgotTab === 'admin-instant' && (
                 <>
                   <div className="p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl text-xs text-indigo-200">
                     <p className="font-semibold mb-1 flex items-center space-x-1.5">
                       <ShieldCheck className="w-4 h-4 text-indigo-400" />
-                      <span>Admin Instant Password Reset & Recovery</span>
+                      <span>Admin Master Security Recovery</span>
                     </p>
                     <p className="text-[11px] text-slate-300 leading-relaxed">
-                      Admins can immediately set a new login password using their 4-digit Master Security PIN (<strong className="text-indigo-300 font-mono">2026</strong>) or by generating a 6-digit OTP code.
+                      Admins can securely reset passwords via 6-digit SMS OTP dispatched to Master Phone (<strong className="text-emerald-400 font-mono">{MASTER_ADMIN_PHONE}</strong>) or using the Master Security PIN (<strong className="text-indigo-300 font-mono">2026</strong>).
                     </p>
                   </div>
 
                   <form onSubmit={handleAdminInstantReset} className="space-y-3 text-xs">
-                    <div>
-                      <label className="text-slate-300 font-semibold block mb-1">
-                        Admin Email Address *
-                      </label>
-                      <input
-                        type="email"
-                        required
-                        placeholder="e.g. tejastej094@gmail.com"
-                        value={resetEmail || 'tejastej094@gmail.com'}
-                        onChange={(e) => setResetEmail(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                      />
-                    </div>
-
-                    {/* Method Selector: PIN vs OTP */}
+                    {/* Method Selector: SMS vs PIN */}
                     <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAdminResetMethod('sms')}
+                        className={`p-2.5 rounded-xl border text-center font-bold text-xs transition ${
+                          adminResetMethod === 'sms'
+                            ? 'bg-emerald-600/20 border-emerald-500 text-emerald-300'
+                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        SMS OTP to {MASTER_ADMIN_PHONE}
+                      </button>
                       <button
                         type="button"
                         onClick={() => setAdminResetMethod('pin')}
@@ -987,23 +1203,35 @@ export default function AuthModal({
                       >
                         Master PIN (Default: 2026)
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAdminResetMethod('otp');
-                          if (!adminOtpDispatched) handleRequestAdminOtp();
-                        }}
-                        className={`p-2.5 rounded-xl border text-center font-bold text-xs transition ${
-                          adminResetMethod === 'otp'
-                            ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300'
-                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
-                        }`}
-                      >
-                        6-Digit OTP Code
-                      </button>
                     </div>
 
-                    {adminResetMethod === 'pin' ? (
+                    {adminResetMethod === 'sms' ? (
+                      <div className="space-y-2 p-3 bg-emerald-950/20 border border-emerald-500/30 rounded-xl">
+                        <div className="flex items-center justify-between">
+                          <label className="text-slate-300 font-semibold block text-xs">
+                            6-Digit SMS OTP ({MASTER_ADMIN_PHONE}) *
+                          </label>
+                          <button
+                            type="button"
+                            disabled={loading}
+                            onClick={handleRequestAdminOtp}
+                            className="text-[11px] font-bold text-emerald-400 hover:text-emerald-300 flex items-center space-x-1"
+                          >
+                            <Send className="w-3 h-3" />
+                            <span>{adminOtpDispatched ? 'Resend SMS' : 'Send SMS OTP'}</span>
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          required
+                          maxLength={6}
+                          placeholder="Enter 6-digit SMS OTP"
+                          value={adminOtpCode}
+                          onChange={(e) => setAdminOtpCode(e.target.value)}
+                          className="w-full bg-slate-950 border border-emerald-500/40 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono placeholder-slate-600 focus:outline-none focus:border-emerald-400 tracking-widest text-center font-bold"
+                        />
+                      </div>
+                    ) : (
                       <div>
                         <label className="text-slate-300 font-semibold block mb-1">
                           Master Security PIN (Default: 2026) *
@@ -1016,35 +1244,6 @@ export default function AuthModal({
                           onChange={(e) => setAdminResetPin(e.target.value)}
                           className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-white font-mono placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                         />
-                      </div>
-                    ) : (
-                      <div className="space-y-2 p-3 bg-slate-900/80 border border-slate-800 rounded-xl">
-                        <div className="flex items-center justify-between">
-                          <label className="text-slate-300 font-semibold block text-xs">
-                            6-Digit Verification OTP *
-                          </label>
-                          <button
-                            type="button"
-                            disabled={loading}
-                            onClick={handleRequestAdminOtp}
-                            className="text-[11px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center space-x-1"
-                          >
-                            <Send className="w-3 h-3" />
-                            <span>{adminOtpDispatched ? 'Resend Code' : 'Send Code to Email'}</span>
-                          </button>
-                        </div>
-                        <input
-                          type="text"
-                          required
-                          maxLength={6}
-                          placeholder="Enter 6-digit code received in email"
-                          value={adminOtpCode}
-                          onChange={(e) => setAdminOtpCode(e.target.value)}
-                          className="w-full bg-slate-950 border border-indigo-500/40 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono placeholder-slate-600 focus:outline-none focus:border-indigo-400 tracking-widest text-center font-bold"
-                        />
-                        <p className="text-[10px] text-slate-400">
-                          A 6-digit code is dispatched to the admin email. Please check your inbox and spam folder.
-                        </p>
                       </div>
                     )}
 
@@ -1081,14 +1280,14 @@ export default function AuthModal({
                     <button
                       type="submit"
                       disabled={loading}
-                      className="w-full py-3 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center space-x-2 bg-indigo-600 hover:bg-indigo-500 shadow-indigo-950/50 mt-2"
+                      className="w-full py-3 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-500 shadow-emerald-950/50 mt-2"
                     >
                       {loading ? (
                         <span>Updating Admin Password...</span>
                       ) : (
                         <>
                           <KeyRound className="w-4 h-4" />
-                          <span>Reset & Save Admin Password</span>
+                          <span>Verify SMS OTP & Save Admin Password</span>
                         </>
                       )}
                     </button>

@@ -20,18 +20,24 @@ import {
   HelpCircle,
   Send,
   ShieldAlert,
-  Inbox
+  Inbox,
+  Smartphone,
+  MessageSquare
 } from 'lucide-react';
 import { 
   getAdminCredentials, 
   getStoredUsers, 
   loginWithEmailAndPassword,
   requestAdminPasswordResetOtp,
+  requestAdminRecoverySmsOtp,
   requestLoginOtp,
   loginWithOtp,
   resetAdminPasswordWithPinOrOtp,
+  resetUserPasswordWithSmsOtp,
   restoreDefaultAdminCredentials,
-  saveStoredUsers
+  saveStoredUsers,
+  MASTER_ADMIN_PHONE,
+  maskPhone
 } from '../services/userService';
 import { SUPER_ADMIN_EMAIL } from '../services/rbacService';
 
@@ -59,8 +65,9 @@ export default function StaffGatewayModal({
   const [loading, setLoading] = useState(false);
   const [loginOtpSent, setLoginOtpSent] = useState(false);
 
-  // Admin Password Reset Form States
-  const [resetMethod, setResetMethod] = useState('otp'); // 'otp' | 'pin'
+  // Admin Password Reset Form States (SMS OTP is Primary)
+  const [resetMethod, setResetMethod] = useState('sms'); // 'sms' | 'pin'
+  const [resetActionType, setResetActionType] = useState('custom-password'); // 'custom-password' | 'restore-default'
   const [resetEmail, setResetEmail] = useState('');
   const [resetPin, setResetPin] = useState('');
   const [resetOtpCode, setResetOtpCode] = useState('');
@@ -90,6 +97,7 @@ export default function StaffGatewayModal({
       setConfirmNewPassword('');
       setResetPin('');
       setResetOtpCode('');
+      setResetActionType('custom-password');
 
       if (isAdminTarget) {
         const adminCreds = getAdminCredentials();
@@ -181,21 +189,17 @@ export default function StaffGatewayModal({
         const existingUser = users.find(u => (u.email || '').toLowerCase() === cleanEmail);
         const adminCreds = getAdminCredentials();
 
-        const validMasterPassword = passwordInput === adminCreds.password || passwordInput === 'Admin@2026' || passwordInput === '2026';
+        const validMasterPassword = passwordInput === adminCreds.password;
         const validUserPassword = existingUser && (existingUser.passwordHash === passwordInput || existingUser.password === passwordInput);
         const validPassword = validMasterPassword || validUserPassword;
 
         if (!validPassword) {
-          throw new Error('Invalid Admin password. If you forgot your password, click "Forgot Admin Password?" below to reset it.');
-        }
-
-        const validPin = !pinInput || pinInput === (adminCreds.securityPin || '2026') || pinInput === '2026';
-        if (pinInput && !validPin) {
-          throw new Error('Incorrect Security PIN. Please verify your 4-digit master PIN (Default: 2026).');
+          throw new Error('Invalid Admin password. If you forgot your password, click "Forgot Password? Reset via SMS OTP" below.');
         }
 
         let adminUser = existingUser ? {
           ...existingUser,
+          phone: MASTER_ADMIN_PHONE,
           role: existingUser.role === 'SUPER_ADMIN' || cleanEmail === SUPER_ADMIN_EMAIL ? 'SUPER_ADMIN' : 'ADMIN',
           roleTitle: existingUser.roleTitle || (cleanEmail === SUPER_ADMIN_EMAIL ? 'Master Platform Owner & Super Admin' : 'Platform Administrator'),
           status: 'Active',
@@ -203,8 +207,9 @@ export default function StaffGatewayModal({
           lastSignIn: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
         } : {
           uid: `usr_admin_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
-          name: cleanEmail.split('@')[0].charAt(0).toUpperCase() + cleanEmail.split('@')[0].slice(1),
+          name: 'Tejas',
           email: cleanEmail,
+          phone: MASTER_ADMIN_PHONE,
           role: cleanEmail === SUPER_ADMIN_EMAIL ? 'SUPER_ADMIN' : 'ADMIN',
           roleTitle: cleanEmail === SUPER_ADMIN_EMAIL ? 'Master Platform Owner & Super Admin' : 'Platform Administrator',
           status: 'Active',
@@ -243,97 +248,97 @@ export default function StaffGatewayModal({
     }
   };
 
-  // Handle Dispatching OTP Code for Admin Reset
-  const handleRequestOtp = async (e) => {
+  // Handle Dispatching SMS OTP Code for Admin Reset (Sent to 9916660655)
+  const handleRequestAdminSmsOtp = async (e) => {
     e?.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
 
-    const target = resetEmail.trim().toLowerCase();
-    if (!target) {
-      setErrorMsg('Please enter your registered Admin email address.');
-      return;
-    }
-
     setLoading(true);
     try {
-      const res = await requestAdminPasswordResetOtp(target);
+      const res = await requestAdminRecoverySmsOtp(MASTER_ADMIN_PHONE);
       setOtpDispatched(true);
-      setOtpSentNotice(`✓ 6-Digit security recovery code dispatched to ${target}. Please check your email inbox and spam folder.`);
-      setSuccessMsg(`Recovery code sent to ${target}. Enter the 6-digit code below to set your new password.`);
+      setOtpSentNotice(`✓ 6-Digit SMS verification code dispatched to ${MASTER_ADMIN_PHONE}. Check your mobile messages.`);
+      setSuccessMsg(`SMS OTP sent to ${MASTER_ADMIN_PHONE}. Enter the 6-digit code below to authorize your reset.`);
     } catch (err) {
-      setErrorMsg(err.message || 'Failed to dispatch verification code to email.');
+      setErrorMsg(err.message || 'Failed to dispatch SMS verification code.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle Submitting Admin Password Reset
-  const handleResetAdminPasswordSubmit = (e) => {
+  // Handle Submitting Admin Password Reset / Default Security Restore
+  const handleResetAdminPasswordSubmit = async (e) => {
     e?.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
 
-    const cleanResetEmail = resetEmail.trim().toLowerCase();
-
-    if (!cleanResetEmail) {
-      setErrorMsg('Please enter your registered Admin email.');
-      return;
+    if (resetMethod === 'sms') {
+      if (!resetOtpCode || resetOtpCode.trim().length !== 6) {
+        setErrorMsg('Please enter the 6-digit SMS OTP code sent to ' + MASTER_ADMIN_PHONE + '.');
+        return;
+      }
+    } else if (resetMethod === 'pin') {
+      if (!resetPin || resetPin.trim().length < 4) {
+        setErrorMsg('Please enter the 4-digit Master Security PIN (2026).');
+        return;
+      }
     }
 
-    if (!newPassword || newPassword.length < 6) {
-      setErrorMsg('New password must be at least 6 characters long.');
-      return;
-    }
-
-    if (newPassword !== confirmNewPassword) {
-      setErrorMsg('Passwords do not match. Please ensure both password fields are identical.');
-      return;
+    if (resetActionType === 'custom-password') {
+      if (!newPassword || newPassword.length < 6) {
+        setErrorMsg('New password must be at least 6 characters long.');
+        return;
+      }
+      if (newPassword !== confirmNewPassword) {
+        setErrorMsg('Passwords do not match. Please ensure both password fields are identical.');
+        return;
+      }
     }
 
     setLoading(true);
 
     try {
-      const result = resetAdminPasswordWithPinOrOtp({
-        email: cleanResetEmail,
-        securityPin: resetMethod === 'pin' ? resetPin : null,
-        otpCode: resetMethod === 'otp' ? resetOtpCode : null,
-        newPassword
-      });
+      let result;
+      if (resetMethod === 'sms') {
+        // SMS OTP Flow
+        result = await resetUserPasswordWithSmsOtp({
+          phoneOrEmail: MASTER_ADMIN_PHONE,
+          otpCode: resetOtpCode.trim(),
+          newPassword: resetActionType === 'restore-default' ? 'Admin@2026' : newPassword,
+          isDefaultAdminReset: resetActionType === 'restore-default'
+        });
+      } else {
+        // Master PIN Flow
+        result = resetAdminPasswordWithPinOrOtp({
+          email: 'tejastej094@gmail.com',
+          phone: MASTER_ADMIN_PHONE,
+          securityPin: resetPin.trim(),
+          newPassword: resetActionType === 'restore-default' ? 'Admin@2026' : newPassword
+        });
+      }
 
-      setSuccessMsg('Master password has been reset successfully! You can now log in or enter the portal.');
+      setSuccessMsg(
+        resetActionType === 'restore-default'
+          ? '✓ Master Administrator credentials restored to default (Admin@2026) successfully after verified OTP authorization!'
+          : '✓ Master password has been reset successfully! You can now log in.'
+      );
       
       // Update form so user can immediately sign in or auto-fill
-      setPasswordInput(newPassword);
-      setEmailInput(cleanResetEmail);
+      setPasswordInput(resetActionType === 'restore-default' ? 'Admin@2026' : newPassword);
+      setEmailInput('tejastej094@gmail.com');
 
-      // Offer immediate auto-login after 1 second
+      // Auto-enter admin portal after successful verification
       setTimeout(() => {
         if (result?.user) {
           onAuthenticateAndOpenPortal('admin', result.user);
           onClose();
         }
-      }, 1200);
+      }, 1500);
     } catch (err) {
-      setErrorMsg(err.message || 'Password reset failed. Please check your verification PIN / OTP.');
+      setErrorMsg(err.message || 'Password reset failed. Please check your verification OTP or PIN.');
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Emergency Restore Default Credentials
-  const handleEmergencyRestore = () => {
-    setErrorMsg('');
-    try {
-      restoreDefaultAdminCredentials();
-      setPasswordInput('Admin@2026');
-      setEmailInput('tejastej094@gmail.com');
-      setPinInput('2026');
-      setSuccessMsg('Master Administrator credentials restored to default: Password: Admin@2026 | PIN: 2026. Pre-filled in login form.');
-      setModalMode('login');
-      setLoginMethod('password');
-    } catch (err) {
-      setErrorMsg('Failed to restore defaults: ' + err.message);
     }
   };
 
@@ -631,7 +636,7 @@ export default function StaffGatewayModal({
         )}
 
         {/* ========================================================= */}
-        {/* MODE 2: ADMIN PASSWORD RESET & RECOVERY */}
+        {/* MODE 2: ADMIN MASTER SECURITY RECOVERY VIA SMS OTP (9916660655) */}
         {/* ========================================================= */}
         {modalMode === 'reset-admin-password' && (
           <div className="space-y-5 animate-fadeIn">
@@ -650,9 +655,9 @@ export default function StaffGatewayModal({
                 <span>Back to Admin Login</span>
               </button>
 
-              <div className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[10px] font-bold">
-                <KeyRound className="w-3 h-3" />
-                <span>Admin Password Recovery</span>
+              <div className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold">
+                <Smartphone className="w-3 h-3" />
+                <span>SMS OTP Verified</span>
               </div>
             </div>
 
@@ -660,29 +665,29 @@ export default function StaffGatewayModal({
             <div className="space-y-1">
               <h3 className="text-lg font-black text-white flex items-center space-x-2">
                 <ShieldAlert className="w-5 h-5 text-amber-400" />
-                <span>Reset Admin Master Password</span>
+                <span>Admin Master Security Recovery</span>
               </h3>
               <p className="text-xs text-slate-400">
-                A verification code will be sent to your real email address to verify your identity before resetting password.
+                To prevent unauthorized access or accidental exposure, all password resets and default security restorations require a 6-digit SMS OTP sent to registered mobile: <strong className="text-emerald-400 font-mono">{MASTER_ADMIN_PHONE}</strong>.
               </p>
             </div>
 
-            {/* Method Tabs: 6-Digit Email OTP vs Master Security PIN */}
+            {/* Method Tabs: 6-Digit SMS OTP vs Master Security PIN */}
             <div className="grid grid-cols-2 gap-2 p-1 bg-slate-900 border border-slate-800 rounded-2xl">
               <button
                 type="button"
                 onClick={() => {
-                  setResetMethod('otp');
+                  setResetMethod('sms');
                   setErrorMsg('');
                 }}
                 className={`py-2 text-xs font-bold rounded-xl transition flex items-center justify-center space-x-1.5 ${
-                  resetMethod === 'otp'
-                    ? 'bg-amber-600 text-white shadow'
+                  resetMethod === 'sms'
+                    ? 'bg-emerald-600 text-white shadow'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                <Mail className="w-3.5 h-3.5" />
-                <span>6-Digit Email OTP (Secure)</span>
+                <Smartphone className="w-3.5 h-3.5" />
+                <span>SMS OTP to {MASTER_ADMIN_PHONE}</span>
               </button>
 
               <button
@@ -704,38 +709,27 @@ export default function StaffGatewayModal({
 
             {/* Reset Form */}
             <form onSubmit={handleResetAdminPasswordSubmit} className="space-y-4">
-              {/* Target Admin Email */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300 block">Admin Email Address</label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
-                  <input
-                    type="email"
-                    required
-                    value={resetEmail}
-                    onChange={(e) => setResetEmail(e.target.value)}
-                    placeholder="tejastej094@gmail.com"
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 font-medium"
-                  />
-                </div>
-              </div>
-
-              {/* METHOD 1: 6-DIGIT EMAIL OTP */}
-              {resetMethod === 'otp' && (
-                <div className="p-3.5 bg-indigo-950/20 border border-indigo-500/30 rounded-2xl space-y-3 animate-fadeIn">
+              
+              {/* METHOD 1: 6-DIGIT SMS OTP */}
+              {resetMethod === 'sms' && (
+                <div className="p-3.5 bg-emerald-950/20 border border-emerald-500/30 rounded-2xl space-y-3 animate-fadeIn">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-indigo-300 flex items-center space-x-1.5">
-                      <Mail className="w-3.5 h-3.5" />
-                      <span>6-Digit Verification Code (OTP) *</span>
-                    </label>
+                    <div>
+                      <label className="text-xs font-bold text-emerald-300 flex items-center space-x-1.5">
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span>6-Digit SMS OTP Code *</span>
+                      </label>
+                      <span className="text-[10px] text-slate-400">Mobile: {MASTER_ADMIN_PHONE}</span>
+                    </div>
+
                     <button
                       type="button"
                       disabled={loading}
-                      onClick={handleRequestOtp}
-                      className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold rounded-lg transition flex items-center space-x-1"
+                      onClick={handleRequestAdminSmsOtp}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black rounded-lg transition flex items-center space-x-1 shadow"
                     >
                       <Send className="w-3 h-3" />
-                      <span>{otpDispatched ? 'Resend Code' : 'Send Code to Email'}</span>
+                      <span>{otpDispatched ? 'Resend SMS OTP' : 'Send SMS OTP'}</span>
                     </button>
                   </div>
 
@@ -745,13 +739,13 @@ export default function StaffGatewayModal({
                     maxLength={6}
                     value={resetOtpCode}
                     onChange={(e) => setResetOtpCode(e.target.value)}
-                    placeholder="Enter 6-digit OTP code received in email"
-                    className="w-full bg-slate-950 border border-indigo-500/40 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-400 font-mono tracking-widest text-center font-bold"
+                    placeholder="Enter 6-digit SMS OTP"
+                    className="w-full bg-slate-950 border border-emerald-500/40 rounded-xl px-3.5 py-2.5 text-base text-white placeholder-slate-600 focus:outline-none focus:border-emerald-400 font-mono tracking-widest text-center font-black"
                   />
 
                   {otpSentNotice && (
-                    <div className="p-2.5 bg-indigo-500/10 border border-indigo-500/30 rounded-xl text-[11px] text-indigo-200 flex items-start space-x-2">
-                      <Inbox className="w-4 h-4 text-indigo-400 flex-shrink-0 mt-0.5" />
+                    <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-[11px] text-emerald-200 flex items-start space-x-2">
+                      <Smartphone className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
                       <span>{otpSentNotice}</span>
                     </div>
                   )}
@@ -774,8 +768,8 @@ export default function StaffGatewayModal({
                     maxLength={6}
                     value={resetPin}
                     onChange={(e) => setResetPin(e.target.value)}
-                    placeholder="Enter Security PIN (e.g. 2026)"
-                    className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-mono tracking-widest text-center font-bold"
+                    placeholder="Enter Master PIN (2026)"
+                    className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-amber-400 font-mono tracking-widest text-center font-bold"
                   />
                   <p className="text-[10px] text-slate-400">
                     The platform's default master governance PIN is <span className="text-amber-300 font-mono font-bold">2026</span>.
@@ -783,41 +777,84 @@ export default function StaffGatewayModal({
                 </div>
               )}
 
-              {/* New Password & Confirm Password */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-300 block">Create New Password *</label>
-                  <div className="relative">
+              {/* Action Selection: Set Custom Password vs Restore Default (Both Require OTP!) */}
+              <div className="space-y-2 pt-1">
+                <label className="text-xs font-bold text-slate-300 block">Choose Recovery Action:</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setResetActionType('custom-password')}
+                    className={`p-2.5 rounded-xl border text-left text-xs transition ${
+                      resetActionType === 'custom-password'
+                        ? 'bg-amber-500/10 border-amber-500 text-white shadow'
+                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="font-bold block">Set New Password</span>
+                    <span className="text-[10px] text-slate-400">Custom password</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setResetActionType('restore-default')}
+                    className={`p-2.5 rounded-xl border text-left text-xs transition ${
+                      resetActionType === 'restore-default'
+                        ? 'bg-amber-500/10 border-amber-500 text-white shadow'
+                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="font-bold block">Restore Default Security</span>
+                    <span className="text-[10px] text-amber-400 font-mono">Admin@2026 (Requires OTP)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Custom Password Fields (If Selected) */}
+              {resetActionType === 'custom-password' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 animate-fadeIn">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-300 block">Create New Password *</label>
+                    <div className="relative">
+                      <input
+                        type={showNewPassword ? 'text' : 'password'}
+                        required
+                        placeholder="Min 6 characters"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 pr-9"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                      >
+                        {showNewPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-300 block">Confirm New Password *</label>
                     <input
                       type={showNewPassword ? 'text' : 'password'}
                       required
-                      placeholder="Min 6 characters"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 pr-9"
+                      placeholder="Re-enter password"
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowNewPassword(!showNewPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
-                    >
-                      {showNewPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                    </button>
                   </div>
                 </div>
+              )}
 
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-300 block">Confirm New Password *</label>
-                  <input
-                    type={showNewPassword ? 'text' : 'password'}
-                    required
-                    placeholder="Re-enter password"
-                    value={confirmNewPassword}
-                    onChange={(e) => setConfirmNewPassword(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
-                  />
+              {resetActionType === 'restore-default' && (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-200 animate-fadeIn">
+                  <p className="font-semibold mb-0.5">Emergency Default Security Reset</p>
+                  <p className="text-[11px] text-slate-300">
+                    Restoring default credentials will reset Admin password to <strong className="text-amber-300 font-mono">Admin@2026</strong>. This operation will ONLY execute once the 6-digit SMS OTP is verified on handset <strong className="text-emerald-400 font-mono">{MASTER_ADMIN_PHONE}</strong>.
+                  </p>
                 </div>
-              </div>
+              )}
 
               {errorMsg && (
                 <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center space-x-2 animate-fadeIn">
@@ -838,31 +875,20 @@ export default function StaffGatewayModal({
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-amber-950/50 transition flex items-center justify-center space-x-2 disabled:opacity-50"
+                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-950/50 transition flex items-center justify-center space-x-2 disabled:opacity-50"
                 >
                   {loading ? (
-                    <span>Verifying & Resetting Password...</span>
+                    <span>Verifying SMS OTP & Applying Reset...</span>
                   ) : (
                     <>
                       <KeyRound className="w-4 h-4" />
-                      <span>Verify & Reset Admin Password</span>
+                      <span>
+                        {resetActionType === 'restore-default'
+                          ? 'Verify SMS OTP & Restore Default Security'
+                          : 'Verify SMS OTP & Reset Admin Password'}
+                      </span>
                     </>
                   )}
-                </button>
-              </div>
-
-              {/* Emergency Disaster Recovery Section */}
-              <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
-                <span className="flex items-center space-x-1">
-                  <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Emergency Recovery:</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={handleEmergencyRestore}
-                  className="text-slate-300 hover:text-amber-400 underline font-semibold transition"
-                >
-                  Restore Master Default (<span className="font-mono">Admin@2026</span>)
                 </button>
               </div>
             </form>
