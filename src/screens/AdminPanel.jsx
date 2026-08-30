@@ -69,7 +69,10 @@ import {
   updateUserRoleByAdmin,
   updateUserDetailsByAdmin,
   registerNewUser,
-  getEmailDispatchLogs
+  getEmailDispatchLogs,
+  MASTER_ADMIN_PHONE,
+  sendRealSmsOtp,
+  verifyRealSmsOtp
 } from '../services/userService';
 import { 
   getSiteSettings, 
@@ -690,16 +693,98 @@ export default function AdminPanel({
     showToast('Homepage section visibility updated.');
   };
 
-  const handleSystemReset = () => {
-    if (window.confirm('CRITICAL WARNING: This will reset all platform settings, townships, plots, documents, and leads to verified starter data. Continue?')) {
-      resetPlatformToDefaults();
-      setUsersList(getStoredUsers());
-      setSiteSettingsState(getSiteSettings());
-      setHomepageSectionsState(getHomepageSections());
-      setAuditLogs(getStoredAuditLogs());
-      setLeadsList(getStoredLeads());
-      showToast('Platform successfully reset to clean starter data.');
+  // SMS OTP Verification State for Critical Admin Actions & Defaults
+  const [showAdminOtpModal, setShowAdminOtpModal] = useState(false);
+  const [adminOtpAction, setAdminOtpAction] = useState('RESET_DEFAULTS'); // 'RESET_DEFAULTS'
+  const [adminOtpPhone, setAdminOtpPhone] = useState(MASTER_ADMIN_PHONE);
+  const [adminOtpCode, setAdminOtpCode] = useState('');
+  const [adminOtpSent, setAdminOtpSent] = useState(false);
+  const [adminOtpCountdown, setAdminOtpCountdown] = useState(0);
+  const [adminOtpLoading, setAdminOtpLoading] = useState(false);
+  const [adminOtpError, setAdminOtpError] = useState('');
+
+  // Countdown timer
+  useEffect(() => {
+    let timer;
+    if (adminOtpCountdown > 0) {
+      timer = setTimeout(() => setAdminOtpCountdown(c => c - 1), 1000);
     }
+    return () => clearTimeout(timer);
+  }, [adminOtpCountdown]);
+
+  const handleRequestAdminActionOtp = async () => {
+    setAdminOtpError('');
+    setAdminOtpLoading(true);
+    try {
+      await sendRealSmsOtp({
+        phoneOrEmail: MASTER_ADMIN_PHONE,
+        purpose: 'ADMIN_RECOVERY',
+        portalName: 'Admin Control Center'
+      });
+      setAdminOtpSent(true);
+      setAdminOtpCountdown(45);
+      showToast(`SMS OTP sent to ${MASTER_ADMIN_PHONE}`);
+    } catch (err) {
+      setAdminOtpError(err.message || 'Failed to dispatch SMS OTP.');
+    } finally {
+      setAdminOtpLoading(false);
+    }
+  };
+
+  const handleOpenSystemResetModal = () => {
+    setAdminOtpAction('RESET_DEFAULTS');
+    setAdminOtpCode('');
+    setAdminOtpError('');
+    setAdminOtpSent(false);
+    setShowAdminOtpModal(true);
+  };
+
+  const handleVerifyAndExecuteAdminAction = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    setAdminOtpError('');
+
+    if (!adminOtpCode || adminOtpCode.trim().length < 6) {
+      setAdminOtpError('Please enter the 6-digit SMS OTP sent to ' + MASTER_ADMIN_PHONE);
+      return;
+    }
+
+    setAdminOtpLoading(true);
+    try {
+      verifyRealSmsOtp({
+        phoneOrEmail: MASTER_ADMIN_PHONE,
+        otpCode: adminOtpCode.trim(),
+        purpose: 'ADMIN_RECOVERY'
+      });
+
+      if (adminOtpAction === 'RESET_DEFAULTS') {
+        resetPlatformToDefaults();
+        setUsersList(getStoredUsers());
+        setSiteSettingsState(getSiteSettings());
+        setHomepageSectionsState(getHomepageSections());
+        setAuditLogs(getStoredAuditLogs());
+        setLeadsList(getStoredLeads());
+
+        addAuditLog(
+          'PLATFORM_DEFAULTS_RESTORED_OTP',
+          currentUser?.email || 'Super Admin',
+          'Platform Unified Database',
+          `Authorized reset of all platform starter data via SMS OTP to ${MASTER_ADMIN_PHONE}.`,
+          'WARNING'
+        );
+
+        showToast('Platform successfully reset to clean starter data via SMS OTP authorization.');
+      }
+
+      setShowAdminOtpModal(false);
+    } catch (err) {
+      setAdminOtpError(err.message || 'Invalid or expired OTP code.');
+    } finally {
+      setAdminOtpLoading(false);
+    }
+  };
+
+  const handleSystemReset = () => {
+    handleOpenSystemResetModal();
   };
 
   return (
@@ -3728,6 +3813,99 @@ export default function AdminPanel({
           setAllPropertyDocs(getLocalCachedDocuments());
         }}
       />
+
+      {/* ==================================================== */}
+      {/* MODAL: SMS OTP AUTHORIZATION FOR DEFAULTS & SECURITY */}
+      {/* ==================================================== */}
+      {showAdminOtpModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5 relative">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center space-x-2.5 text-rose-400">
+                <ShieldCheck className="w-6 h-6" />
+                <div>
+                  <h3 className="text-base font-bold text-white">Critical Security Authorization</h3>
+                  <p className="text-[10px] text-slate-400">SMS OTP Required on <strong>{MASTER_ADMIN_PHONE}</strong></p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAdminOtpModal(false)}
+                className="text-slate-500 hover:text-white text-xs font-bold px-2 py-1 rounded-lg bg-slate-800"
+              >
+                ✕ Close
+              </button>
+            </div>
+
+            {adminOtpError && (
+              <div className="p-3 rounded-xl bg-rose-950/50 border border-rose-800 text-rose-300 text-xs flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-400" />
+                <span>{adminOtpError}</span>
+              </div>
+            )}
+
+            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs space-y-1">
+              <div className="font-bold flex items-center space-x-1.5">
+                <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                <span>Executive State Change Verification</span>
+              </div>
+              <p className="text-[11px] text-slate-300">
+                Restoring default platform data requires 2-Factor SMS OTP authentication dispatched to the Master Admin mobile number.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400">Registered Admin Phone:</span>
+                <span className="text-xs font-mono font-bold text-amber-400">{MASTER_ADMIN_PHONE}</span>
+              </div>
+
+              {!adminOtpSent ? (
+                <button
+                  type="button"
+                  onClick={handleRequestAdminActionOtp}
+                  disabled={adminOtpLoading}
+                  className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-lg transition flex items-center justify-center space-x-2"
+                >
+                  {adminOtpLoading ? <span>Dispatching SMS OTP...</span> : <span>Send 6-Digit SMS OTP Code</span>}
+                </button>
+              ) : (
+                <form onSubmit={handleVerifyAndExecuteAdminAction} className="space-y-4 animate-fadeIn">
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-semibold text-slate-300">Enter 6-Digit SMS OTP Code</label>
+                      <button
+                        type="button"
+                        onClick={handleRequestAdminActionOtp}
+                        disabled={adminOtpLoading || adminOtpCountdown > 0}
+                        className="text-[10px] text-amber-400 font-bold hover:underline disabled:opacity-50"
+                      >
+                        {adminOtpCountdown > 0 ? `Resend (${adminOtpCountdown}s)` : 'Resend Code'}
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      value={adminOtpCode}
+                      onChange={(e) => setAdminOtpCode(e.target.value.replace(/\D/g, ''))}
+                      placeholder="123456"
+                      required
+                      className="w-full text-center tracking-widest text-xl font-mono font-black bg-slate-950 border border-amber-500/60 rounded-xl py-2.5 text-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={adminOtpLoading || adminOtpCode.length < 6}
+                    className="w-full py-3 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs rounded-xl shadow-lg transition flex items-center justify-center space-x-2 disabled:opacity-50"
+                  >
+                    {adminOtpLoading ? <span>Verifying OTP...</span> : <span>Verify OTP & Execute Defaults Reset</span>}
+                  </button>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       </div>
     </AdminDashboard>
   );

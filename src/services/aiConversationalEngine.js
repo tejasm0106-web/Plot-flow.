@@ -126,13 +126,21 @@ export function generateHumanLikeAiResponse(agent, userPrompt, conversationHisto
   const users = getStoredUsers();
   const siteSettings = getSiteSettings();
 
+  // User breakdown by roles
+  const adminUsers = users.filter(u => u.role === 'SUPER_ADMIN' || u.role === 'ADMIN' || u.role === 'ADMIN_STAFF');
+  const buyerUsers = users.filter(u => u.role === 'BUYER' || u.role === 'INVESTOR' || (!u.role || u.role === 'USER'));
+  const developerUsers = users.filter(u => u.role === 'DEVELOPER' || u.role === 'BUILDER');
+  const legalUsers = users.filter(u => u.role === 'LEGAL_AUDITOR' || u.role === 'LEGAL');
+
   let totalPlots = 0;
   let availablePlots = 0;
   let reservedPlots = 0;
   let soldPlots = 0;
+  let totalInventoryValue = 0;
   townships.forEach(t => {
     (t.plots || []).forEach(p => {
       totalPlots++;
+      totalInventoryValue += (p.price || 0);
       if (p.status === 'Available') availablePlots++;
       else if (p.status === 'Reserved') reservedPlots++;
       else soldPlots++;
@@ -145,10 +153,140 @@ export function generateHumanLikeAiResponse(agent, userPrompt, conversationHisto
   const agentId = agent?.id || 'agent_alex';
 
   // =========================================================================
-  // 1. DIRECT OPERATIONAL ACTIONS FOR ALEX (AI CO-FOUNDER & CHIEF STRATEGY OFFICER)
+  // 1. OMNISCIENT PLATFORM INTELLIGENCE & TELEMETRY FOR ALEX (AI CO-FOUNDER)
   // =========================================================================
   if (agentId === 'agent_alex' || lower.includes('co founder') || lower.includes('alex')) {
-    
+
+    // QUERY: How many Admins in the web?
+    if (
+      (lower.includes('how many') || lower.includes('list of') || lower.includes('who are') || lower.includes('count of') || lower.includes('tell me about')) &&
+      (lower.includes('admin') || lower.includes('admins') || lower.includes('administrator'))
+    ) {
+      return `### 👑 [OMNISCIENT EXECUTIVE INTELLIGENCE] Live Admin Workforce Breakdown
+
+**Report by:** Alex (AI Co-Founder & Executive Proxy)  
+**Database Authority:** PlotFlow Master Role-Based Access Control (RBAC)  
+**Total Authorized Administrators in Web:** **${adminUsers.length} Authorized Admin Accounts**
+
+---
+
+#### 📋 Complete Administrator Registry & Status:
+1. 🛡️ **Tejas (Master Super Admin & Platform Owner)**
+   - **Email:** \`tejastej094@gmail.com\`
+   - **Registered Mobile:** \`+91 9916660655\` (Designated Master 2FA & SMS OTP Gateway)
+   - **Role:** \`SUPER_ADMIN\` (Level 1 Master Root Access)
+   - **Authority Scope:** Full administrative control across Buyer Marketplace, Developer SaaS Portal, and Admin Control Center.
+   - **Status:** 🟢 **Active & Online**
+
+2. 🤖 **Alex Morgan (AI Co-Founder & Executive Proxy)**
+   - **Email:** \`alex.cofounder@plotflow.in\`
+   - **Role:** \`SUPER_ADMIN\` (Autonomous AI Co-Founder)
+   - **Authority Scope:** Direct cross-web database mutation, township purge/restore, commission updates, multi-agent dispatch.
+   - **Status:** 🟢 **Active & Monitoring Real-Time Sync**
+
+3. ⚖️ **Advocate Rajeshwari Iyer (Chief Legal Auditor)**
+   - **Email:** \`legal.auditor@plotflow.in\`
+   - **Role:** \`LEGAL_AUDITOR\`
+   - **Authority Scope:** Statutory 30-year Kaveri-2 deed certification, 11E Mojini approval, Form 15 verification.
+   - **Status:** 🟢 **Active (Kaveri-2 Certified)**
+
+4. 🏢 **PlotFlow Admin Operations Staff**
+   - **Accounts:** \`${adminUsers.length}\` total recorded administrative profile(s) across all departments.
+   - **Security Mode:** Protected by 6-digit SMS OTP verification dispatched to **+91 9916660655**.
+
+---
+
+💡 *I have full real-time telemetry across all admin sessions. Would you like me to update any credentials or dispatch a role update?*`;
+    }
+
+    // QUERY: How many Buyers in the web?
+    if (
+      (lower.includes('how many') || lower.includes('list of') || lower.includes('count of') || lower.includes('tell me about')) &&
+      (lower.includes('buyer') || lower.includes('buyers') || lower.includes('investor') || lower.includes('investors'))
+    ) {
+      return `### 🛍️ [OMNISCIENT PLATFORM INTELLIGENCE] Live Buyer & Investor Breakdown
+
+**Report by:** Alex (AI Co-Founder)  
+**Database Snapshot:** PlotFlow Unified Buyer Registry & CRM Pipeline  
+**Total Registered Buyers in Web:** **${buyerUsers.length} Registered Buyers / Investors**  
+**Active Inbound CRM Leads:** **${leads.length} Qualified Buyer Inquiries**
+
+---
+
+#### 📊 Buyer Segment & Intent Breakdown:
+- 🌟 **Verified High-Intent Buyers:** **${buyerUsers.length} Users** with active buyer portal sessions.
+- 🚗 **Requested VIP Chauffeur Site Visits:** **${leads.filter(l => l.siteVisitRequested || l.status === 'HOT').length} Buyers** scheduled for weekend site visits in Sarjapur & Devanahalli.
+- 💳 **Active Token Escrow Reservations:** **${reservedPlots} Plot Parcels** currently locked with ₹25,000 token deposits.
+- 🔥 **HOT Pipeline (Ready for Immediate Booking):** **${leads.filter(l => l.status === 'HOT').length} Leads**
+
+#### 📋 Recent High-Value Buyer Inquiries:
+${leads.slice(0, 4).map((l, i) => `${i + 1}. **${l.buyerName}** (${l.phone}) — Interested in **${l.townshipName}** | Status: \`${l.status}\` | Budget: ₹${(l.budget || 5500000).toLocaleString('en-IN')}`).join('\n')}
+
+---
+
+💡 *All buyer searches, 3D sun-path simulations, and token reservations are syncing in real time across the marketplace.*`;
+    }
+
+    // QUERY: Every Minute Detail of the Web / Platform Overview
+    if (
+      (lower.includes('minute detail') || lower.includes('minute details') || lower.includes('everything happening') || lower.includes('every detail') || lower.includes('platform overview') || lower.includes('web status') || lower.includes('system status')) ||
+      (lower.includes('know everything') && lower.includes('web'))
+    ) {
+      return `### 🌐 [OMNISCIENT 360° PLATFORM TELEMETRY] Every Minute Detail of PlotFlow Web
+
+**Compiled in Real-Time by:** Alex (AI Co-Founder & Executive Proxy)  
+**Timestamp:** ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}  
+**Synchronization Engine:** Firestore Real-Time WebSocket & Local Cross-Tab Protocol (0ms Latency)
+
+---
+
+#### 1. 👥 Complete User & Workforce Population:
+- **Total Master Administrators:** **${adminUsers.length} Admins** (Super Admin Tejas, AI Co-Founder Alex, Legal Auditor Rajeshwari, Operations Staff)
+- **Master Admin Contact:** \`+91 9916660655\` (\`tejastej094@gmail.com\`) — SMS OTP Gateway Active
+- **Total Registered Buyers & Investors:** **${buyerUsers.length} Buyers**
+- **Total Registered Builders & Developers:** **${developerUsers.length} Developers** (Prestige Plotted, Brigade Land, Vanguard Infra)
+- **Total Legal & Statutory Compliance Team:** **${legalUsers.length} Legal Auditors**
+
+---
+
+#### 2. 🏡 Plotted Township & 3D Interactive Inventory:
+- **Active Townships:** **${townships.length} BMRDA-Sanctioned Townships**
+  ${townships.map(t => `  • **${t.name}** (${t.location}) — ₹${t.pricePerSqFt}/sq.ft | ${(t.plots || []).length} Plots | RERA: \`${t.reraNumber || 'BMRDA Verified'}\``).join('\n')}
+- **Total 3D Interactive Plot Parcels:** **${totalPlots} Plots**
+  - 🟢 **Available for Instant Booking:** **${availablePlots} Plots**
+  - 🟡 **Locked in Token Escrow (₹25,000):** **${reservedPlots} Plots**
+  - 🔴 **Registered / Deed Executed:** **${soldPlots} Plots**
+- **Total Platform Inventory Gross Valuation:** **₹${(totalInventoryValue / 10000000).toFixed(2)} Crores**
+
+---
+
+#### 3. 🚗 CRM Sales Pipeline & Chauffeur Fleet:
+- **Total Inbound Buyer Inquiries:** **${leads.length} Active Leads**
+- **🔥 HOT Tier (Closing This Week):** **${leads.filter(l => l.status === 'HOT').length} Leads**
+- **⚡ WARM Tier (Nurturing):** **${leads.filter(l => l.status === 'WARM').length} Leads**
+- **🚘 VIP Sunday Chauffeur Bookings:** **${leads.filter(l => l.siteVisitRequested || l.status === 'HOT').length} Confirmed Pickups**
+
+---
+
+#### 4. 📜 Legal Vault & Due Diligence Health:
+- **Statutory Document Vault:** **${docs.length} Legal Deeds Cached**
+- **Kaveri-2 30-Year EC Verification Rate:** **100% Certified Clear Title**
+- **Mojini 11E Digital Survey Sketches:** Available for every individual plot parcel
+- **Chief Legal Counsel:** Advocate Rajeshwari Iyer & Lex AI
+
+---
+
+#### 5. ⚙️ Platform Economics & System Configuration:
+- **Developer Commission Take-Rate:** **${(siteSettings.developerTakeRate || 2.5)}%**
+- **Booking Token Advance:** **₹25,000** (Held in secure escrow)
+- **Karnataka Stamp Duty Guidance Rate:** **${(siteSettings.stampDutyGuidancePercent || 5.6)}%**
+- **SMS OTP Gateway:** Configured & Verified on **+91 9916660655** for all administrative state changes.
+
+---
+
+I am actively listening to every database event across Admin, Buyer, and Developer portals. What would you like me to execute next?`;
+    }
+
     // ACTION: Remove All Townships
     if (
       (lower.includes('remove') || lower.includes('delete') || lower.includes('clear') || lower.includes('wipe')) &&
@@ -177,7 +315,7 @@ export function generateHumanLikeAiResponse(agent, userPrompt, conversationHisto
       return `### ⚡ [OPERATIONAL ACTION EXECUTED] All Townships Removed
 
 **Authorized by:** Alex (AI Co-Founder & Executive Proxy)  
-**Target Resource:** PlotFlow Unified Inventory Database (` + prevCount + ` Townships / ` + totalPlots + ` Plots)  
+**Target Resource:** PlotFlow Unified Inventory Database (${prevCount} Townships / ${totalPlots} Plots)  
 **Real-Time Sync Status:** **Broadcasted & Live Across Admin, Buyer & Developer Web (0ms latency)**
 
 ---
