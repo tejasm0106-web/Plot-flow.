@@ -77,61 +77,59 @@ How are you doing today, and what shall we work on?`
 
   const quickPrompts = {
     agent_alex: [
-      'Hi Alex! How are things running today?',
-      'What are our top 3 growth bottlenecks this month?',
-      'How do we maximize our 2.5% platform commission take-rate?',
-      'Should we expand into Hyderabad or consolidate Bangalore?'
+      '⚡ Remove all the townships from PlotFlow',
+      '⚡ Restore verified default townships',
+      'Add new BMRDA township project in Sarjapur',
+      'Set developer platform commission to 3.0%',
+      'Approve all pending departmental tasks'
     ],
     agent_maya: [
-      'Hi Maya! How can we improve our marketing?',
+      '🎬 Create a reel for Instagram to promote PlotFlow',
       'Draft a high-converting Meta ad copy for Sarjapur villa plots',
       'Create a 7-day social media content calendar for NRI investors',
-      'How can we reduce our blended CAC from ₹3,850 to sub-₹2,500?'
+      'Update buyer portal announcement banner'
     ],
     agent_ryan: [
-      'Hello Ryan! Can you give me an update on our buyer leads?',
-      'Score and qualify our latest inbound buyer leads',
+      '⚡ Score and qualify all inbound buyer leads in CRM',
       'Draft an empathetic WhatsApp script for a hesitant buyer',
+      'Add VIP buyer lead for Sarjapur villa plot',
       'How do we improve our Sunday site-visit attendance rate?'
     ],
     agent_olivia: [
-      'Hi Olivia! How are our listing audits looking?',
-      'Audit our active plot listings for missing 11E sketches',
+      '⚡ Audit all active plot listings for missing 11E sketches',
+      'Mark Plot #101 in Greenfield Meadows as Sold',
       'How do we reduce developer onboarding SLA to under 48 hours?',
       'Flag any inventory anomalies in Devanahalli or Whitefield'
     ],
     agent_arjun: [
-      'Hi Arjun! What are the latest price trends in Bangalore?',
+      'What are the latest price trends in Bangalore?',
       'Give me a price benchmark report for STRR & North Bangalore',
       'Compare appreciation rates between Sarjapur and Devanahalli',
       'What is the infrastructure impact of the upcoming Metro Phase 3?'
     ],
     agent_fin: [
-      'Hello Fin! Show me our revenue model',
+      '📊 Calculate total platform inventory GMV and revenue',
       'Show me our 3-case revenue projection model for FY26',
       'What is our current Gross LTV to CAC ratio?',
-      'How does a ₹25,000 token advance escrow impact our cash flow?'
+      'Simulate 10% price surge across all active plots'
     ],
     agent_sara: [
-      'Hi Sara! How are our buyer NPS scores?',
       'Draft an empathetic response to an NRI inquiry regarding Kaveri-2 title deed verification',
       'Create an FAQ guide for first-time plotted land buyers in Bangalore',
       'How can we increase customer NPS and referral bookings?'
     ],
     agent_leo: [
-      'Hi Leo! How is the 3D digital twin performing?',
+      'Optimize Three.js 3D Sun-Path simulator graphics',
       'Prioritize our Q4 roadmap features using the RICE framework',
-      'How can we optimize our Three.js 3D Sun-Path simulator UX?',
       'Draft a PRD for the instant WhatsApp site-visit booking widget'
     ],
     agent_data: [
-      'Hi Data! What do our conversion metrics look like?',
       'Show conversion funnel telemetry: 3D viewer vs static brochure',
       'Identify our top-performing plot orientations and price bands',
       'Scan database for any stagnant inventory (>60 days unsold)'
     ],
     agent_lex: [
-      'Hello Lex! Can you explain our title verification process?',
+      '⚡ Approve & certify all legal title deeds in vault',
       'What is our mandatory 5-layer due diligence checklist?',
       'Explain the difference between BMRDA approval and Gram Panchayat regularization',
       'Draft a legal disclaimer for our public property verification portal'

@@ -15,12 +15,14 @@ import {
   ArrowRight,
   UserCheck,
   AlertTriangle,
-  Compass
+  Compass,
+  User
 } from 'lucide-react';
 
 import AdminPanel from './screens/AdminPanel';
 import LegalAuditPortal from './screens/LegalAuditPortal';
 import StaffGatewayModal from './components/StaffGatewayModal';
+import AdminLoginScreen from './components/AdminLoginScreen';
 import RBACGuard from './components/RBACGuard';
 import SmsNotificationToast from './components/SmsNotificationToast';
 
@@ -50,34 +52,29 @@ export default function AdminApp({ onSwitchToBuyerWeb }) {
   const [lastSyncTime, setLastSyncTime] = useState(new Date());
   const [isSyncPulsing, setIsSyncPulsing] = useState(false);
 
-  // Authenticated admin user session
+  // Authenticated admin user session (restored from session storage if valid admin, else null)
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const saved = sessionStorage.getItem('plotflow_active_user');
       if (saved) {
         const parsed = JSON.parse(saved);
-        return parsed;
+        if (parsed && (parsed.role === 'SUPER_ADMIN' || parsed.role === 'ADMIN' || parsed.role === 'LEGAL_AUDITOR')) {
+          return parsed;
+        }
       }
     } catch (e) {
       // ignore
     }
-    // Default fallback to Master Super Admin for Admin Web
-    return {
-      uid: 'super_admin_tejas',
-      email: SUPER_ADMIN_EMAIL,
-      name: 'Tejas (CEO & Super Admin)',
-      role: 'SUPER_ADMIN',
-      roleTitle: 'Master Platform Super Administrator',
-      status: 'ACTIVE',
-      badge: 'Super Admin',
-      department: 'Executive Governance'
-    };
+    // Default null so login authentication screen is shown on first visit
+    return null;
   });
 
   // Save session on user change
   useEffect(() => {
     if (currentUser) {
       sessionStorage.setItem('plotflow_active_user', JSON.stringify(currentUser));
+    } else {
+      sessionStorage.removeItem('plotflow_active_user');
     }
   }, [currentUser]);
 
@@ -126,6 +123,11 @@ export default function AdminApp({ onSwitchToBuyerWeb }) {
     triggerSyncPulse();
   };
 
+  const handleLogout = () => {
+    setCurrentUser(null);
+    sessionStorage.removeItem('plotflow_active_user');
+  };
+
   // Quick action: Open Buyer Web in new tab
   const handleOpenBuyerWebNewWindow = () => {
     const url = new URL(window.location.href);
@@ -139,6 +141,19 @@ export default function AdminApp({ onSwitchToBuyerWeb }) {
     url.searchParams.set('app', 'developer');
     window.open(url.toString(), '_blank');
   };
+
+  // If unauthenticated or insufficient role, display dedicated Admin Login Screen
+  if (!currentUser || (currentUser.role !== 'SUPER_ADMIN' && currentUser.role !== 'ADMIN' && currentUser.role !== 'LEGAL_AUDITOR')) {
+    return (
+      <AdminLoginScreen
+        onLoginSuccess={(authenticatedUser) => {
+          setCurrentUser(authenticatedUser);
+          syncUserRoleToFirestore(authenticatedUser);
+        }}
+        onReturnToMarketplace={() => onSwitchToBuyerWeb?.()}
+      />
+    );
+  }
 
   return (
     <RBACGuard
@@ -188,7 +203,7 @@ export default function AdminApp({ onSwitchToBuyerWeb }) {
               {/* AI Workforce Badge */}
               <div className="hidden lg:flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-indigo-950/80 border border-indigo-500/40 text-indigo-300 font-bold">
                 <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                <span>10 AI Heads Online (Video Ready)</span>
+                <span>10 AI Heads Online (Autonomous)</span>
               </div>
 
               {/* View Switcher: Governance vs Legal Vault */}
@@ -239,15 +254,25 @@ export default function AdminApp({ onSwitchToBuyerWeb }) {
                 <ExternalLink className="w-3 h-3 text-slate-400" />
               </button>
 
-              {/* User Profile Pill */}
-              <div className="flex items-center space-x-2 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-xl">
-                <div className="w-6 h-6 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center font-black text-xs">
-                  {currentUser?.name ? currentUser.name[0] : 'A'}
+              {/* User Profile Pill & Sign Out */}
+              <div className="flex items-center space-x-1.5 bg-slate-900/90 border border-slate-800 p-1 rounded-xl">
+                <div className="flex items-center space-x-2 px-2 py-1">
+                  <div className="w-6 h-6 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center font-black text-xs">
+                    {currentUser?.name ? currentUser.name[0] : 'A'}
+                  </div>
+                  <div className="hidden sm:block text-left">
+                    <span className="text-[11px] font-bold text-white block leading-tight">{currentUser?.name}</span>
+                    <span className="text-[9px] text-amber-400 font-semibold block">{currentUser?.roleTitle || 'Super Admin'}</span>
+                  </div>
                 </div>
-                <div className="hidden sm:block text-left">
-                  <span className="text-[11px] font-bold text-white block leading-tight">{currentUser?.name}</span>
-                  <span className="text-[9px] text-amber-400 font-semibold block">{currentUser?.roleTitle || 'Super Admin'}</span>
-                </div>
+
+                <button
+                  onClick={handleLogout}
+                  className="p-1.5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 rounded-lg transition"
+                  title="Sign Out / Lock Admin Session"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
               </div>
 
               {/* Exit / Switch to Buyer Web */}
