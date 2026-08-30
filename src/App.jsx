@@ -306,6 +306,11 @@ export default function App() {
 
               {/* Quick Live Preview & Portal Switchers */}
               <div className="flex items-center space-x-2 text-xs">
+                <div className="hidden md:flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs font-black">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  <span>AI Workforce Active (10 Agents)</span>
+                </div>
+
                 <button
                   onClick={() => {
                     setPortalMode('main');

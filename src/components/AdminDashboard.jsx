@@ -20,11 +20,12 @@ import {
   Eye, 
   Key, 
   CheckCircle2, 
-  AlertTriangle,
-  UserCheck,
-  Compass,
-  ArrowRight,
-  MoreHorizontal
+  AlertTriangle, 
+  UserCheck, 
+  Compass, 
+  ArrowRight, 
+  MoreHorizontal,
+  Sparkles
 } from 'lucide-react';
 
 /**
@@ -78,6 +79,7 @@ export default function AdminDashboard({
   // Default admin navigation items
   const defaultNavItems = [
     { id: 'overview', label: 'Overview', icon: TrendingUp, badge: badgeCounts.overview },
+    { id: 'ai_workforce', label: 'AI Workforce HQ', icon: Sparkles, badge: badgeCounts.ai_workforce },
     { id: 'townships', label: 'Townships', icon: Building2, badge: badgeCounts.townships },
     { id: 'plots', label: 'Plot Inventory', icon: Layers, badge: badgeCounts.plots },
     { id: 'developers', label: 'Builder Governance', icon: Building2, badge: badgeCounts.developers },

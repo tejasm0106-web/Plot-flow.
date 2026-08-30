@@ -85,6 +85,7 @@ import {
 } from '../services/storeService';
 import AdminPlotDocumentModal from '../components/AdminPlotDocumentModal';
 import { getLocalCachedDocuments, subscribeToPropertyDocuments } from '../services/propertyDocumentService';
+import AiWorkforceHQ from '../components/ai-workforce/AiWorkforceHQ';
 
 export default function AdminPanel({ 
   currentUser,
@@ -790,6 +791,7 @@ export default function AdminPanel({
       <div className="flex border-b border-slate-800 space-x-2 overflow-x-auto pb-1 text-xs font-bold">
         {[
           { id: 'overview', name: 'Overview', icon: TrendingUp },
+          { id: 'ai_workforce', name: 'AI Workforce HQ', icon: Sparkles },
           { id: 'townships', name: `Townships (${townships.length})`, icon: Building2 },
           { id: 'plots', name: 'Plot Inventory', icon: Layers },
           { id: 'developers', name: 'Builder Governance', icon: Building2 },
@@ -808,7 +810,7 @@ export default function AdminPanel({
               onClick={() => setActiveTab(tab.id)}
               className={`px-3.5 py-2.5 rounded-xl transition flex items-center space-x-1.5 flex-shrink-0 ${
                 isActive
-                  ? 'bg-emerald-600 text-white shadow'
+                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-950/50'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
               }`}
             >
@@ -820,10 +822,47 @@ export default function AdminPanel({
       </div>
 
       {/* ==================================================== */}
+      {/* TAB 0: AI WORKFORCE HQ */}
+      {/* ==================================================== */}
+      {activeTab === 'ai_workforce' && (
+        <AiWorkforceHQ 
+          currentUser={currentUser}
+          onNavigateToAdminTab={(tabId) => setActiveTab(tabId)}
+        />
+      )}
+
+      {/* ==================================================== */}
       {/* TAB 1: OVERVIEW */}
       {/* ==================================================== */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
+          {/* AI Workforce Quick-Launch Hero */}
+          <div className="p-6 rounded-3xl bg-gradient-to-r from-indigo-950/80 via-slate-900 to-slate-950 border border-indigo-500/30 shadow-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-600/30 border border-indigo-500/50 flex items-center justify-center text-indigo-400 shadow-lg">
+                <Sparkles className="w-6 h-6 text-amber-400" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center space-x-2">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                    AI Autonomous Workforce
+                  </span>
+                  <span className="text-[10px] text-emerald-400 font-bold">10 Specialists Active</span>
+                </div>
+                <h3 className="text-base font-black text-white">PlotFlow AI Company Workforce HQ</h3>
+                <p className="text-xs text-slate-400">Co-Founder, Marketing, Sales, Operations, Research, Finance, Legal, and UX working alongside you.</p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setActiveTab('ai_workforce')}
+              className="px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition shadow-lg shadow-indigo-950/50 flex items-center space-x-2 self-start sm:self-auto"
+            >
+              <span>Open AI Workforce HQ</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left: Quick Actions & Super Admin Credentials */}
             <div className="lg:col-span-2 space-y-6">
